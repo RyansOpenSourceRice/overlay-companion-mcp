@@ -1,17 +1,130 @@
-# MCP Tool Specification
+# Overlay Companion (MCP) - MCP Protocol Specification
 
-## Overview
+*A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit.*
 
-This document defines the Model Context Protocol (MCP) tool specification for the Overlay Companion MCP server. The server provides a comprehensive set of tools for human-in-the-loop UI automation, screen interaction, and overlay management across multiple monitors and display configurations.
+---
 
-## MCP Specification Version
+## Overview & Purpose
 
-**Version:** 1.0
+**Overlay Companion (MCP)** is a desktop-based Model Context Protocol (MCP) server designed to facilitate context-aware, human-assisted UI interactions across arbitrary applications—not tied to any specific use case such as job applications. Its primary goal is to provide a **safe, extendable, and vendor-agnostic interface** enabling AI agents (via Jan.ai or others) to:
 
-## Server Information
+- Draw overlays (highlight, label, annotate) on the screen using an OS-level transparent window.
+- Capture screenshots in a controlled, high-performance manner.
+- Emulate user input (clicks and typing) under safely defined policies.
+- Operate in distinct modes ("passive", "assist", "autopilot", "composing") for flexible control over automation and human consent.
+- Be the foundation for more specialized workflows, such as job application assistants, without embedding that logic into the core tool.
 
-- **Name:** overlay-companion-mcp
-- **Description:** Public MCP server exposing overlay, screenshot, and input actions for human-in-the-loop UI automation with multi-monitor support and real-time performance.
+### Design Principles
+
+- **Human-in-the-loop by default** — no automated actions unless explicitly enabled per mode or user confirmation.
+- **Mode-aware behavior** — switching modes adjusts behavior (e.g. clicking automatically vs. suggesting).
+- **Privacy-respecting** — screenshots can be scrubbed before being shared; clipboard access controlled by user permission.
+- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups.
+- **Rate-limited calls** — protects local and remote inference systems from overload and keeps operations low-latency.
+
+### Extension Strategy
+
+This repository is intended to serve as a **public, reusable base tool**. Domain-specific workflows (e.g., job applications, form filling, cover letter generation) should be built as **separate, private MCP servers** that integrate with this tool. For example:
+
+- The public MCP server handles overlays, screenshots, input simulation, and modes.
+- A private "Job-Helper MCP server" uses these tools to focus and orchestrate job application logic.
+- This keeps your public repo generic, avoiding naming conflicts or policy concerns related to job automation on GitHub.
+
+---
+
+## MCP Protocol Implementation
+
+### Server Information
+
+- **Name**: `overlay-companion-mcp`
+- **Version**: `1.0.0`
+- **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
+- **Protocol**: HTTP-based MCP server
+- **Default Port**: `3000`
+- **Default Host**: `localhost`
+- **SDK**: Official ModelContextProtocol C# SDK
+- **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
+- **Protocol Version**: MCP 1.0
+- **Transport**: Standard I/O (stdio)
+
+### Capabilities
+
+- **Tools**: Provides 12 tools for screen interaction
+- **Resources**: None
+- **Prompts**: None
+- **Sampling**: None
+
+### Error Handling
+
+The server implements standard MCP error responses:
+
+- **-32700**: Parse error
+- **-32600**: Invalid request
+- **-32601**: Method not found
+- **-32602**: Invalid parameters
+- **-32603**: Internal error
+
+### Rate Limiting
+
+- Screenshot operations: Maximum 10 per second
+- Input simulation: Maximum 5 per second
+- Overlay operations: Maximum 20 per second
+
+### Security Model
+
+- **Human confirmation required** for input simulation in most modes
+- **Mode-based permissions** control automation level
+- **No network access** - purely local operations
+- **Clipboard access** requires explicit user permission
+
+### Operational Modes
+
+1. **Passive**: Read-only operations (screenshots, overlays)
+2. **Assist**: Suggests actions, requires confirmation
+3. **Autopilot**: Automated actions with safety checks
+4. **Composing**: Specialized mode for text composition
+5. **Custom**: User-defined behavior
+
+## Connection Configuration
+
+### Jan.ai Configuration
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "http",
+      "args": [
+        "http://localhost:3000/mcp"
+      ],
+      "env": {},
+      "description": "Overlay Companion MCP - Screen interaction toolkit",
+      "disabled": false
+    }
+  }
+}
+```
+
+### Claude Desktop Configuration
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "http",
+      "args": ["http://localhost:3000/mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+## Operational Modes
+
+The server operates in different modes that control automation behavior:
+
+- **Passive**: No automated actions, only provides information
+- **Assist**: Suggests actions but requires user confirmation
+- **Autopilot**: Automated actions with safety confirmations
+- **Composing**: Optimized for text generation and form filling
 
 ## Tools
 
