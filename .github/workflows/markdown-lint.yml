@@ -1,0 +1,196 @@
+name: Markdown Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.md'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.md'
+
+jobs:
+  markdown-lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install markdownlint-cli
+      run: npm install -g markdownlint-cli
+      
+    - name: Create markdownlint config
+      run: |
+        cat > .markdownlint.json << 'EOF'
+        {
+          "default": true,
+          "MD013": {
+            "line_length": 120,
+            "code_blocks": false,
+            "tables": false
+          },
+          "MD033": {
+            "allowed_elements": ["br", "details", "summary"]
+          },
+          "MD041": false,
+          "MD024": {
+            "siblings_only": true
+          }
+        }
+        EOF
+        
+    - name: Run markdownlint
+      run: markdownlint "**/*.md" --ignore node_modules
+      
+    - name: Run markdown link check
+      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: '.github/workflows/markdown-link-check-config.json'
+        
+  markdown-toc-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install markdown-toc
+      run: npm install -g markdown-toc
+      
+    - name: Check Table of Contents
+      run: |
+        # Check if TOC needs updating in specification files
+        for file in SPECIFICATION.md MCP_SPECIFICATION.md; do
+          if [ -f "$file" ]; then
+            echo "Checking TOC for $file"
+            markdown-toc --no-firsth1 "$file" > /tmp/expected_toc.md
+            if grep -q "<!-- toc -->" "$file"; then
+              # Extract current TOC
+              sed -n '/<!-- toc -->/,/<!-- tocstop -->/p' "$file" > /tmp/current_toc.md
+              if ! diff -q /tmp/expected_toc.md /tmp/current_toc.md > /dev/null; then
+                echo "❌ TOC is out of date in $file"
+                echo "Run: markdown-toc -i $file"
+                exit 1
+              else
+                echo "✅ TOC is up to date in $file"
+              fi
+            else
+              echo "ℹ️  No TOC markers found in $file"
+            fi
+          fi
+        done
+        
+  spelling-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install cspell
+      run: npm install -g cspell
+      
+    - name: Create cspell config
+      run: |
+        cat > .cspell.json << 'EOF'
+        {
+          "version": "0.2",
+          "language": "en",
+          "words": [
+            "MCP",
+            "AppImage",
+            "DPI",
+            "OCR",
+            "UI",
+            "API",
+            "JSON",
+            "RPC",
+            "async",
+            "sync",
+            "screenshot",
+            "screenshots",
+            "viewport",
+            "autopilot",
+            "composing",
+            "debouncing",
+            "scrubbing",
+            "anchoring",
+            "multi",
+            "coord",
+            "coords",
+            "rect",
+            "rects",
+            "bbox",
+            "timestamp",
+            "metadata",
+            "tooltip",
+            "tooltips",
+            "workflow",
+            "workflows",
+            "config",
+            "configs",
+            "param",
+            "params",
+            "bool",
+            "boolean",
+            "nullable",
+            "enum",
+            "struct",
+            "structs",
+            "impl",
+            "repo",
+            "repos",
+            "github",
+            "bitbucket",
+            "gitlab",
+            "markdownlint",
+            "cspell",
+            "toc",
+            "firsth",
+            "tocstop"
+          ],
+          "flagWords": [],
+          "ignorePaths": [
+            "node_modules/**",
+            ".git/**",
+            "*.min.js"
+          ],
+          "overrides": [
+            {
+              "filename": "**/*.md",
+              "languageSettings": [
+                {
+                  "languageId": "markdown",
+                  "ignoreRegExpList": [
+                    "/```[\\s\\S]*?```/g",
+                    "/`[^`]*`/g",
+                    "/\\[.*?\\]\\(.*?\\)/g"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+        
+    - name: Run spell check
+      run: cspell "**/*.md" --no-progress
