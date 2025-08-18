@@ -130,7 +130,7 @@ public class OverlayService : IOverlayService
 
     private IOverlayWindow CreateOverlayWindow(OverlayElement overlay)
     {
-        // Use Avalonia UI for real overlay windows
+        // Use real Avalonia UI overlay windows
         return new AvaloniaOverlayWindow(overlay);
     }
 }

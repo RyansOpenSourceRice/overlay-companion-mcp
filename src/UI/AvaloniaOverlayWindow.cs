@@ -84,21 +84,45 @@ public class AvaloniaOverlayWindow : Window, IOverlayWindow
 
     private IBrush GetBrushFromColor(string colorName, double opacity = 1.0)
     {
-        Color color = colorName.ToLower() switch
+        Color color;
+
+        // Handle hex colors (#FF0000, #f00, etc.)
+        if (colorName.StartsWith("#"))
         {
-            "red" => Colors.Red,
-            "green" => Colors.Green,
-            "blue" => Colors.Blue,
-            "yellow" => Colors.Yellow,
-            "orange" => Colors.Orange,
-            "purple" => Colors.Purple,
-            "cyan" => Colors.Cyan,
-            "magenta" => Colors.Magenta,
-            "white" => Colors.White,
-            "black" => Colors.Black,
-            "gray" or "grey" => Colors.Gray,
-            _ => Colors.Yellow // Default
-        };
+            try
+            {
+                color = Color.Parse(colorName);
+            }
+            catch
+            {
+                color = Colors.Yellow; // Default fallback
+            }
+        }
+        else
+        {
+            // Handle named colors
+            color = colorName.ToLower() switch
+            {
+                "red" => Colors.Red,
+                "green" => Colors.Green,
+                "blue" => Colors.Blue,
+                "yellow" => Colors.Yellow,
+                "orange" => Colors.Orange,
+                "purple" => Colors.Purple,
+                "cyan" => Colors.Cyan,
+                "magenta" => Colors.Magenta,
+                "white" => Colors.White,
+                "black" => Colors.Black,
+                "gray" or "grey" => Colors.Gray,
+                "lime" => Colors.Lime,
+                "pink" => Colors.Pink,
+                "brown" => Colors.Brown,
+                "navy" => Colors.Navy,
+                "teal" => Colors.Teal,
+                "silver" => Colors.Silver,
+                _ => Colors.Yellow // Default
+            };
+        }
 
         if (opacity < 1.0)
         {
@@ -150,9 +174,9 @@ public class AvaloniaOverlayWindow : Window, IOverlayWindow
         Dispose();
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
-        base.Close();
+        Close();
         GC.SuppressFinalize(this);
     }
 }

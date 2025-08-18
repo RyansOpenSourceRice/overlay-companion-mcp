@@ -462,3 +462,139 @@ All tools return standard MCP error responses for:
 - Works with screen readers and assistive technology
 - Follows platform-specific UI guidelines
 - Handles multi-monitor setups correctly
+
+---
+
+## Implementation Roadmap
+
+### High Priority (Core Functionality)
+
+- **Complete AvaloniaOverlayWindow rendering** - Make overlays actually visible
+- **Session Stop implementation** - Critical safety feature  
+- **Color and text rendering** - Basic overlay functionality
+
+### Medium Priority (Enhanced Features)
+
+- **GUI overlay management panel** - User control and monitoring
+- **Multi-monitor support** - Professional deployment requirement
+- **Advanced overlay shapes** - Enhanced AI interaction capabilities
+
+### Low Priority (Polish)
+
+- **Overlay animations** - Visual enhancement
+- **Interactive overlays** - Advanced interaction modes
+- **Overlay templates** - Predefined overlay styles
+
+---
+
+## Versioning Schema
+
+The project follows a **date-based versioning schema** for releases:
+
+### Format: `YYYY.MM.DD[.N]`
+
+- **YYYY**: 4-digit year
+- **MM**: 2-digit month (01-12)
+- **DD**: 2-digit day (01-31)
+- **N**: Optional build number for multiple releases in the same day (starting from 1)
+
+### Examples
+
+- `2024.08.18` - First release on August 18, 2024
+- `2024.08.18.1` - Second release on August 18, 2024
+- `2024.08.18.2` - Third release on August 18, 2024
+- `2024.12.25` - First release on December 25, 2024
+
+### Release Automation
+
+- **Automatic versioning**: GitHub Actions automatically calculate the next version
+- **Daily builds**: Each day gets a new base version
+- **Multiple builds**: Same-day builds increment the build number
+- **GitHub releases**: Automatically created with AppImage artifacts
+
+---
+
+## GitHub Actions & CI/CD
+
+The project includes comprehensive automation through GitHub Actions:
+
+### 1. **Markdown Linting** (`markdown-lint.yml`)
+- **Purpose**: Documentation quality assurance
+- **Triggers**: Push/PR to main/develop branches (markdown files)
+- **Checks**:
+  - Markdown syntax and style consistency
+  - Spelling accuracy with cspell
+  - Link validity verification
+  - Table of contents synchronization
+- **Tools**: markdownlint-cli, cspell, markdown-link-check
+
+### 2. **C# Linting** (`csharp-lint.yml`)
+- **Purpose**: Code quality and build verification
+- **Triggers**: Push/PR to main/develop branches (C# files)
+- **Checks**:
+  - Code formatting verification (`dotnet format`)
+  - Build success validation
+  - Static analysis
+  - Security vulnerability scanning
+  - Deprecated package detection
+  - Code metrics analysis
+- **Artifacts**: Build outputs for verification
+
+### 3. **AppImage Build** (`build-appimage.yml`)
+- **Purpose**: Linux distribution package creation
+- **Triggers**: 
+  - Push to main/develop (source changes)
+  - Manual workflow dispatch
+  - GitHub releases
+- **Features**:
+  - Automatic version calculation
+  - AppImage creation with proper metadata
+  - Desktop integration files
+  - Artifact upload and testing
+  - Automatic GitHub release creation
+- **Outputs**: Distributable AppImage files
+
+### 4. **CI/CD Pipeline** (`ci-cd.yml`)
+- **Purpose**: Comprehensive continuous integration and deployment
+- **Triggers**: Push/PR to main/develop, manual dispatch
+- **Stages**:
+  - **Quality Gates**: Deployment condition checks
+  - **Markdown Quality**: Documentation validation
+  - **C# Quality**: Code quality and build verification
+  - **Unit Tests**: Automated test execution (when available)
+  - **Integration Tests**: Application startup and MCP server testing
+  - **Security Scan**: Vulnerability scanning with Trivy
+  - **Build AppImage**: Production-ready package creation
+  - **Deploy**: Environment-specific deployment
+  - **Notify**: Status notifications
+- **Environments**: Staging and production deployment support
+
+### Workflow Dependencies
+
+```mermaid
+graph TD
+    A[Push/PR] --> B[Quality Gates]
+    A --> C[Markdown Quality]
+    A --> D[C# Quality]
+    
+    B --> E[Should Deploy?]
+    D --> F[Unit Tests]
+    D --> G[Integration Tests]
+    D --> H[Security Scan]
+    
+    E --> I[Build AppImage]
+    F --> I
+    G --> I
+    
+    I --> J[Deploy]
+    J --> K[Notify]
+```
+
+### Quality Standards
+
+- **Zero tolerance**: All quality checks must pass
+- **Security first**: Vulnerability scanning on every build
+- **Documentation**: Markdown quality enforced
+- **Code style**: Consistent formatting required
+- **Build verification**: Must compile without errors
+- **Testing**: Automated validation where possible
