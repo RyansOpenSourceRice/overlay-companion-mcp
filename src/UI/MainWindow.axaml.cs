@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private Button? _exitButton;
     private Button? _clearLogsButton;
     private ComboBox? _configFormatComboBox;
+    private ComboBox? _transportTypeComboBox;
     private TextBox? _mcpConfigTextBox;
     private Button? _refreshConfigButton;
     private Button? _copyConfigButton;
@@ -85,6 +86,7 @@ public partial class MainWindow : Window
         _exitButton = this.FindControl<Button>("ExitButton");
         _clearLogsButton = this.FindControl<Button>("ClearLogsButton");
         _configFormatComboBox = this.FindControl<ComboBox>("ConfigFormatComboBox");
+        _transportTypeComboBox = this.FindControl<ComboBox>("TransportTypeComboBox");
         _mcpConfigTextBox = this.FindControl<TextBox>("McpConfigTextBox");
         _refreshConfigButton = this.FindControl<Button>("RefreshConfigButton");
         _copyConfigButton = this.FindControl<Button>("CopyConfigButton");
@@ -110,6 +112,8 @@ public partial class MainWindow : Window
             _testConnectionButton.Click += OnTestConnectionClicked;
         if (_configFormatComboBox != null)
             _configFormatComboBox.SelectionChanged += OnConfigFormatChanged;
+        if (_transportTypeComboBox != null)
+            _transportTypeComboBox.SelectionChanged += OnTransportTypeChanged;
     }
 
     private void LoadSettings()
@@ -284,57 +288,106 @@ public partial class MainWindow : Window
 
     private void UpdateMcpConfiguration()
     {
-        if (_mcpConfigTextBox == null || _configFormatComboBox == null) return;
+        if (_mcpConfigTextBox == null || _configFormatComboBox == null || _transportTypeComboBox == null) return;
 
         var host = _hostTextBox?.Text ?? "localhost";
         var port = _portTextBox?.Text ?? "3000";
         var selectedFormat = _configFormatComboBox.SelectedIndex;
+        var selectedTransport = _transportTypeComboBox.SelectedIndex; // 0 = stdio, 1 = http
 
         string config = selectedFormat switch
         {
-            0 => GenerateJanAiConfig(host, port),
-            1 => GenerateClaudeDesktopConfig(host, port),
-            2 => GenerateRawJsonConfig(host, port),
-            3 => GenerateEnvironmentVariables(host, port),
-            _ => GenerateJanAiConfig(host, port)
+            0 => GenerateJanAiConfig(host, port, selectedTransport),
+            1 => GenerateClaudeDesktopConfig(host, port, selectedTransport),
+            2 => GenerateRawJsonConfig(host, port, selectedTransport),
+            3 => GenerateEnvironmentVariables(host, port, selectedTransport),
+            _ => GenerateJanAiConfig(host, port, selectedTransport)
         };
 
         _mcpConfigTextBox.Text = config;
     }
 
-    private string GenerateJanAiConfig(string host, string port)
+    private string GenerateJanAiConfig(string host, string port, int transportType)
     {
-        return $@"{{
+        if (transportType == 1) // HTTP bridge (segmented deployment)
+        {
+            return $@"{{
   ""mcpServers"": {{
-    ""overlay-companion"": {{
+    ""overlay-companion-bridge"": {{
       ""command"": ""http"",
       ""args"": [
         ""http://{host}:{port}/mcp""
       ],
       ""env"": {{}},
-      ""description"": ""Overlay Companion MCP - Screen interaction toolkit"",
+      ""description"": ""Overlay Companion MCP - Segmented deployment via HTTP bridge"",
       ""disabled"": false
     }}
   }}
 }}
 
-Instructions for Jan.ai:
+Instructions for Jan.ai (HTTP Bridge - Segmented Deployment):
+1. Start the HTTP bridge with: dotnet run --http
+2. Copy the above JSON configuration
+3. Open Jan.ai settings
+4. Navigate to 'Extensions' > 'Model Context Protocol'
+5. Click 'Add MCP Server'
+6. Paste the configuration
+7. Save and restart Jan.ai
+
+Architecture: Jan.ai → HTTP → Bridge → stdio → MCP Server
+Benefits: System segmentation, network isolation, remote deployment
+Use Case: Risk-averse deployments, enterprise environments";
+        }
+        else // stdio transport (default, direct)
+        {
+            var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var projectPath = System.IO.Path.GetDirectoryName(executablePath);
+            
+            return $@"{{
+  ""mcpServers"": {{
+    ""overlay-companion"": {{
+      ""command"": ""dotnet"",
+      ""args"": [
+        ""run"",
+        ""--project"",
+        ""{projectPath}/OverlayCompanion.csproj""
+      ],
+      ""env"": {{}},
+      ""description"": ""Overlay Companion MCP - Direct stdio transport"",
+      ""disabled"": false
+    }}
+  }}
+}}
+
+Instructions for Jan.ai (stdio - Direct Transport):
 1. Copy the above JSON configuration
 2. Open Jan.ai settings
 3. Navigate to 'Extensions' > 'Model Context Protocol'
 4. Click 'Add MCP Server'
 5. Paste the configuration
 6. Save and restart Jan.ai
-7. The server should appear in your MCP servers list";
+
+Architecture: Jan.ai → stdio → MCP Server (direct)
+Benefits: Minimal latency, standard MCP transport
+Use Case: Direct integration, development, testing";
+        }
     }
 
-    private string GenerateClaudeDesktopConfig(string host, string port)
+    private string GenerateClaudeDesktopConfig(string host, string port, int transportType)
     {
+        // Get the current executable path for stdio transport
+        var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        var projectPath = System.IO.Path.GetDirectoryName(executablePath);
+        
         return $@"{{
   ""mcpServers"": {{
     ""overlay-companion"": {{
-      ""command"": ""http"",
-      ""args"": [""http://{host}:{port}/mcp""],
+      ""command"": ""dotnet"",
+      ""args"": [
+        ""run"",
+        ""--project"",
+        ""{projectPath}/OverlayCompanion.csproj""
+      ],
       ""env"": {{}}
     }}
   }}
@@ -348,22 +401,26 @@ Instructions for Claude Desktop:
    - macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
    - Linux: ~/.config/claude/claude_desktop_config.json
 4. Add the configuration to the file
-5. Restart Claude Desktop";
+5. Restart Claude Desktop
+
+Note: This uses stdio transport (standard for MCP servers)";
     }
 
-    private string GenerateRawJsonConfig(string host, string port)
+    private string GenerateRawJsonConfig(string host, string port, int transportType)
     {
         return $@"{{
   ""name"": ""overlay-companion-mcp"",
   ""version"": ""1.0.0"",
   ""description"": ""Overlay Companion MCP Server - Screen interaction toolkit"",
   ""connection"": {{
-    ""type"": ""http"",
-    ""url"": ""http://{host}:{port}/mcp"",
-    ""method"": ""POST"",
-    ""headers"": {{
-      ""Content-Type"": ""application/json""
-    }}
+    ""type"": ""stdio"",
+    ""command"": ""dotnet"",
+    ""args"": [
+      ""run"",
+      ""--project"",
+      ""/workspace/project/overlay-companion-mcp/src/OverlayCompanion.csproj""
+    ],
+    ""env"": {{}}
   }},
   ""capabilities"": {{
     ""tools"": [
@@ -390,10 +447,11 @@ Instructions for Claude Desktop:
 }}";
     }
 
-    private string GenerateEnvironmentVariables(string host, string port)
+    private string GenerateEnvironmentVariables(string host, string port, int transportType)
     {
         return $@"# Environment Variables for MCP Client Configuration
-export MCP_SERVER_OVERLAY_COMPANION_URL=""http://{host}:{port}/mcp""
+export MCP_SERVER_OVERLAY_COMPANION_COMMAND=""dotnet""
+export MCP_SERVER_OVERLAY_COMPANION_ARGS=""run --project /workspace/project/overlay-companion-mcp/src/OverlayCompanion.csproj""
 export MCP_SERVER_OVERLAY_COMPANION_NAME=""overlay-companion""
 export MCP_SERVER_OVERLAY_COMPANION_DESCRIPTION=""Screen interaction toolkit""
 
@@ -403,13 +461,18 @@ export MCP_OVERLAY_ALLOW_SCREENSHOTS=""{(_allowScreenshotsCheckBox?.IsChecked ==
 export MCP_OVERLAY_ALLOW_INPUT_SIMULATION=""{(_allowInputSimulationCheckBox?.IsChecked == true ? "true" : "false")}""
 export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsChecked == true ? "true" : "false")}""
 
-# Usage in shell scripts:
+# Note: MCP servers use stdio transport, not HTTP
 # curl -X POST $MCP_SERVER_OVERLAY_COMPANION_URL \
 #   -H ""Content-Type: application/json"" \
 #   -d '{{""method"": ""tools/list"", ""params"": {{}}}}'";
     }
 
     private void OnConfigFormatChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateMcpConfiguration();
+    }
+
+    private void OnTransportTypeChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
     {
         UpdateMcpConfiguration();
     }
