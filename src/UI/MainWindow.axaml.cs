@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using OverlayCompanion.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace OverlayCompanion.UI;
@@ -46,6 +47,19 @@ public partial class MainWindow : Window
     private Button? _copyConfigButton;
     private Button? _saveConfigButton;
     private Button? _testConnectionButton;
+    
+    // Session Control UI Controls
+    private Button? _sessionStopButton;
+    private Button? _sessionResumeButton;
+    private TextBlock? _sessionStatusText;
+    private ListBox? _activeOverlaysList;
+    private Button? _clearAllOverlaysButton;
+    private Button? _refreshOverlaysButton;
+    private TextBox? _testOverlayColorInput;
+    private TextBox? _testOverlayLabelInput;
+    private TextBox? _testOverlayPositionInput;
+    private TextBox? _testOverlayDurationInput;
+    private Button? _createTestOverlayButton;
 
     public MainWindow(IServiceProvider serviceProvider, ILogger<MainWindow> logger, IHostApplicationLifetime applicationLifetime)
     {
@@ -92,6 +106,19 @@ public partial class MainWindow : Window
         _copyConfigButton = this.FindControl<Button>("CopyConfigButton");
         _saveConfigButton = this.FindControl<Button>("SaveConfigButton");
         _testConnectionButton = this.FindControl<Button>("TestConnectionButton");
+        
+        // Session Control controls
+        _sessionStopButton = this.FindControl<Button>("SessionStopButton");
+        _sessionResumeButton = this.FindControl<Button>("SessionResumeButton");
+        _sessionStatusText = this.FindControl<TextBlock>("SessionStatusText");
+        _activeOverlaysList = this.FindControl<ListBox>("ActiveOverlaysList");
+        _clearAllOverlaysButton = this.FindControl<Button>("ClearAllOverlaysButton");
+        _refreshOverlaysButton = this.FindControl<Button>("RefreshOverlaysButton");
+        _testOverlayColorInput = this.FindControl<TextBox>("TestOverlayColorInput");
+        _testOverlayLabelInput = this.FindControl<TextBox>("TestOverlayLabelInput");
+        _testOverlayPositionInput = this.FindControl<TextBox>("TestOverlayPositionInput");
+        _testOverlayDurationInput = this.FindControl<TextBox>("TestOverlayDurationInput");
+        _createTestOverlayButton = this.FindControl<Button>("CreateTestOverlayButton");
 
         // Wire up event handlers
         if (_startStopButton != null)
@@ -112,6 +139,18 @@ public partial class MainWindow : Window
             _testConnectionButton.Click += OnTestConnectionClicked;
         if (_configFormatComboBox != null)
             _configFormatComboBox.SelectionChanged += OnConfigFormatChanged;
+            
+        // Session Control event handlers
+        if (_sessionStopButton != null)
+            _sessionStopButton.Click += OnSessionStopClicked;
+        if (_sessionResumeButton != null)
+            _sessionResumeButton.Click += OnSessionResumeClicked;
+        if (_clearAllOverlaysButton != null)
+            _clearAllOverlaysButton.Click += OnClearAllOverlaysClicked;
+        if (_refreshOverlaysButton != null)
+            _refreshOverlaysButton.Click += OnRefreshOverlaysClicked;
+        if (_createTestOverlayButton != null)
+            _createTestOverlayButton.Click += OnCreateTestOverlayClicked;
         if (_transportTypeComboBox != null)
             _transportTypeComboBox.SelectionChanged += OnTransportTypeChanged;
     }
@@ -560,6 +599,162 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         catch (Exception ex)
         {
             LogMessage($"✗ Connection test failed: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region Session Control Event Handlers
+
+    private async void OnSessionStopClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var sessionStopService = _serviceProvider.GetService<ISessionStopService>();
+            if (sessionStopService != null)
+            {
+                await sessionStopService.StopSessionAsync();
+                UpdateSessionControlUI(true);
+                LogMessage("🛑 Session stopped - All AI operations halted");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error stopping session");
+            LogMessage($"Error stopping session: {ex.Message}");
+        }
+    }
+
+    private async void OnSessionResumeClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var sessionStopService = _serviceProvider.GetService<ISessionStopService>();
+            if (sessionStopService != null)
+            {
+                await sessionStopService.ResumeSessionAsync();
+                UpdateSessionControlUI(false);
+                LogMessage("▶️ Session resumed - AI operations enabled");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resuming session");
+            LogMessage($"Error resuming session: {ex.Message}");
+        }
+    }
+
+    private async void OnClearAllOverlaysClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var overlayService = _serviceProvider.GetService<IOverlayService>();
+            if (overlayService != null)
+            {
+                await overlayService.ClearAllOverlaysAsync();
+                await RefreshOverlaysList();
+                LogMessage("Cleared all overlays");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing overlays");
+            LogMessage($"Error clearing overlays: {ex.Message}");
+        }
+    }
+
+    private async void OnRefreshOverlaysClicked(object? sender, RoutedEventArgs e)
+    {
+        await RefreshOverlaysList();
+    }
+
+    private async void OnCreateTestOverlayClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var overlayService = _serviceProvider.GetService<IOverlayService>();
+            if (overlayService == null) return;
+
+            var color = _testOverlayColorInput?.Text ?? "yellow";
+            var label = _testOverlayLabelInput?.Text;
+            var positionText = _testOverlayPositionInput?.Text ?? "100,100,200,150";
+            var durationText = _testOverlayDurationInput?.Text ?? "5000";
+
+            // Parse position (x,y,width,height)
+            var parts = positionText.Split(',');
+            if (parts.Length != 4 || 
+                !int.TryParse(parts[0], out var x) ||
+                !int.TryParse(parts[1], out var y) ||
+                !int.TryParse(parts[2], out var width) ||
+                !int.TryParse(parts[3], out var height))
+            {
+                LogMessage("Invalid position format. Use: x,y,width,height (e.g., 100,100,200,150)");
+                return;
+            }
+
+            if (!int.TryParse(durationText, out var duration))
+            {
+                duration = 5000;
+            }
+
+            var bounds = new OverlayCompanion.Models.ScreenRegion(x, y, width, height);
+
+            var overlayId = await overlayService.DrawOverlayAsync(bounds, color, label, duration);
+            await RefreshOverlaysList();
+            LogMessage($"Created test overlay: {overlayId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating test overlay");
+            LogMessage($"Error creating test overlay: {ex.Message}");
+        }
+    }
+
+    private void UpdateSessionControlUI(bool isStopped)
+    {
+        if (_sessionStopButton != null)
+            _sessionStopButton.IsEnabled = !isStopped;
+        if (_sessionResumeButton != null)
+            _sessionResumeButton.IsEnabled = isStopped;
+        if (_sessionStatusText != null)
+        {
+            _sessionStatusText.Text = isStopped ? "Session Stopped" : "Session Active";
+            _sessionStatusText.Foreground = isStopped ? 
+                new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Red) :
+                new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Green);
+        }
+    }
+
+    private async Task RefreshOverlaysList()
+    {
+        try
+        {
+            var overlayService = _serviceProvider.GetService<IOverlayService>();
+            if (overlayService != null && _activeOverlaysList != null)
+            {
+                var overlays = await overlayService.GetActiveOverlaysAsync();
+                _activeOverlaysList.ItemsSource = overlays.Select(o => new
+                {
+                    Id = o.Id,
+                    Label = o.Label ?? "(no label)",
+                    Bounds = $"{o.Bounds.X},{o.Bounds.Y} {o.Bounds.Width}x{o.Bounds.Height}",
+                    Color = o.Color,
+                    ColorBrush = new Avalonia.Media.SolidColorBrush(
+                        o.Color.StartsWith("#") ? Avalonia.Media.Color.Parse(o.Color) : 
+                        o.Color.ToLower() switch
+                        {
+                            "red" => Avalonia.Media.Colors.Red,
+                            "green" => Avalonia.Media.Colors.Green,
+                            "blue" => Avalonia.Media.Colors.Blue,
+                            "yellow" => Avalonia.Media.Colors.Yellow,
+                            _ => Avalonia.Media.Colors.Yellow
+                        })
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing overlays list");
         }
     }
 

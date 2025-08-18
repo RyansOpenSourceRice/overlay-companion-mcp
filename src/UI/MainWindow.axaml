@@ -187,6 +187,100 @@
         </Grid>
       </TabItem>
 
+      <!-- Session Control Tab -->
+      <TabItem Header="Session Control">
+        <Grid Margin="20">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          
+          <!-- Session Stop Section -->
+          <Border Grid.Row="0" Background="LightYellow" BorderBrush="Orange" BorderThickness="2" 
+                  CornerRadius="5" Padding="15" Margin="0,0,0,20">
+            <StackPanel Spacing="10">
+              <TextBlock Text="🛑 Emergency Session Control" FontWeight="Bold" FontSize="16" Foreground="DarkOrange"/>
+              <TextBlock Text="Use this to immediately stop all AI operations and clear all overlays" 
+                        FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
+              <StackPanel Orientation="Horizontal" Spacing="15">
+                <Button Name="SessionStopButton" Content="🛑 Stop Session" 
+                        Background="Orange" Foreground="White" FontWeight="Bold"
+                        Width="120" Height="35"/>
+                <Button Name="SessionResumeButton" Content="▶️ Resume Session" 
+                        Background="Green" Foreground="White" FontWeight="Bold"
+                        Width="120" Height="35" IsEnabled="False"/>
+                <TextBlock Name="SessionStatusText" Text="Session Active" 
+                          VerticalAlignment="Center" FontWeight="Bold" Foreground="Green"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          
+          <!-- Active Overlays Section -->
+          <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" 
+                  Padding="15" Margin="0,0,0,20">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Active Overlays" FontWeight="Bold" FontSize="14"/>
+                <Button Name="ClearAllOverlaysButton" Content="Clear All" 
+                        Background="Red" Foreground="White" Width="80" Height="25"/>
+                <Button Name="RefreshOverlaysButton" Content="Refresh" Width="80" Height="25"/>
+              </StackPanel>
+              <ListBox Name="ActiveOverlaysList" Height="150" Background="LightGray">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <Rectangle Width="20" Height="20" Fill="{Binding ColorBrush}" Stroke="Black" StrokeThickness="1"/>
+                      <TextBlock Text="{Binding Id}" FontWeight="Bold"/>
+                      <TextBlock Text="{Binding Label}" Foreground="Gray"/>
+                      <TextBlock Text="{Binding Bounds}" FontSize="10" Foreground="Gray"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+          </Border>
+          
+          <!-- Test Overlay Section -->
+          <Border Grid.Row="2" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
+            <StackPanel Spacing="10">
+              <TextBlock Text="Test Overlay Creation" FontWeight="Bold" FontSize="14"/>
+              <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,10,0,0">
+                <Grid.Styles>
+                  <Style Selector="TextBlock">
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="Margin" Value="0,0,10,0"/>
+                  </Style>
+                  <Style Selector="TextBox">
+                    <Setter Property="Margin" Value="0,5"/>
+                  </Style>
+                </Grid.Styles>
+                
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Color:"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Name="TestOverlayColorInput" 
+                         Watermark="yellow, red, #FF0000" Text="yellow"/>
+                
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Label:"/>
+                <TextBox Grid.Row="0" Grid.Column="3" Name="TestOverlayLabelInput" 
+                         Watermark="Test overlay text"/>
+                
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Position:"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Name="TestOverlayPositionInput" 
+                         Watermark="100,100,200,150" Text="100,100,200,150"/>
+                
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="Duration (ms):"/>
+                <TextBox Grid.Row="1" Grid.Column="3" Name="TestOverlayDurationInput" 
+                         Watermark="0 = permanent" Text="5000"/>
+              </Grid>
+              
+              <Button Name="CreateTestOverlayButton" Content="Create Test Overlay" 
+                      Background="Blue" Foreground="White" Width="150" Height="30"
+                      HorizontalAlignment="Left"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
       <!-- Logs Tab -->
       <TabItem Header="Logs">
         <Grid Margin="20">

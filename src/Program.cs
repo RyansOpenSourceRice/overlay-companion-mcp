@@ -51,6 +51,7 @@ public class Program
         builder.Services.AddSingleton<IOverlayService, OverlayService>();
         builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
+        builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
 
         // Add MCP server with official SDK using stdio transport (standard for MCP servers)
         builder.Services
@@ -93,6 +94,7 @@ public class Program
         builder.Services.AddSingleton<IOverlayService, OverlayService>();
         builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
+        builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
 
         // Add MCP server with official SDK
         builder.Services
