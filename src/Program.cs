@@ -20,6 +20,7 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
+    [RequiresUnreferencedCode()]
     public static async Task Main(string[] args)
     {
         // Support both stdio (direct) and HTTP bridge (segmented) deployments

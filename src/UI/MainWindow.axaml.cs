@@ -326,6 +326,7 @@ public partial class MainWindow : Window
 
     #region MCP Configuration Methods
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.GenerateJanAiConfig(String, String, Int32)")]
     private void UpdateMcpConfiguration()
     {
         if (_mcpConfigTextBox == null || _configFormatComboBox == null || _transportTypeComboBox == null) return;
