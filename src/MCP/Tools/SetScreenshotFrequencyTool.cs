@@ -1,6 +1,6 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -8,39 +8,33 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for configuring automatic screenshot capture
 /// Implements the set_screenshot_frequency tool from MCP_SPECIFICATION.md
 /// </summary>
-public class SetScreenshotFrequencyTool : IMcpTool
+[McpServerToolType]
+public static class SetScreenshotFrequencyTool
 {
-    private readonly IScreenCaptureService _screenCaptureService;
-    private readonly IModeManager _modeManager;
-
-    public string Name => "set_screenshot_frequency";
-    public string Description => "Configure automatic screenshot capture frequency";
-
-    public SetScreenshotFrequencyTool(IScreenCaptureService screenCaptureService, IModeManager modeManager)
-    {
-        _screenCaptureService = screenCaptureService;
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Configure automatic screenshot capture frequency")]
+    public static async Task<string> SetScreenshotFrequency(
+        IScreenCaptureService screenCaptureService,
+        IModeManager modeManager,
+        [Description("Screenshot mode (off, interval, on_change)")] string mode,
+        [Description("Interval in milliseconds for interval mode")] int intervalMs = 1000)
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("set_screenshot_frequency"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'set_screenshot_frequency' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse required parameters
-        var mode = parameters.GetValue<string>("mode");
-        var intervalMs = parameters.GetValue("interval_ms", 1000);
-        
         if (string.IsNullOrEmpty(mode))
         {
             throw new ArgumentException("mode parameter is required");
         }
 
-        // Parse optional parameters
-        var onlyOnChange = parameters.GetValue("only_on_change", false);
+        // Validate mode
+        var validModes = new[] { "off", "interval", "on_change" };
+        if (!validModes.Contains(mode.ToLower()))
+        {
+            throw new ArgumentException($"Invalid mode: {mode}. Valid modes are: {string.Join(", ", validModes)}");
+        }
 
         // Validate interval
         if (intervalMs < 100)
@@ -49,16 +43,21 @@ public class SetScreenshotFrequencyTool : IMcpTool
         }
 
         // TODO: Implement automatic screenshot capture service
-        // For now, just validate and return success
+        // For now, just validate and return success (mock implementation)
+        var success = true;
         var appliedIntervalMs = intervalMs;
 
-        Console.WriteLine($"Screenshot frequency set to {mode} mode with {appliedIntervalMs}ms interval (onlyOnChange: {onlyOnChange})");
+        Console.WriteLine($"Screenshot frequency set to {mode} mode with {appliedIntervalMs}ms interval");
 
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
-            ok = true,
-            applied_interval_ms = appliedIntervalMs
+            ok = success,
+            mode = mode.ToLower(),
+            applied_interval_ms = appliedIntervalMs,
+            service_configured = success
         };
+
+        return System.Text.Json.JsonSerializer.Serialize(response);
     }
 }

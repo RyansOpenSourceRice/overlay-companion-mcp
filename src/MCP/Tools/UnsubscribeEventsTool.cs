@@ -1,6 +1,7 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using System.Text.Json;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -8,50 +9,42 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for unsubscribing from UI events
 /// Implements the unsubscribe_events tool from MCP_SPECIFICATION.md
 /// </summary>
-public class UnsubscribeEventsTool : IMcpTool
+[McpServerToolType]
+public static class UnsubscribeEventsTool
 {
-    private readonly IInputMonitorService _inputService;
-    private readonly IModeManager _modeManager;
-
-    public string Name => "unsubscribe_events";
-    public string Description => "Unsubscribe from UI events";
-
-    public UnsubscribeEventsTool(IInputMonitorService inputService, IModeManager modeManager)
-    {
-        _inputService = inputService;
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Unsubscribe from UI events")]
+    public static async Task<string> UnsubscribeEvents(
+        IInputMonitorService inputService,
+        IModeManager modeManager,
+        [Description("Subscription ID to unsubscribe from")] string subscriptionId)
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("unsubscribe_events"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'unsubscribe_events' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse required parameters
-        var subscriptionId = parameters.GetValue<string>("subscription_id");
-        
         if (string.IsNullOrEmpty(subscriptionId))
         {
             throw new ArgumentException("subscription_id parameter is required");
         }
 
-        // Access the static subscriptions from SubscribeEventsTool
+        // Access the static subscriptions from SubscribeEventsTool using reflection
         var subscriptionsField = typeof(SubscribeEventsTool).GetField("_subscriptions", 
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
         
         bool success = false;
+        int remainingSubscriptions = 0;
         
         if (subscriptionsField?.GetValue(null) is Dictionary<string, string> subscriptions)
         {
             success = subscriptions.Remove(subscriptionId);
+            remainingSubscriptions = subscriptions.Count;
             
             // If no more subscriptions, stop monitoring
-            if (subscriptions.Count == 0 && _inputService.IsMonitoring)
+            if (remainingSubscriptions == 0 && inputService.IsMonitoring)
             {
-                _inputService.StopMonitoring();
+                inputService.StopMonitoring();
                 Console.WriteLine("Stopped input monitoring - no active subscriptions");
             }
         }
@@ -65,10 +58,15 @@ public class UnsubscribeEventsTool : IMcpTool
             Console.WriteLine($"Subscription ID not found: {subscriptionId}");
         }
 
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
-            ok = success
+            ok = success,
+            subscription_id = subscriptionId,
+            remaining_subscriptions = remainingSubscriptions,
+            monitoring_active = inputService.IsMonitoring
         };
+
+        return JsonSerializer.Serialize(response);
     }
 }

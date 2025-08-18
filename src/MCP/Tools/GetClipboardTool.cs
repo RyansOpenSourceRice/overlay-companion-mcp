@@ -1,7 +1,7 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Threading.Tasks;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -9,48 +9,48 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for reading clipboard content
 /// Implements the get_clipboard tool from MCP_SPECIFICATION.md
 /// </summary>
-public class GetClipboardTool : IMcpTool
+[McpServerToolType]
+public static class GetClipboardTool
 {
-    private readonly IModeManager _modeManager;
-
-    public string Name => "get_clipboard";
-    public string Description => "Get the current clipboard content";
-
-    public GetClipboardTool(IModeManager modeManager)
-    {
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Get the current clipboard content (Wayland/X11 compatible)")]
+    public static async Task<string> GetClipboard(
+        IModeManager modeManager,
+        [Description("Format to retrieve (text, html, image)")] string format = "text")
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("get_clipboard"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'get_clipboard' not allowed in {modeManager.CurrentMode} mode");
         }
 
         try
         {
-            var clipboardText = await GetClipboardTextAsync();
+            var clipboardText = await GetClipboardTextAsync(format);
             
-            return new
+            var response = new
             {
                 text = clipboardText ?? string.Empty,
-                available = !string.IsNullOrEmpty(clipboardText)
+                available = !string.IsNullOrEmpty(clipboardText),
+                format = format
             };
+
+            return System.Text.Json.JsonSerializer.Serialize(response);
         }
         catch (Exception ex)
         {
-            return new
+            var response = new
             {
                 text = string.Empty,
                 available = false,
-                error = ex.Message
+                error = ex.Message,
+                format = format
             };
+
+            return System.Text.Json.JsonSerializer.Serialize(response);
         }
     }
 
-    private async Task<string?> GetClipboardTextAsync()
+    private static async Task<string?> GetClipboardTextAsync(string format = "text")
     {
         try
         {

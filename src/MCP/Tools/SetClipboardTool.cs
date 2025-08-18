@@ -1,7 +1,7 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
-using System.Threading.Tasks;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -9,36 +9,28 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for setting clipboard content
 /// Implements the set_clipboard tool from MCP_SPECIFICATION.md
 /// </summary>
-public class SetClipboardTool : IMcpTool
+[McpServerToolType]
+public static class SetClipboardTool
 {
-    private readonly IModeManager _modeManager;
-
-    public string Name => "set_clipboard";
-    public string Description => "Set the clipboard content";
-
-    public SetClipboardTool(IModeManager modeManager)
-    {
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Set the clipboard content")]
+    public static async Task<string> SetClipboard(
+        IModeManager modeManager,
+        [Description("Text content to set in clipboard")] string text,
+        [Description("Format of the content (text, html)")] string format = "text")
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("set_clipboard"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'set_clipboard' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse required parameters
-        var text = parameters.GetValue<string>("text");
-        
-        if (text == null)
+        if (string.IsNullOrEmpty(text))
         {
             throw new ArgumentException("text parameter is required");
         }
 
         // Check if confirmation is required
-        var needsConfirmation = _modeManager.RequiresConfirmation(Name);
+        var needsConfirmation = modeManager.RequiresConfirmation("set_clipboard");
         var wasConfirmed = false;
 
         if (needsConfirmation)
@@ -53,16 +45,22 @@ public class SetClipboardTool : IMcpTool
 
         if (!needsConfirmation || wasConfirmed)
         {
-            success = await SetClipboardTextAsync(text);
+            success = await SetClipboardTextAsync(text, format);
         }
 
-        return new
+        var response = new
         {
-            ok = success
+            ok = success,
+            text_length = text.Length,
+            format = format,
+            confirmation_required = needsConfirmation,
+            confirmed = wasConfirmed
         };
+
+        return System.Text.Json.JsonSerializer.Serialize(response);
     }
 
-    private async Task<bool> SetClipboardTextAsync(string text)
+    private static async Task<bool> SetClipboardTextAsync(string text, string format = "text")
     {
         try
         {
