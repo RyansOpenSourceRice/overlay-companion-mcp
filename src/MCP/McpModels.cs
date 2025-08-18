@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace OverlayCompanion.MCP;
@@ -79,6 +80,7 @@ public class McpToolRegistry
 /// </summary>
 public static class ParameterExtensions
 {
+    [RequiresUnreferencedCode("JSON deserialization may require types that cannot be statically analyzed")]
     public static T GetValue<T>(this Dictionary<string, object> parameters, string key, T defaultValue = default!)
     {
         if (!parameters.TryGetValue(key, out var value))

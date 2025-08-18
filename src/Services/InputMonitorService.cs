@@ -79,7 +79,7 @@ public class InputMonitorService : IInputMonitorService
             if (currentPos.X != _lastMousePosition.X || currentPos.Y != _lastMousePosition.Y)
             {
                 _lastMousePosition = currentPos;
-                
+
                 var inputEvent = new InputEvent
                 {
                     Position = currentPos,

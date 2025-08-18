@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Overlay Companion MCP
+Comment=AI-assisted screen interaction toolkit with MCP integration
+Exec=overlay-companion-mcp
+Icon=overlay-companion-mcp
+Categories=Development;Utility
+Terminal=false
+StartupNotify=true
+MimeType=application/x-mcp-server
+Keywords=AI;MCP;Overlay;Screen;Automation;Assistant

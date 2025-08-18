@@ -65,11 +65,11 @@ public class ScreenCaptureService : IScreenCaptureService
     private async Task<byte[]> CaptureUsingLinuxTools(ScreenRegion? region = null, bool fullScreen = true)
     {
         var tempFile = Path.GetTempFileName() + ".png";
-        
+
         try
         {
             // Build capture command based on region
-            var tools = fullScreen || region == null 
+            var tools = fullScreen || region == null
                 ? GetFullScreenTools(tempFile)
                 : GetRegionTools(tempFile, region);
 

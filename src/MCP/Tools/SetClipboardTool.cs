@@ -2,6 +2,7 @@ using OverlayCompanion.Services;
 using System.ComponentModel;
 using System.Diagnostics;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -13,6 +14,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class SetClipboardTool
 {
     [McpServerTool, Description("Set the clipboard content")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> SetClipboard(
         IModeManager modeManager,
         [Description("Text content to set in clipboard")] string text,

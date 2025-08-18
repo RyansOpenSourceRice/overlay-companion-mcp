@@ -24,7 +24,7 @@ public static class SessionStopTool
         {
             session_stopped = sessionStopService.IsSessionStopped,
             timestamp = System.DateTime.UtcNow,
-            message = sessionStopService.IsSessionStopped 
+            message = sessionStopService.IsSessionStopped
                 ? "Session has been stopped by user. All AI operations are halted. Please wait for user to resume session."
                 : "Session is active and AI operations are permitted.",
             status = sessionStopService.IsSessionStopped ? "stopped" : "active"

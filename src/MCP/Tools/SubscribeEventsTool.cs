@@ -2,6 +2,7 @@ using OverlayCompanion.Services;
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -15,6 +16,7 @@ public static class SubscribeEventsTool
     private static readonly Dictionary<string, string> _subscriptions = new();
 
     [McpServerTool, Description("Subscribe to UI events like mouse movements and clicks")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> SubscribeEvents(
         IInputMonitorService inputService,
         IModeManager modeManager,
@@ -68,7 +70,7 @@ public static class SubscribeEventsTool
 
         // Generate subscription ID
         var subscriptionId = Guid.NewGuid().ToString();
-        
+
         // Store subscription (simplified implementation)
         _subscriptions[subscriptionId] = string.Join(",", eventsList);
 
@@ -87,7 +89,7 @@ public static class SubscribeEventsTool
             var normalizedEvent = eventName.ToLower() switch
             {
                 "mouse_move" or "mousemove" => "mouse_move",
-                "mouse_click" or "click" => "mouse_click", 
+                "mouse_click" or "click" => "mouse_click",
                 "key_press" or "keypress" => "key_press",
                 "window_focus" or "focus" => "window_focus",
                 _ => null

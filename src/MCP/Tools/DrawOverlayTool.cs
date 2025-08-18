@@ -2,6 +2,7 @@ using OverlayCompanion.Models;
 using OverlayCompanion.Services;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -13,6 +14,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class DrawOverlayTool
 {
     [McpServerTool, Description("Draw an overlay box on the screen")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> DrawOverlay(
         IOverlayService overlayService,
         IModeManager modeManager,

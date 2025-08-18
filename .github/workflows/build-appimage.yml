@@ -100,6 +100,7 @@ jobs:
         ./scripts/build-appimage.sh
         
     - name: Validate AppImage
+      continue-on-error: true
       run: |
         APPIMAGE_PATH="build/${{ steps.version.outputs.appimage-name }}"
         

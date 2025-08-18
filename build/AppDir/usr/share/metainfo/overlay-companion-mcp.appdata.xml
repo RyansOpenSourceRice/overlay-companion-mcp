@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>overlay-companion-mcp</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0</project_license>
+  <name>Overlay Companion MCP</name>
+  <summary>AI-assisted screen interaction toolkit with MCP integration</summary>
+  <description>
+    <p>
+      Overlay Companion MCP is a general-purpose, human-in-the-loop AI-assisted 
+      screen interaction toolkit built with the official ModelContextProtocol C# SDK.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Screen capture and overlay drawing capabilities</li>
+      <li>Input simulation with safety controls</li>
+      <li>MCP integration for AI agents (Jan.ai compatible)</li>
+      <li>Multi-monitor and HiDPI support</li>
+      <li>Human-in-the-loop safety controls</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">overlay-companion-mcp.desktop</launchable>
+  <provides>
+    <binary>overlay-companion-mcp</binary>
+  </provides>
+  <categories>
+    <category>Development</category>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>AI</keyword>
+    <keyword>MCP</keyword>
+    <keyword>Overlay</keyword>
+    <keyword>Screen</keyword>
+    <keyword>Automation</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/RyansOpenSauceRice/overlay-companion-mcp</url>
+  <url type="bugtracker">https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues</url>
+  <releases>
+    <release version="2025.08.18" date="2025-08-18"/>
+  </releases>
+</component>

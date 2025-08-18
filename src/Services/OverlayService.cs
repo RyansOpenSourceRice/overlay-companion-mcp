@@ -97,7 +97,7 @@ public class OverlayService : IOverlayService
             {
                 var id = await DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs);
                 overlayIds.Add(id);
-                
+
                 // Small delay between overlays
                 await Task.Delay(100);
             }
@@ -105,9 +105,9 @@ public class OverlayService : IOverlayService
         else
         {
             // Show all overlays simultaneously
-            var tasks = overlays.Select(overlay => 
+            var tasks = overlays.Select(overlay =>
                 DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs));
-            
+
             var ids = await Task.WhenAll(tasks);
             overlayIds.AddRange(ids);
         }
@@ -118,7 +118,7 @@ public class OverlayService : IOverlayService
     public async Task ClearAllOverlaysAsync()
     {
         var overlayIds = _activeOverlays.Keys.ToArray();
-        
+
         var tasks = overlayIds.Select(RemoveOverlayAsync);
         await Task.WhenAll(tasks);
     }

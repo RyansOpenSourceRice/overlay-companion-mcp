@@ -32,10 +32,10 @@ public class OverlayCompanionMcpService : BackgroundService
         try
         {
             _logger.LogInformation("Starting MCP server...");
-            
+
             // TODO: Fix MCP SDK integration - types not found in current package version
             _logger.LogWarning("MCP server integration temporarily disabled due to SDK compatibility issues");
-            
+
             /*
             // Create MCP server using official SDK
             var serverBuilder = new McpServerBuilder()
@@ -63,12 +63,12 @@ public class OverlayCompanionMcpService : BackgroundService
             _mcpServer = serverBuilder.Build();
             */
 
-            _logger.LogInformation("MCP server started successfully with {ToolCount} tools", 
+            _logger.LogInformation("MCP server started successfully with {ToolCount} tools",
                 _toolRegistry.GetToolNames().Length);
 
             // TODO: Run the actual MCP server when SDK is fixed
             // await _mcpServer.RunAsync(stoppingToken);
-            
+
             // For now, just keep the service running
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }
@@ -86,7 +86,7 @@ public class OverlayCompanionMcpService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping MCP server...");
-        
+
         // TODO: Stop actual MCP server when SDK is fixed
         /*
         if (_mcpServer != null)

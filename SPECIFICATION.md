@@ -1,29 +1,35 @@
 # Overlay Companion (MCP) - Tool Specification
 
-*A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit.*
+_A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ---
 
 ## Architecture Overview
 
-The Overlay Companion MCP server is built using the **official ModelContextProtocol C# SDK** from Microsoft/Anthropic, providing a robust foundation for MCP compliance and integration with the .NET ecosystem.
+The Overlay Companion MCP server is built using the **official ModelContextProtocol C# SDK** from
+Microsoft/Anthropic, providing a robust foundation for MCP compliance and integration with the .NET
+ecosystem.
 
 ### Deployment Architectures
 
 The system supports two deployment architectures to meet different security and operational requirements:
 
 #### 1. Direct stdio Transport (Default)
-```
+
+```text
 Jan.ai → stdio → MCP Server (OverlayCompanion)
 ```
+
 - **Use Case**: Direct integration, minimal latency
 - **Security**: Process-level isolation
 - **Command**: `dotnet run`
 
 #### 2. HTTP Bridge (Segmented Deployment)
-```
+
+```text
 Jan.ai → HTTP → Bridge Server → stdio → MCP Server (OverlayCompanion)
 ```
+
 - **Use Case**: System segmentation, risk-averse deployments
 - **Security**: Network-level isolation, separate control plane
 - **Flexibility**: Remote deployment, containerization, network policies
@@ -245,8 +251,9 @@ The HTTP bridge provides critical deployment flexibility for enterprise and secu
 **Purpose**: Draw a visual overlay box on the screen for highlighting or annotation.
 
 **Parameters**:
+
 - `x` (number, required): X coordinate in screen pixels
-- `y` (number, required): Y coordinate in screen pixels  
+- `y` (number, required): Y coordinate in screen pixels
 - `width` (number, required): Width of overlay in pixels
 - `height` (number, required): Height of overlay in pixels
 - `color` (string, optional): Color name or hex code (default: "red")
@@ -254,11 +261,13 @@ The HTTP bridge provides critical deployment flexibility for enterprise and secu
 - `temporary_ms` (number, optional): Auto-remove after milliseconds
 
 **Returns**:
+
 - `overlay_id`: Unique identifier for the created overlay
 - `bounds`: Actual bounds of the overlay (may be adjusted for screen boundaries)
 - `monitor_index`: Index of the monitor where overlay was placed
 
 **Example**:
+
 ```json
 {
   "method": "draw_overlay",
@@ -279,9 +288,11 @@ The HTTP bridge provides critical deployment flexibility for enterprise and secu
 **Purpose**: Remove a previously created overlay by its ID.
 
 **Parameters**:
+
 - `overlay_id` (string, required): ID of overlay to remove
 
 **Returns**:
+
 - `removed`: True if overlay was successfully removed
 - `not_found`: True if overlay ID was not found
 
@@ -542,7 +553,7 @@ The project includes comprehensive automation through GitHub Actions:
 
 ### 3. **AppImage Build** (`build-appimage.yml`)
 - **Purpose**: Linux distribution package creation
-- **Triggers**: 
+- **Triggers**:
   - Push to main/develop (source changes)
   - Manual workflow dispatch
   - GitHub releases

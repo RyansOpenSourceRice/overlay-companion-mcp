@@ -28,7 +28,7 @@ public class OverlayApplication : Application
                 // Create main window with dependency injection
                 var logger = ServiceProvider.GetRequiredService<ILogger<MainWindow>>();
                 var lifetime = ServiceProvider.GetRequiredService<IHostApplicationLifetime>();
-                
+
                 desktop.MainWindow = new MainWindow(ServiceProvider, logger, lifetime);
             }
             else
