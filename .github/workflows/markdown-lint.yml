@@ -26,9 +26,11 @@ jobs:
     - name: Install markdownlint-cli
       run: npm install -g markdownlint-cli
       
-    - name: Create markdownlint config
+    - name: Check markdownlint config exists
       run: |
-        cat > .markdownlint.json << 'EOF'
+        if [ ! -f .markdownlint.json ]; then
+          echo "Creating default markdownlint config..."
+          cat > .markdownlint.json << 'EOF'
         {
           "default": true,
           "MD013": {
@@ -45,6 +47,9 @@ jobs:
           }
         }
         EOF
+        else
+          echo "Using existing .markdownlint.json config"
+        fi
         
     - name: Run markdownlint
       run: markdownlint "**/*.md" --ignore node_modules
@@ -109,9 +114,11 @@ jobs:
     - name: Install cspell
       run: npm install -g cspell
       
-    - name: Create cspell config
+    - name: Check cspell config exists
       run: |
-        cat > .cspell.json << 'EOF'
+        if [ ! -f .cspell.json ]; then
+          echo "Creating default cspell config..."
+          cat > .cspell.json << 'EOF'
         {
           "version": "0.2",
           "language": "en",
@@ -191,6 +198,9 @@ jobs:
           ]
         }
         EOF
+        else
+          echo "Using existing .cspell.json config"
+        fi
         
     - name: Run spell check
       run: cspell "**/*.md" --no-progress
