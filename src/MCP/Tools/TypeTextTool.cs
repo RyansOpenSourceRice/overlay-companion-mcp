@@ -1,6 +1,7 @@
 using OverlayCompanion.Services;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -12,6 +13,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class TypeTextTool
 {
     [McpServerTool, Description("Simulate typing text at the current cursor position")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> TypeText(
         IInputMonitorService inputService,
         IModeManager modeManager,

@@ -2,6 +2,7 @@ using OverlayCompanion.Models;
 using OverlayCompanion.Services;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -13,6 +14,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class ClickAtTool
 {
     [McpServerTool, Description("Simulate a mouse click at specified coordinates")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> ClickAt(
         IInputMonitorService inputService,
         IModeManager modeManager,

@@ -10,6 +10,7 @@ using ModelContextProtocol.Server;
 using OverlayCompanion.Services;
 using OverlayCompanion.MCP.Tools;
 using OverlayCompanion.UI;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion;
 
@@ -34,6 +35,7 @@ public class Program
         }
     }
 
+    [RequiresUnreferencedCode("Calls Microsoft.Extensions.DependencyInjection.McpServerBuilderExtensions.WithToolsFromAssembly(Assembly, JsonSerializerOptions)")]
     private static async Task RunStdioMcpServer(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
@@ -81,6 +83,7 @@ public class Program
         }
     }
 
+    [RequiresUnreferencedCode("Calls Microsoft.Extensions.DependencyInjection.McpServerBuilderExtensions.WithToolsFromAssembly(Assembly, JsonSerializerOptions)")]
     private static async Task RunWithHttpBridge(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);

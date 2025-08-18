@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using OverlayCompanion.Services;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -47,7 +48,7 @@ public partial class MainWindow : Window
     private Button? _copyConfigButton;
     private Button? _saveConfigButton;
     private Button? _testConnectionButton;
-    
+
     // Session Control UI Controls
     private Button? _sessionStopButton;
     private Button? _sessionResumeButton;
@@ -66,12 +67,12 @@ public partial class MainWindow : Window
         _serviceProvider = serviceProvider;
         _logger = logger;
         _applicationLifetime = applicationLifetime;
-        
+
         InitializeComponent();
         InitializeControls();
         LoadSettings();
         PopulateToolsList();
-        
+
         _logger.LogInformation("Main window initialized");
     }
 
@@ -106,7 +107,7 @@ public partial class MainWindow : Window
         _copyConfigButton = this.FindControl<Button>("CopyConfigButton");
         _saveConfigButton = this.FindControl<Button>("SaveConfigButton");
         _testConnectionButton = this.FindControl<Button>("TestConnectionButton");
-        
+
         // Session Control controls
         _sessionStopButton = this.FindControl<Button>("SessionStopButton");
         _sessionResumeButton = this.FindControl<Button>("SessionResumeButton");
@@ -139,7 +140,7 @@ public partial class MainWindow : Window
             _testConnectionButton.Click += OnTestConnectionClicked;
         if (_configFormatComboBox != null)
             _configFormatComboBox.SelectionChanged += OnConfigFormatChanged;
-            
+
         // Session Control event handlers
         if (_sessionStopButton != null)
             _sessionStopButton.Click += OnSessionStopClicked;
@@ -199,14 +200,14 @@ public partial class MainWindow : Window
         if (_serverStatusText != null)
         {
             _serverStatusText.Text = _serverRunning ? "Running" : "Stopped";
-            _serverStatusText.Foreground = _serverRunning ? 
+            _serverStatusText.Foreground = _serverRunning ?
                 Avalonia.Media.Brushes.Green : Avalonia.Media.Brushes.Red;
         }
 
         if (_serverAddressText != null)
         {
-            _serverAddressText.Text = _serverRunning ? 
-                $"http://{_hostTextBox?.Text ?? "localhost"}:{_portTextBox?.Text ?? "3000"}" : 
+            _serverAddressText.Text = _serverRunning ?
+                $"http://{_hostTextBox?.Text ?? "localhost"}:{_portTextBox?.Text ?? "3000"}" :
                 "Not running";
         }
 
@@ -239,7 +240,7 @@ public partial class MainWindow : Window
     private async Task StartServer()
     {
         LogMessage("Starting MCP server...");
-        
+
         // Validate port
         if (!int.TryParse(_portTextBox?.Text, out int port) || port < 1 || port > 65535)
         {
@@ -250,7 +251,7 @@ public partial class MainWindow : Window
         // TODO: Actually start the MCP server with the configured settings
         // For now, simulate starting
         await Task.Delay(1000);
-        
+
         _serverRunning = true;
         UpdateServerStatus();
         LogMessage($"MCP server started on {_hostTextBox?.Text}:{port}");
@@ -259,11 +260,11 @@ public partial class MainWindow : Window
     private async Task StopServer()
     {
         LogMessage("Stopping MCP server...");
-        
+
         // TODO: Actually stop the MCP server
         // For now, simulate stopping
         await Task.Delay(500);
-        
+
         _serverRunning = false;
         UpdateServerStatus();
         LogMessage("MCP server stopped");
@@ -302,7 +303,7 @@ public partial class MainWindow : Window
 
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         var logEntry = $"[{timestamp}] {message}\n";
-        
+
         _logTextBox.Text += logEntry;
 
         // Auto-scroll if enabled
@@ -319,7 +320,7 @@ public partial class MainWindow : Window
             // Stop server before closing
             _ = Task.Run(StopServer);
         }
-        
+
         base.OnClosed(e);
     }
 
@@ -346,6 +347,7 @@ public partial class MainWindow : Window
         _mcpConfigTextBox.Text = config;
     }
 
+    [RequiresAssemblyFiles("Calls System.Reflection.Assembly.Location")]
     private string GenerateJanAiConfig(string host, string port, int transportType)
     {
         if (transportType == 1) // HTTP bridge (segmented deployment)
@@ -381,7 +383,7 @@ Use Case: Risk-averse deployments, enterprise environments";
         {
             var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
             var projectPath = System.IO.Path.GetDirectoryName(executablePath);
-            
+
             return $@"{{
   ""mcpServers"": {{
     ""overlay-companion"": {{
@@ -412,12 +414,13 @@ Use Case: Direct integration, development, testing";
         }
     }
 
+    [RequiresAssemblyFiles("Calls System.Reflection.Assembly.Location")]
     private string GenerateClaudeDesktopConfig(string host, string port, int transportType)
     {
         // Get the current executable path for stdio transport
         var executablePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
         var projectPath = System.IO.Path.GetDirectoryName(executablePath);
-        
+
         return $@"{{
   ""mcpServers"": {{
     ""overlay-companion"": {{
@@ -682,7 +685,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
 
             // Parse position (x,y,width,height)
             var parts = positionText.Split(',');
-            if (parts.Length != 4 || 
+            if (parts.Length != 4 ||
                 !int.TryParse(parts[0], out var x) ||
                 !int.TryParse(parts[1], out var y) ||
                 !int.TryParse(parts[2], out var width) ||
@@ -719,7 +722,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         if (_sessionStatusText != null)
         {
             _sessionStatusText.Text = isStopped ? "Session Stopped" : "Session Active";
-            _sessionStatusText.Foreground = isStopped ? 
+            _sessionStatusText.Foreground = isStopped ?
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Red) :
                 new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.Green);
         }
@@ -740,7 +743,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
                     Bounds = $"{o.Bounds.X},{o.Bounds.Y} {o.Bounds.Width}x{o.Bounds.Height}",
                     Color = o.Color,
                     ColorBrush = new Avalonia.Media.SolidColorBrush(
-                        o.Color.StartsWith("#") ? Avalonia.Media.Color.Parse(o.Color) : 
+                        o.Color.StartsWith("#") ? Avalonia.Media.Color.Parse(o.Color) :
                         o.Color.ToLower() switch
                         {
                             "red" => Avalonia.Media.Colors.Red,

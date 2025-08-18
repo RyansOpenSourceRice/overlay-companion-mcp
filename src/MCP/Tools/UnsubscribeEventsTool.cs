@@ -2,6 +2,7 @@ using OverlayCompanion.Services;
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -13,6 +14,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class UnsubscribeEventsTool
 {
     [McpServerTool, Description("Unsubscribe from UI events")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> UnsubscribeEvents(
         IInputMonitorService inputService,
         IModeManager modeManager,
@@ -30,17 +32,17 @@ public static class UnsubscribeEventsTool
         }
 
         // Access the static subscriptions from SubscribeEventsTool using reflection
-        var subscriptionsField = typeof(SubscribeEventsTool).GetField("_subscriptions", 
+        var subscriptionsField = typeof(SubscribeEventsTool).GetField("_subscriptions",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-        
+
         bool success = false;
         int remainingSubscriptions = 0;
-        
+
         if (subscriptionsField?.GetValue(null) is Dictionary<string, string> subscriptions)
         {
             success = subscriptions.Remove(subscriptionId);
             remainingSubscriptions = subscriptions.Count;
-            
+
             // If no more subscriptions, stop monitoring
             if (remainingSubscriptions == 0 && inputService.IsMonitoring)
             {

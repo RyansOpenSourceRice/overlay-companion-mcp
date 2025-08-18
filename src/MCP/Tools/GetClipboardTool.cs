@@ -2,6 +2,7 @@ using OverlayCompanion.Services;
 using System.ComponentModel;
 using System.Diagnostics;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -13,6 +14,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class GetClipboardTool
 {
     [McpServerTool, Description("Get the current clipboard content (Wayland/X11 compatible)")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> GetClipboard(
         IModeManager modeManager,
         [Description("Format to retrieve (text, html, image)")] string format = "text")
@@ -26,7 +28,7 @@ public static class GetClipboardTool
         try
         {
             var clipboardText = await GetClipboardTextAsync(format);
-            
+
             var response = new
             {
                 text = clipboardText ?? string.Empty,

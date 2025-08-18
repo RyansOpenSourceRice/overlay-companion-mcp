@@ -33,7 +33,7 @@ public class AvaloniaOverlayWindow : Window, IOverlayWindow
         Topmost = true;
         ShowInTaskbar = false;
         CanResize = false;
-        
+
         // Set position and size
         Position = new PixelPoint(_overlay.Bounds.X, _overlay.Bounds.Y);
         Width = _overlay.Bounds.Width;
@@ -42,7 +42,7 @@ public class AvaloniaOverlayWindow : Window, IOverlayWindow
         // Make window transparent and click-through
         Background = Brushes.Transparent;
         TransparencyLevelHint = new[] { WindowTransparencyLevel.Transparent };
-        
+
         // Configure for click-through behavior
         ExtendClientAreaToDecorationsHint = true;
         ExtendClientAreaChromeHints = ExtendClientAreaChromeHints.NoChrome;

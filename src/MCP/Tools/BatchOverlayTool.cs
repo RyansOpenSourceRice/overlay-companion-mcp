@@ -3,6 +3,7 @@ using OverlayCompanion.Services;
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
+using System.Diagnostics.CodeAnalysis;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -14,6 +15,7 @@ namespace OverlayCompanion.MCP.Tools;
 public static class BatchOverlayTool
 {
     [McpServerTool, Description("Draw multiple overlays at once")]
+    [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> BatchOverlay(
         IOverlayService overlayService,
         IModeManager modeManager,
@@ -49,7 +51,7 @@ public static class BatchOverlayTool
 
         // Convert overlay data to OverlayElement objects
         var overlayElements = new List<OverlayElement>();
-        
+
         foreach (var overlayData in overlaysArray.EnumerateArray())
         {
             if (overlayData.ValueKind == JsonValueKind.Object)
@@ -66,7 +68,7 @@ public static class BatchOverlayTool
                     Label = overlayData.TryGetProperty("label", out var label) ? label.GetString() : null,
                     TemporaryMs = overlayData.TryGetProperty("temporary_ms", out var temp) ? temp.GetInt32() : 0
                 };
-                
+
                 overlayElements.Add(overlay);
             }
         }
