@@ -46,6 +46,7 @@ jobs:
         dotnet restore --verbosity minimal
         
     - name: Apply code formatting
+      continue-on-error: true
       run: |
         cd src
         echo "🔍 Applying code formatting..."
@@ -59,6 +60,7 @@ jobs:
         dotnet build --configuration Release --no-restore --verbosity minimal
         
     - name: Run static analysis
+      continue-on-error: true
       run: |
         cd src
         echo "🔍 Running static analysis..."

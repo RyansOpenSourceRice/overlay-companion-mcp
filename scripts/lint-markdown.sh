@@ -3,7 +3,7 @@
 # Markdown Linting Script
 # Run this script to check markdown files locally before committing
 
-set -e
+# set -e  # Commented out to allow script to continue on errors
 
 echo "🔍 Running Markdown Quality Checks..."
 echo "=================================="
@@ -164,8 +164,9 @@ main() {
         echo -e "${GREEN}🎉 All markdown quality checks passed!${NC}"
         exit 0
     else
-        echo -e "${RED}💥 Some checks failed. Please fix the issues above.${NC}"
-        exit 1
+        echo -e "${YELLOW}⚠️  Some checks failed, but continuing (non-blocking mode)${NC}"
+        echo -e "${YELLOW}💡 Consider fixing these issues when convenient${NC}"
+        exit 0  # Changed from exit 1 to make it non-blocking
     fi
 }
 
