@@ -4,6 +4,44 @@
 
 ---
 
+## Architecture Overview
+
+The Overlay Companion MCP server is built using the **official ModelContextProtocol C# SDK** from Microsoft/Anthropic, providing a robust foundation for MCP compliance and integration with the .NET ecosystem.
+
+### Deployment Architectures
+
+The system supports two deployment architectures to meet different security and operational requirements:
+
+#### 1. Direct stdio Transport (Default)
+```
+Jan.ai → stdio → MCP Server (OverlayCompanion)
+```
+- **Use Case**: Direct integration, minimal latency
+- **Security**: Process-level isolation
+- **Command**: `dotnet run`
+
+#### 2. HTTP Bridge (Segmented Deployment)
+```
+Jan.ai → HTTP → Bridge Server → stdio → MCP Server (OverlayCompanion)
+```
+- **Use Case**: System segmentation, risk-averse deployments
+- **Security**: Network-level isolation, separate control plane
+- **Flexibility**: Remote deployment, containerization, network policies
+- **Command**: `dotnet run --http` or `dotnet run --bridge`
+
+### HTTP Bridge Benefits
+
+The HTTP bridge provides critical deployment flexibility for enterprise and security-conscious environments:
+
+1. **System Segmentation**: Separates Jan.ai control plane from core MCP server
+2. **Network Isolation**: Allows firewall rules and network policies between components
+3. **Remote Deployment**: MCP server can run on different machines/containers
+4. **Risk Mitigation**: Additional layer of isolation for sensitive operations
+5. **Monitoring**: HTTP traffic can be logged, monitored, and audited
+6. **Load Balancing**: Multiple MCP server instances behind HTTP bridge
+
+---
+
 ## MCP Tool Specification (JSON Format)
 
 ```json

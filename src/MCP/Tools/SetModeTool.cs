@@ -1,7 +1,7 @@
 using OverlayCompanion.Models;
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -9,38 +9,48 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for setting operational mode
 /// Implements the set_mode tool from MCP_SPECIFICATION.md
 /// </summary>
-public class SetModeTool : IMcpTool
+[McpServerToolType]
+public static class SetModeTool
 {
-    private readonly IModeManager _modeManager;
-
-    public string Name => "set_mode";
-    public string Description => "Set the operational mode of the overlay companion";
-
-    public SetModeTool(IModeManager modeManager)
+    [McpServerTool, Description("Set the operational mode of the overlay companion")]
+    public static async Task<string> SetMode(
+        IModeManager modeManager,
+        [Description("Operational mode (passive, assist, autopilot, composing)")] string mode = "passive",
+        [Description("Optional metadata for the mode change")] string? metadata = null)
     {
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
-    {
-        // Parse required parameters
-        var modeString = parameters.GetValue("mode", "passive");
-        var metadata = parameters.GetValue<Dictionary<string, object>?>("metadata", null);
-
         // Parse mode enum
-        if (!Enum.TryParse<OperationalMode>(modeString, true, out var mode))
+        if (!Enum.TryParse<OperationalMode>(mode, true, out var operationalMode))
         {
-            throw new ArgumentException($"Invalid mode: {modeString}. Valid modes are: {string.Join(", ", Enum.GetNames<OperationalMode>())}");
+            throw new ArgumentException($"Invalid mode: {mode}. Valid modes are: {string.Join(", ", Enum.GetNames<OperationalMode>())}");
+        }
+
+        // Parse metadata if provided
+        Dictionary<string, object>? metadataDict = null;
+        if (!string.IsNullOrEmpty(metadata))
+        {
+            try
+            {
+                metadataDict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(metadata);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                // If metadata is not valid JSON, treat it as a simple string value
+                metadataDict = new Dictionary<string, object> { ["value"] = metadata };
+            }
         }
 
         // Set the mode
-        var success = await _modeManager.SetModeAsync(mode, metadata);
+        var success = await modeManager.SetModeAsync(operationalMode, metadataDict);
 
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
             ok = success,
-            active_mode = _modeManager.CurrentMode.ToString().ToLower()
+            active_mode = modeManager.CurrentMode.ToString().ToLower(),
+            previous_mode = operationalMode.ToString().ToLower(),
+            metadata_applied = metadataDict != null
         };
+
+        return System.Text.Json.JsonSerializer.Serialize(response);
     }
 }

@@ -1,6 +1,7 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using System.Text.Json;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -8,52 +9,59 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for subscribing to UI events
 /// Implements the subscribe_events tool from MCP_SPECIFICATION.md
 /// </summary>
-public class SubscribeEventsTool : IMcpTool
+[McpServerToolType]
+public static class SubscribeEventsTool
 {
-    private readonly IInputMonitorService _inputService;
-    private readonly IModeManager _modeManager;
     private static readonly Dictionary<string, string> _subscriptions = new();
 
-    public string Name => "subscribe_events";
-    public string Description => "Subscribe to UI events like mouse movements and clicks";
-
-    public SubscribeEventsTool(IInputMonitorService inputService, IModeManager modeManager)
-    {
-        _inputService = inputService;
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Subscribe to UI events like mouse movements and clicks")]
+    public static async Task<string> SubscribeEvents(
+        IInputMonitorService inputService,
+        IModeManager modeManager,
+        [Description("JSON array of event types to subscribe to (mouse_move, mouse_click, key_press, window_focus)")] string events)
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("subscribe_events"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'subscribe_events' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse required parameters
-        var eventsData = parameters.GetValue<object[]>("events");
-        
-        if (eventsData == null || eventsData.Length == 0)
+        if (string.IsNullOrEmpty(events))
         {
             throw new ArgumentException("events parameter is required and must not be empty");
         }
 
-        // Parse optional parameters
-        var debounceMs = parameters.GetValue("debounce_ms", 50);
-        var filter = parameters.GetValue<Dictionary<string, object>?>("filter", null);
+        // Parse JSON array of event types
+        JsonElement eventsArray;
+        try
+        {
+            eventsArray = JsonSerializer.Deserialize<JsonElement>(events);
+        }
+        catch (JsonException ex)
+        {
+            throw new ArgumentException($"Invalid JSON in events parameter: {ex.Message}");
+        }
+
+        if (eventsArray.ValueKind != JsonValueKind.Array)
+        {
+            throw new ArgumentException("events parameter must be a JSON array");
+        }
 
         // Convert events to string array
-        var events = new List<string>();
-        foreach (var eventData in eventsData)
+        var eventsList = new List<string>();
+        foreach (var eventData in eventsArray.EnumerateArray())
         {
-            if (eventData is string eventName)
+            if (eventData.ValueKind == JsonValueKind.String)
             {
-                events.Add(eventName);
+                var eventName = eventData.GetString();
+                if (!string.IsNullOrEmpty(eventName))
+                {
+                    eventsList.Add(eventName);
+                }
             }
         }
 
-        if (events.Count == 0)
+        if (eventsList.Count == 0)
         {
             throw new ArgumentException("No valid event names found in events parameter");
         }
@@ -62,47 +70,50 @@ public class SubscribeEventsTool : IMcpTool
         var subscriptionId = Guid.NewGuid().ToString();
         
         // Store subscription (simplified implementation)
-        _subscriptions[subscriptionId] = string.Join(",", events);
+        _subscriptions[subscriptionId] = string.Join(",", eventsList);
 
         // Start monitoring if not already started
-        if (!_inputService.IsMonitoring)
+        if (!inputService.IsMonitoring)
         {
-            _inputService.StartMonitoring();
+            inputService.StartMonitoring();
         }
 
-        // TODO: Implement proper event filtering and debouncing
-        // For now, just subscribe to basic events
+        // Process and validate event types
         var subscribedEvents = new List<string>();
+        var validEvents = new[] { "mouse_move", "mouse_click", "key_press", "window_focus" };
 
-        foreach (var eventName in events)
+        foreach (var eventName in eventsList)
         {
-            switch (eventName.ToLower())
+            var normalizedEvent = eventName.ToLower() switch
             {
-                case "mouse_move":
-                case "mousemove":
-                    subscribedEvents.Add("mouse_move");
-                    break;
-                case "mouse_click":
-                case "click":
-                    subscribedEvents.Add("mouse_click");
-                    break;
-                case "key_press":
-                case "keypress":
-                    subscribedEvents.Add("key_press");
-                    break;
-                default:
-                    Console.WriteLine($"Warning: Event type '{eventName}' not supported");
-                    break;
+                "mouse_move" or "mousemove" => "mouse_move",
+                "mouse_click" or "click" => "mouse_click", 
+                "key_press" or "keypress" => "key_press",
+                "window_focus" or "focus" => "window_focus",
+                _ => null
+            };
+
+            if (normalizedEvent != null && validEvents.Contains(normalizedEvent))
+            {
+                subscribedEvents.Add(normalizedEvent);
+            }
+            else
+            {
+                Console.WriteLine($"Warning: Event type '{eventName}' not supported");
             }
         }
 
-        Console.WriteLine($"Subscribed to events: {string.Join(", ", subscribedEvents)} with debounce {debounceMs}ms");
+        Console.WriteLine($"Subscribed to events: {string.Join(", ", subscribedEvents)}");
 
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
             subscription_id = subscriptionId,
-            subscribed = subscribedEvents.ToArray()
+            subscribed = subscribedEvents.ToArray(),
+            monitoring_active = inputService.IsMonitoring,
+            total_subscriptions = _subscriptions.Count
         };
+
+        return JsonSerializer.Serialize(response);
     }
 }
