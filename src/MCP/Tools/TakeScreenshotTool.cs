@@ -1,7 +1,7 @@
 using OverlayCompanion.Models;
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -9,68 +9,36 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for taking screenshots
 /// Implements the take_screenshot tool from MCP_SPECIFICATION.md
 /// </summary>
-public class TakeScreenshotTool : IMcpTool
+[McpServerToolType]
+public static class TakeScreenshotTool
 {
-    private readonly IScreenCaptureService _screenCaptureService;
-    private readonly IModeManager _modeManager;
-
-    public string Name => "take_screenshot";
-    public string Description => "Take a screenshot of the screen or a specific region";
-
-    public TakeScreenshotTool(IScreenCaptureService screenCaptureService, IModeManager modeManager)
-    {
-        _screenCaptureService = screenCaptureService;
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Take a screenshot of the screen or a specific region")]
+    public static async Task<string> TakeScreenshot(
+        IScreenCaptureService screenCaptureService,
+        IModeManager modeManager,
+        [Description("X coordinate of the region to capture (optional)")] int? x = null,
+        [Description("Y coordinate of the region to capture (optional)")] int? y = null,
+        [Description("Width of the region to capture (optional)")] int? width = null,
+        [Description("Height of the region to capture (optional)")] int? height = null)
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("take_screenshot"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'take_screenshot' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse parameters
-        var fullScreen = parameters.GetValue("full_screen", true);
-        var scale = parameters.GetValue("scale", 1.0);
-        var waitForStableMs = parameters.GetValue("wait_for_stable_ms", 0);
-
+        // Create region if coordinates provided
         ScreenRegion? region = null;
-        if (parameters.HasValue("region"))
+        if (x.HasValue && y.HasValue && width.HasValue && height.HasValue)
         {
-            var regionData = parameters.GetValue<Dictionary<string, object>>("region");
-            if (regionData != null)
-            {
-                region = new ScreenRegion(
-                    regionData.GetValue("x", 0),
-                    regionData.GetValue("y", 0),
-                    regionData.GetValue("width", 0),
-                    regionData.GetValue("height", 0)
-                );
-            }
-        }
-
-        // Wait for stable screen if requested
-        if (waitForStableMs > 0)
-        {
-            await Task.Delay(waitForStableMs);
+            region = new ScreenRegion(x.Value, y.Value, width.Value, height.Value);
         }
 
         // Capture screenshot
-        var screenshot = await _screenCaptureService.CaptureScreenAsync(region, fullScreen);
+        var screenshot = await screenCaptureService.CaptureScreenAsync(region, region == null);
 
-        // Apply scaling if requested
-        if (scale != 1.0)
-        {
-            // TODO: Implement image scaling
-            // For now, just adjust the reported dimensions
-            screenshot.Width = (int)(screenshot.Width * scale);
-            screenshot.Height = (int)(screenshot.Height * scale);
-        }
-
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
             image_base64 = screenshot.ToBase64(),
             width = screenshot.Width,
@@ -84,7 +52,9 @@ public class TakeScreenshotTool : IMcpTool
             } : null,
             monitor_index = screenshot.MonitorIndex,
             display_scale = screenshot.DisplayScale,
-            viewport_scroll = new { x = 0, y = 0 } // TODO: Implement viewport scroll detection
+            viewport_scroll = new { x = 0, y = 0 }
         };
+
+        return System.Text.Json.JsonSerializer.Serialize(response);
     }
 }

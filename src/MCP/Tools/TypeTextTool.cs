@@ -1,6 +1,6 @@
 using OverlayCompanion.Services;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using ModelContextProtocol.Server;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -8,42 +8,29 @@ namespace OverlayCompanion.MCP.Tools;
 /// MCP tool for simulating text input
 /// Implements the type_text tool from MCP_SPECIFICATION.md
 /// </summary>
-public class TypeTextTool : IMcpTool
+[McpServerToolType]
+public static class TypeTextTool
 {
-    private readonly IInputMonitorService _inputService;
-    private readonly IModeManager _modeManager;
-
-    public string Name => "type_text";
-    public string Description => "Simulate typing text at the current cursor position";
-
-    public TypeTextTool(IInputMonitorService inputService, IModeManager modeManager)
-    {
-        _inputService = inputService;
-        _modeManager = modeManager;
-    }
-
-    public async Task<object> ExecuteAsync(Dictionary<string, object> parameters)
+    [McpServerTool, Description("Simulate typing text at the current cursor position")]
+    public static async Task<string> TypeText(
+        IInputMonitorService inputService,
+        IModeManager modeManager,
+        [Description("Text to type")] string text,
+        [Description("Delay between keystrokes in milliseconds")] int delayMs = 50)
     {
         // Check if action is allowed in current mode
-        if (!_modeManager.CanExecuteAction(Name))
+        if (!modeManager.CanExecuteAction("type_text"))
         {
-            throw new InvalidOperationException($"Action '{Name}' not allowed in {_modeManager.CurrentMode} mode");
+            throw new InvalidOperationException($"Action 'type_text' not allowed in {modeManager.CurrentMode} mode");
         }
 
-        // Parse required parameters
-        var text = parameters.GetValue<string>("text");
-        
         if (string.IsNullOrEmpty(text))
         {
             throw new ArgumentException("text parameter is required");
         }
 
-        // Parse optional parameters
-        var typingSpeedWpm = parameters.GetValue("typing_speed_wpm", 60);
-        var requireUserConfirmation = parameters.GetValue("require_user_confirmation", false);
-
         // Check if confirmation is required
-        var needsConfirmation = requireUserConfirmation || _modeManager.RequiresConfirmation(Name);
+        var needsConfirmation = modeManager.RequiresConfirmation("type_text");
         var wasConfirmed = false;
 
         if (needsConfirmation)
@@ -60,8 +47,10 @@ public class TypeTextTool : IMcpTool
         if (!needsConfirmation || wasConfirmed)
         {
             // Cast to InputMonitorService to access SimulateTypingAsync
-            if (_inputService is InputMonitorService inputMonitorService)
+            if (inputService is InputMonitorService inputMonitorService)
             {
+                // Convert delay to WPM (approximate)
+                var typingSpeedWpm = Math.Max(1, 60000 / (delayMs * 5)); // Rough conversion
                 success = await inputMonitorService.SimulateTypingAsync(text, typingSpeedWpm);
                 if (success)
                 {
@@ -74,11 +63,15 @@ public class TypeTextTool : IMcpTool
             }
         }
 
-        // Return MCP-compliant response
-        return new
+        // Return JSON string response
+        var response = new
         {
             success = success,
-            typed_length = typedLength
+            typed_length = typedLength,
+            text_preview = text.Length > 50 ? text.Substring(0, 50) + "..." : text,
+            was_confirmed = wasConfirmed
         };
+
+        return System.Text.Json.JsonSerializer.Serialize(response);
     }
 }
