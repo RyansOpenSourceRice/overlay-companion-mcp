@@ -63,9 +63,7 @@ $DOTNET publish \
     --runtime linux-x64 \
     --self-contained true \
     --output "$BUILD_DIR/publish" \
-    /p:PublishSingleFile=true \
-    /p:PublishTrimmed=true \
-    /p:TrimMode=link
+    /p:PublishSingleFile=true
 
 if [ ! -f "$BUILD_DIR/publish/$APP_NAME" ]; then
     echo -e "${RED}❌ Build failed: executable not found${NC}"
