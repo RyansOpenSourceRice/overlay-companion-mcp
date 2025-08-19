@@ -20,7 +20,7 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
-    [RequiresUnreferencedCode()]
+    [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
         // Support both stdio (direct) and HTTP bridge (segmented) deployments
@@ -70,12 +70,24 @@ public class Program
 
         try
         {
-            // Start Avalonia GUI and MCP server concurrently
-            var avaloniaTask = Task.Run(() => StartAvaloniaApp(host.Services));
+            // Start MCP host and (optionally) Avalonia GUI concurrently
+            bool headless = args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var hostTask = host.RunAsync();
+            Task? avaloniaTask = null;
+            if (!headless)
+            {
+                avaloniaTask = Task.Run(() => StartAvaloniaApp(host.Services));
+            }
 
-            // Wait for either to complete
-            await Task.WhenAny(avaloniaTask, hostTask);
+            // Wait appropriately based on whether GUI is running
+            if (avaloniaTask is not null)
+            {
+                await Task.WhenAny(avaloniaTask, hostTask);
+            }
+            else
+            {
+                await hostTask;
+            }
         }
         catch (Exception ex)
         {
@@ -169,12 +181,23 @@ public class Program
 
         try
         {
-            // Start Avalonia GUI and HTTP bridge concurrently
-            var avaloniaTask = Task.Run(() => StartAvaloniaApp(app.Services));
+            // Start HTTP bridge and (optionally) Avalonia GUI concurrently
+            bool headless = args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
+            Task? avaloniaTask = null;
+            if (!headless)
+            {
+                avaloniaTask = Task.Run(() => StartAvaloniaApp(app.Services));
+            }
 
-            // Wait for either to complete
-            await Task.WhenAny(avaloniaTask, webAppTask);
+            if (avaloniaTask is not null)
+            {
+                await Task.WhenAny(avaloniaTask, webAppTask);
+            }
+            else
+            {
+                await webAppTask;
+            }
         }
         catch (Exception ex)
         {

@@ -32,6 +32,24 @@ echo -e "${BLUE}🚀 Building AppImage for ${APP_DISPLAY_NAME} v${APP_VERSION}${
 echo "=================================="
 
 # Clean and create build directory
+# Ensure dotnet is available (use preinstalled or bundled)
+if command -v dotnet >/dev/null 2>&1; then
+    DOTNET="dotnet"
+else
+    # Fallback to user-local install
+    if [ -x "$HOME/.dotnet/dotnet" ]; then
+        DOTNET="$HOME/.dotnet/dotnet"
+        export PATH="$HOME/.dotnet:$PATH"
+    else
+        echo -e "${YELLOW}⚠️  dotnet not found in PATH, attempting to install SDK 8 locally...${NC}"
+        curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+        bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet"
+        DOTNET="$HOME/.dotnet/dotnet"
+        export PATH="$HOME/.dotnet:$PATH"
+    fi
+fi
+$DOTNET --info >/dev/null 2>&1 || { echo -e "${RED}❌ .NET SDK is not available${NC}"; exit 1; }
+
 echo -e "${YELLOW}📁 Setting up build directory...${NC}"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
@@ -40,14 +58,12 @@ mkdir -p "$APPDIR"
 # Build the .NET application
 echo -e "${YELLOW}🔨 Building .NET application...${NC}"
 cd "$SRC_DIR"
-dotnet publish \
+$DOTNET publish \
     --configuration Release \
     --runtime linux-x64 \
     --self-contained true \
     --output "$BUILD_DIR/publish" \
-    /p:PublishSingleFile=true \
-    /p:PublishTrimmed=true \
-    /p:TrimMode=link
+    /p:PublishSingleFile=true
 
 if [ ! -f "$BUILD_DIR/publish/$APP_NAME" ]; then
     echo -e "${RED}❌ Build failed: executable not found${NC}"
