@@ -17,8 +17,9 @@ class McpRawJsonClient:
     This approach works reliably with the .NET MCP server
     """
     
-    def __init__(self, command: List[str]):
+    def __init__(self, command: List[str], env: Optional[Dict[str, str]] = None):
         self._command = command
+        self._env = env
         self._process: Optional[subprocess.Popen] = None
         self._request_id = 0
     
@@ -35,7 +36,8 @@ class McpRawJsonClient:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            bufsize=0
+            bufsize=0,
+            env=self._env
         )
     
     def _send_request(self, method: str, params: Dict[str, Any] = None, timeout: float = 5.0) -> Dict[str, Any]:

@@ -39,17 +39,16 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Name**: `overlay-companion-mcp`
 - **Version**: `1.0.0`
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
-- **Protocol**: HTTP-based MCP server
-- **Default Port**: `3000`
-- **Default Host**: `localhost`
+- **Protocol**: MCP server with stdio and HTTP transports
+- **Primary Transport**: Standard I/O (stdio) - recommended for direct integration
+- **HTTP Transport**: Available via `--http` flag on port 3000
 - **SDK**: Official ModelContextProtocol C# SDK
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
-- **Protocol Version**: MCP 1.0
-- **Transport**: Standard I/O (stdio)
+- **Protocol Version**: 2024-11-05
 
 ### Capabilities
 
-- **Tools**: Provides 12 tools for screen interaction
+- **Tools**: Provides 13 tools for screen interaction
 - **Resources**: None
 - **Prompts**: None
 - **Sampling**: None
