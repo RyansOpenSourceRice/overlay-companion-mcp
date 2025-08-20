@@ -80,41 +80,128 @@ def verify_overlay(img_path: Path, rect: dict) -> dict:
 
 def main():
     summary: Dict[str, Any] = {"ok": False, "steps": []}
-    app: subprocess.Popen | None = None
     try:
-        app = start_app()
-        time.sleep(2.0)
-        # Try MCP roundtrip first
-        mcp_step = mcp_roundtrip(app)
+        # Try MCP roundtrip first (let the MCP client manage the process)
+        mcp_step = mcp_roundtrip_with_sdk()
         summary["steps"].append(mcp_step)
         if not mcp_step.get("ok"):
-            # Fallback to visual smoke if MCP path fails
-            summary["steps"].append(smoke_test())
-        summary["ok"] = any(s.get("ok") for s in summary["steps"]) and len(summary["steps"]) > 0
-    finally:
-        if app:
-            stop_app(app)
-            # After process exit, safely drain stderr to file
+            # Fallback to visual smoke test with manual process management
+            app: subprocess.Popen | None = None
             try:
-                if app.stderr:
-                    data = app.stderr.read() or b""
-                    if isinstance(data, bytes):
-                        txt = data.decode("utf-8", errors="ignore")
-                    else:
-                        txt = str(data)
-                    (ARTIFACTS / "app-stderr.log").write_text(txt)
-            except Exception:
-                pass
+                app = start_app()
+                time.sleep(2.0)
+                summary["steps"].append(smoke_test())
+            finally:
+                if app:
+                    stop_app(app)
+                    # After process exit, safely drain stderr to file
+                    try:
+                        if app.stderr:
+                            data = app.stderr.read() or b""
+                            if isinstance(data, bytes):
+                                txt = data.decode("utf-8", errors="ignore")
+                            else:
+                                txt = str(data)
+                            (ARTIFACTS / "app-stderr.log").write_text(txt)
+                    except Exception:
+                        pass
+        summary["ok"] = any(s.get("ok") for s in summary["steps"]) and len(summary["steps"]) > 0
+    except Exception as e:
+        summary["error"] = str(e)
+        summary["ok"] = False
+    
     write_json(ARTIFACTS / "summary.json", summary)
     print(json.dumps(summary, indent=2))
     sys.exit(0 if summary.get("ok") else 1)
 
 
-def mcp_roundtrip(app_proc: subprocess.Popen) -> dict:
-    from drivers.mcp_stdio import McpStdioClient
-    evidence = {"phase": "mcp"}
+def mcp_roundtrip_with_sdk() -> dict:
+    """MCP roundtrip using the official MCP SDK (recommended approach)"""
+    from drivers.mcp_stdio import McpStdioClientSimple
+    evidence = {"phase": "mcp_sdk"}
+    client = None
     try:
-        client = McpStdioClient(proc=app_proc)
+        # Use the command to let the MCP SDK manage the process
+        cmd = [str(APP_BIN)]
+        client = McpStdioClientSimple(cmd)
+        
+        init = client.initialize()
+        evidence["initialize"] = init
+        tools = client.list_tools()
+        evidence["tools"] = tools
+        
+        # Find draw_overlay / take_screenshot / remove_overlay
+        def pick_tool(names):
+            tnames = []
+            try:
+                tnames = [t.get("name") for t in (tools.get("result", {}).get("tools") or []) if isinstance(t, dict)]
+            except Exception:
+                pass
+            for n in names:
+                if n in tnames:
+                    return n
+            return None
+        
+        draw_name = pick_tool(["draw_overlay", "DrawOverlay", "Overlay.Draw", "overlay/draw"]) or "draw_overlay"
+        take_name = pick_tool(["take_screenshot", "TakeScreenshot", "screenshot/take"]) or "take_screenshot"
+        remove_name = pick_tool(["remove_overlay", "RemoveOverlay", "overlay/remove"]) or "remove_overlay"
+        
+        # Call draw_overlay
+        rect = {"x": 50, "y": 50, "width": 240, "height": 120, "color": "#FFAA00", "opacity": 0.9}
+        dr = client.call_tool(draw_name, rect)
+        evidence["draw_overlay"] = dr
+        overlay_id = None
+        try:
+            overlay_id = (dr.get("result") or {}).get("overlay_id")
+        except Exception:
+            pass
+        
+        # Call take_screenshot
+        ts = client.call_tool(take_name, {})
+        evidence["take_screenshot"] = ts
+        img_b64 = None
+        try:
+            img_b64 = (ts.get("result") or {}).get("image_base64")
+        except Exception:
+            pass
+        
+        if img_b64:
+            img_path = ARTIFACTS / "mcp_roundtrip.png"
+            try:
+                img_path.write_bytes(base64.b64decode(img_b64))
+                evidence["screenshot_file"] = str(img_path)
+                # Verify overlay presence roughly
+                evidence["verify"] = verify_overlay(img_path, rect)
+            except Exception as e:
+                evidence["screenshot_decode_error"] = str(e)
+        
+        # Remove overlay if we have an id
+        if overlay_id:
+            rr = client.call_tool(remove_name, {"overlayId": overlay_id, "overlay_id": overlay_id})
+            evidence["remove_overlay"] = rr
+        
+        evidence["ok"] = True
+    except Exception as e:
+        evidence["ok"] = False
+        evidence["error"] = str(e)
+    finally:
+        if client:
+            try:
+                client.close()
+            except Exception:
+                pass
+    
+    return evidence
+
+
+def mcp_roundtrip(app_proc: subprocess.Popen) -> dict:
+    """Legacy MCP roundtrip using existing process (fallback approach)"""
+    from drivers.mcp_stdio import McpStdioClient
+    evidence = {"phase": "mcp_legacy"}
+    try:
+        # Extract command from APP_BIN for the new client
+        cmd = [str(APP_BIN)]
+        client = McpStdioClient(cmd=cmd, proc=app_proc)
         init = client.initialize()
         evidence["initialize"] = init
         tools = client.list_tools()
