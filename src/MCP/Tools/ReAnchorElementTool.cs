@@ -41,7 +41,7 @@ public static class ReAnchorElementTool
         // Get current overlay information
         var overlays = await overlayService.GetActiveOverlaysAsync();
         var targetOverlay = overlays.FirstOrDefault(o => o.Id == overlay_id);
-        
+
         if (targetOverlay == null)
         {
             throw new ArgumentException($"Overlay with ID '{overlay_id}' not found");
@@ -49,7 +49,7 @@ public static class ReAnchorElementTool
 
         // Calculate new position based on anchor mode
         int newX, newY;
-        
+
         switch (anchor_mode.ToLowerInvariant())
         {
             case "absolute":
@@ -57,13 +57,13 @@ public static class ReAnchorElementTool
                 newX = monitor.X + x;
                 newY = monitor.Y + y;
                 break;
-                
+
             case "relative":
                 // Relative offset from current position
                 newX = targetOverlay.Bounds.X + x;
                 newY = targetOverlay.Bounds.Y + y;
                 break;
-                
+
             default:
                 throw new ArgumentException($"Invalid anchor_mode '{anchor_mode}'. Must be 'absolute' or 'relative'");
         }
@@ -77,7 +77,7 @@ public static class ReAnchorElementTool
 
         // Update the overlay position
         var success = await overlayService.UpdateOverlayPositionAsync(overlay_id, newBounds);
-        
+
         if (!success)
         {
             throw new InvalidOperationException($"Failed to reposition overlay '{overlay_id}'");

@@ -16,27 +16,27 @@
 
     <!-- Header -->
     <StackPanel Grid.Row="0" Margin="0,0,0,20">
-      <TextBlock Text="Overlay Companion MCP Server" 
-                 FontSize="24" FontWeight="Bold" 
+      <TextBlock Text="Overlay Companion MCP Server"
+                 FontSize="24" FontWeight="Bold"
                  HorizontalAlignment="Center"/>
-      <TextBlock Text="A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit" 
-                 FontSize="12" Foreground="Gray" 
+      <TextBlock Text="A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit"
+                 FontSize="12" Foreground="Gray"
                  HorizontalAlignment="Center" Margin="0,5,0,0"/>
     </StackPanel>
 
     <!-- Main Content -->
     <TabControl Grid.Row="1">
-      
+
       <!-- Server Configuration Tab -->
       <TabItem Header="Server Configuration">
         <ScrollViewer>
           <StackPanel Margin="20" Spacing="15">
-            
+
             <!-- Server Settings -->
             <Border BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
               <StackPanel Spacing="10">
                 <TextBlock Text="Server Settings" FontWeight="Bold" FontSize="16"/>
-                
+
                 <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,10,0,0">
                   <Grid.Styles>
                     <Style Selector="TextBlock">
@@ -47,13 +47,13 @@
                       <Setter Property="Margin" Value="0,5"/>
                     </Style>
                   </Grid.Styles>
-                  
+
                   <TextBlock Grid.Row="0" Grid.Column="0" Text="Port:"/>
                   <TextBox Grid.Row="0" Grid.Column="1" Name="PortTextBox" Text="3000" Width="100" HorizontalAlignment="Left"/>
-                  
+
                   <TextBlock Grid.Row="1" Grid.Column="0" Text="Host:"/>
                   <TextBox Grid.Row="1" Grid.Column="1" Name="HostTextBox" Text="localhost"/>
-                  
+
                   <TextBlock Grid.Row="2" Grid.Column="0" Text="Auto-start:"/>
                   <CheckBox Grid.Row="2" Grid.Column="1" Name="AutoStartCheckBox" Content="Start server automatically" IsChecked="True"/>
                 </Grid>
@@ -70,7 +70,7 @@
                   <ComboBoxItem Content="Autopilot - Automated with confirmation"/>
                   <ComboBoxItem Content="Composing - Text generation mode"/>
                 </ComboBox>
-                <TextBlock Text="The default operational mode when the server starts" 
+                <TextBlock Text="The default operational mode when the server starts"
                           FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
               </StackPanel>
             </Border>
@@ -79,13 +79,13 @@
             <Border BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
               <StackPanel Spacing="10">
                 <TextBlock Text="Security Settings" FontWeight="Bold" FontSize="16"/>
-                
+
                 <CheckBox Name="RequireConfirmationCheckBox" Content="Require user confirmation for all actions" IsChecked="True"/>
                 <CheckBox Name="AllowScreenshotsCheckBox" Content="Allow screenshot capture" IsChecked="True"/>
                 <CheckBox Name="AllowInputSimulationCheckBox" Content="Allow input simulation (clicks/typing)" IsChecked="False"/>
                 <CheckBox Name="AllowClipboardAccessCheckBox" Content="Allow clipboard access" IsChecked="False"/>
-                
-                <TextBlock Text="These settings control what the MCP server is allowed to do" 
+
+                <TextBlock Text="These settings control what the MCP server is allowed to do"
                           FontSize="11" Foreground="Gray" TextWrapping="Wrap"/>
               </StackPanel>
             </Border>
@@ -97,11 +97,11 @@
       <!-- Server Status Tab -->
       <TabItem Header="Server Status">
         <StackPanel Margin="20" Spacing="15">
-          
+
           <Border BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
             <StackPanel Spacing="10">
               <TextBlock Text="Server Status" FontWeight="Bold" FontSize="16"/>
-              
+
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,10,0,0">
                 <Grid.Styles>
                   <Style Selector="TextBlock">
@@ -109,16 +109,16 @@
                     <Setter Property="Margin" Value="0,0,10,0"/>
                   </Style>
                 </Grid.Styles>
-                
+
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Status:"/>
                 <TextBlock Grid.Row="0" Grid.Column="1" Name="ServerStatusText" Text="Stopped" Foreground="Red"/>
-                
+
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Address:"/>
                 <TextBlock Grid.Row="1" Grid.Column="1" Name="ServerAddressText" Text="Not running"/>
-                
+
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Active Mode:"/>
                 <TextBlock Grid.Row="2" Grid.Column="1" Name="ActiveModeText" Text="Passive"/>
-                
+
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Connected Clients:"/>
                 <TextBlock Grid.Row="3" Grid.Column="1" Name="ConnectedClientsText" Text="0"/>
               </Grid>
@@ -145,20 +145,20 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
-          
+
           <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,20">
             <TextBlock Text="MCP Client Configuration" FontWeight="Bold" FontSize="16"/>
-            <TextBlock Text="Copy this configuration to your AI client (Jan.ai, Claude Desktop, etc.)" 
+            <TextBlock Text="Copy this configuration to your AI client (Jan.ai, Claude Desktop, etc.)"
                       FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
           </StackPanel>
-          
+
           <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
             <Grid>
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
               </Grid.RowDefinitions>
-              
+
               <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
                 <TextBlock Text="Configuration Format:" FontWeight="Bold" VerticalAlignment="Center"/>
                 <ComboBox Name="ConfigFormatComboBox" SelectedIndex="0" Width="150">
@@ -169,16 +169,16 @@
                 </ComboBox>
                 <Button Name="RefreshConfigButton" Content="Refresh" Width="80"/>
               </StackPanel>
-              
+
               <ScrollViewer Grid.Row="1">
-                <TextBox Name="McpConfigTextBox" IsReadOnly="True" AcceptsReturn="True" 
-                         TextWrapping="Wrap" Background="LightGray" 
+                <TextBox Name="McpConfigTextBox" IsReadOnly="True" AcceptsReturn="True"
+                         TextWrapping="Wrap" Background="LightGray"
                          FontFamily="Consolas,Monaco,monospace" FontSize="11"
                          MinHeight="300"/>
               </ScrollViewer>
             </Grid>
           </Border>
-          
+
           <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,15,0,0">
             <Button Name="CopyConfigButton" Content="Copy to Clipboard" Width="130"/>
             <Button Name="SaveConfigButton" Content="Save to File" Width="100"/>
@@ -195,34 +195,34 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
           </Grid.RowDefinitions>
-          
+
           <!-- Session Stop Section -->
-          <Border Grid.Row="0" Background="LightYellow" BorderBrush="Orange" BorderThickness="2" 
+          <Border Grid.Row="0" Background="LightYellow" BorderBrush="Orange" BorderThickness="2"
                   CornerRadius="5" Padding="15" Margin="0,0,0,20">
             <StackPanel Spacing="10">
               <TextBlock Text="🛑 Emergency Session Control" FontWeight="Bold" FontSize="16" Foreground="DarkOrange"/>
-              <TextBlock Text="Use this to immediately stop all AI operations and clear all overlays" 
+              <TextBlock Text="Use this to immediately stop all AI operations and clear all overlays"
                         FontSize="12" Foreground="Gray" TextWrapping="Wrap"/>
               <StackPanel Orientation="Horizontal" Spacing="15">
-                <Button Name="SessionStopButton" Content="🛑 Stop Session" 
+                <Button Name="SessionStopButton" Content="🛑 Stop Session"
                         Background="Orange" Foreground="White" FontWeight="Bold"
                         Width="120" Height="35"/>
-                <Button Name="SessionResumeButton" Content="▶️ Resume Session" 
+                <Button Name="SessionResumeButton" Content="▶️ Resume Session"
                         Background="Green" Foreground="White" FontWeight="Bold"
                         Width="120" Height="35" IsEnabled="False"/>
-                <TextBlock Name="SessionStatusText" Text="Session Active" 
+                <TextBlock Name="SessionStatusText" Text="Session Active"
                           VerticalAlignment="Center" FontWeight="Bold" Foreground="Green"/>
               </StackPanel>
             </StackPanel>
           </Border>
-          
+
           <!-- Active Overlays Section -->
-          <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" 
+          <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5"
                   Padding="15" Margin="0,0,0,20">
             <StackPanel Spacing="10">
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <TextBlock Text="Active Overlays" FontWeight="Bold" FontSize="14"/>
-                <Button Name="ClearAllOverlaysButton" Content="Clear All" 
+                <Button Name="ClearAllOverlaysButton" Content="Clear All"
                         Background="Red" Foreground="White" Width="80" Height="25"/>
                 <Button Name="RefreshOverlaysButton" Content="Refresh" Width="80" Height="25"/>
               </StackPanel>
@@ -240,7 +240,7 @@
               </ListBox>
             </StackPanel>
           </Border>
-          
+
           <!-- Test Overlay Section -->
           <Border Grid.Row="2" BorderBrush="LightGray" BorderThickness="1" CornerRadius="5" Padding="15">
             <StackPanel Spacing="10">
@@ -255,25 +255,25 @@
                     <Setter Property="Margin" Value="0,5"/>
                   </Style>
                 </Grid.Styles>
-                
+
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Color:"/>
-                <TextBox Grid.Row="0" Grid.Column="1" Name="TestOverlayColorInput" 
+                <TextBox Grid.Row="0" Grid.Column="1" Name="TestOverlayColorInput"
                          Watermark="yellow, red, #FF0000" Text="yellow"/>
-                
+
                 <TextBlock Grid.Row="0" Grid.Column="2" Text="Label:"/>
-                <TextBox Grid.Row="0" Grid.Column="3" Name="TestOverlayLabelInput" 
+                <TextBox Grid.Row="0" Grid.Column="3" Name="TestOverlayLabelInput"
                          Watermark="Test overlay text"/>
-                
+
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Position:"/>
-                <TextBox Grid.Row="1" Grid.Column="1" Name="TestOverlayPositionInput" 
+                <TextBox Grid.Row="1" Grid.Column="1" Name="TestOverlayPositionInput"
                          Watermark="100,100,200,150" Text="100,100,200,150"/>
-                
+
                 <TextBlock Grid.Row="1" Grid.Column="2" Text="Duration (ms):"/>
-                <TextBox Grid.Row="1" Grid.Column="3" Name="TestOverlayDurationInput" 
+                <TextBox Grid.Row="1" Grid.Column="3" Name="TestOverlayDurationInput"
                          Watermark="0 = permanent" Text="5000"/>
               </Grid>
-              
-              <Button Name="CreateTestOverlayButton" Content="Create Test Overlay" 
+
+              <Button Name="CreateTestOverlayButton" Content="Create Test Overlay"
                       Background="Blue" Foreground="White" Width="150" Height="30"
                       HorizontalAlignment="Left"/>
             </StackPanel>
@@ -289,18 +289,18 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
-          
+
           <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
             <TextBlock Text="Server Logs" FontWeight="Bold" FontSize="16" VerticalAlignment="Center"/>
             <Button Name="ClearLogsButton" Content="Clear" Width="60"/>
           </StackPanel>
-          
+
           <ScrollViewer Grid.Row="1" Name="LogScrollViewer">
-            <TextBox Name="LogTextBox" IsReadOnly="True" AcceptsReturn="True" 
+            <TextBox Name="LogTextBox" IsReadOnly="True" AcceptsReturn="True"
                      TextWrapping="Wrap" Background="Black" Foreground="LightGreen"
                      FontFamily="Consolas,Monaco,monospace" FontSize="11"/>
           </ScrollViewer>
-          
+
           <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
             <CheckBox Name="AutoScrollCheckBox" Content="Auto-scroll" IsChecked="True"/>
             <ComboBox Name="LogLevelComboBox" SelectedIndex="1" Width="120">

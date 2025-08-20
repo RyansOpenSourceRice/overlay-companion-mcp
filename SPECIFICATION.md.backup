@@ -411,7 +411,7 @@ const formFields = await aiAnalyze(screenshot.image_base64);
 
 // Highlight identified fields
 const overlays = formFields.map(field => ({
-  x: field.x, y: field.y, 
+  x: field.x, y: field.y,
   width: field.width, height: field.height,
   label: field.label, color: 'blue'
 }));
@@ -419,14 +419,14 @@ await mcp.call('batch_overlay', { overlays });
 
 // Fill fields with user confirmation
 for (const field of formFields) {
-  await mcp.call('click_at', { 
-    x: field.x + field.width/2, 
+  await mcp.call('click_at', {
+    x: field.x + field.width/2,
     y: field.y + field.height/2,
-    require_user_confirmation: true 
+    require_user_confirmation: true
   });
-  await mcp.call('type_text', { 
+  await mcp.call('type_text', {
     text: field.value,
-    require_user_confirmation: true 
+    require_user_confirmation: true
   });
 }
 ```
@@ -443,7 +443,7 @@ class FormAutomationWorkflow {
   async processFormFilling(formUrl) {
     // Set autopilot mode for this trusted workflow
     await this.overlayMCP.call('set_mode', { mode: 'autopilot' });
-    
+
     // Navigate and fill form
     await this.navigateToForm(formUrl);
     await this.fillFormFields();
@@ -453,7 +453,7 @@ class FormAutomationWorkflow {
   async fillFormFields() {
     const screenshot = await this.overlayMCP.call('take_screenshot');
     const fields = await this.identifyFormFields(screenshot);
-    
+
     // Use overlay companion for actual UI interaction
     for (const field of fields) {
       await this.overlayMCP.call('click_at', field.position);

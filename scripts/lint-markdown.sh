@@ -27,26 +27,26 @@ check_tool() {
 # Install tools if needed
 install_tools() {
     echo "📦 Checking required tools..."
-    
+
     tools_needed=()
-    
+
     if ! check_tool "markdownlint"; then
         tools_needed+=("markdownlint-cli")
     fi
-    
+
     if ! check_tool "cspell"; then
         tools_needed+=("cspell")
     fi
-    
+
     if ! check_tool "markdown-toc"; then
         tools_needed+=("markdown-toc")
     fi
-    
+
     if [ ${#tools_needed[@]} -ne 0 ]; then
         echo -e "${YELLOW}Installing missing tools: ${tools_needed[*]}${NC}"
         npm install -g "${tools_needed[@]}"
     fi
-    
+
     echo -e "${GREEN}✅ All tools are available${NC}"
 }
 
@@ -54,7 +54,7 @@ install_tools() {
 run_markdownlint() {
     echo ""
     echo "🔧 Running markdownlint..."
-    
+
     if markdownlint "**/*.md" --ignore node_modules; then
         echo -e "${GREEN}✅ Markdownlint passed${NC}"
         return 0
@@ -68,7 +68,7 @@ run_markdownlint() {
 run_spellcheck() {
     echo ""
     echo "📝 Running spell check..."
-    
+
     if cspell "**/*.md" --no-progress; then
         echo -e "${GREEN}✅ Spell check passed${NC}"
         return 0
@@ -83,20 +83,20 @@ run_spellcheck() {
 check_toc() {
     echo ""
     echo "📋 Checking table of contents..."
-    
+
     toc_issues=0
-    
+
     for file in SPECIFICATION.md MCP_SPECIFICATION.md; do
         if [ -f "$file" ]; then
             echo "Checking TOC for $file..."
-            
+
             if grep -q "<!-- toc -->" "$file"; then
                 # Generate expected TOC
                 markdown-toc --no-firsth1 "$file" > /tmp/expected_toc.md
-                
+
                 # Extract current TOC
                 sed -n '/<!-- toc -->/,/<!-- tocstop -->/p' "$file" > /tmp/current_toc.md
-                
+
                 if ! diff -q /tmp/expected_toc.md /tmp/current_toc.md > /dev/null; then
                     echo -e "${RED}❌ TOC is out of date in $file${NC}"
                     echo -e "${YELLOW}💡 Run: markdown-toc -i $file${NC}"
@@ -109,7 +109,7 @@ check_toc() {
             fi
         fi
     done
-    
+
     if [ $toc_issues -eq 0 ]; then
         echo -e "${GREEN}✅ Table of contents check passed${NC}"
         return 0
@@ -124,42 +124,42 @@ check_toc() {
 # Main execution
 main() {
     echo "Starting markdown quality checks..."
-    
+
     # Change to script directory
     cd "$(dirname "$0")/.."
-    
+
     # Install tools if needed
     install_tools
-    
+
     # Run all checks
     checks_passed=0
     total_checks=0
-    
+
     # Markdownlint
     total_checks=$((total_checks + 1))
     if run_markdownlint; then
         checks_passed=$((checks_passed + 1))
     fi
-    
+
     # Spell check
     total_checks=$((total_checks + 1))
     if run_spellcheck; then
         checks_passed=$((checks_passed + 1))
     fi
-    
+
     # TOC check
     total_checks=$((total_checks + 1))
     if check_toc; then
         checks_passed=$((checks_passed + 1))
     fi
-    
 
-    
+
+
     # Summary
     echo ""
     echo "=================================="
     echo "📊 Summary: $checks_passed/$total_checks checks passed"
-    
+
     if [ $checks_passed -eq $total_checks ]; then
         echo -e "${GREEN}🎉 All markdown quality checks passed!${NC}"
         exit 0

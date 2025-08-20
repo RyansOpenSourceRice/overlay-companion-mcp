@@ -449,3 +449,53 @@ All tools implement rate limiting to protect local and remote inference systems 
 - **Element Anchoring**: Persistent element identification across UI changes
 - **State Management**: Maintains context across multiple interactions
 - **Metadata Exchange**: Bidirectional context sharing with AI models
+
+## Development Environment
+
+### For AI Agents and AllHands Instances
+
+**Automatic Setup (Required):**
+```bash
+git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+cd overlay-companion-mcp
+./scripts/setup-dev-environment.sh
+```
+
+This repository uses **automated development environment setup** with:
+- ✅ Pre-commit hooks for code quality (Black, flake8, mypy, bandit)
+- ✅ Multi-language linting (Python, C#, Markdown)
+- ✅ Security scanning and dependency checking
+- ✅ Conventional commit enforcement
+- ✅ Automatic code formatting
+
+### Quality Standards
+
+**Multi-Language Linting Strategy**: Multiple workflow files (industry standard)
+- `python-lint.yml`: Comprehensive Python quality checks
+- `csharp-lint.yml`: C# formatting and analysis
+- `markdown-lint.yml`: Documentation quality assurance
+
+**Pre-commit Hooks**: All code changes are automatically validated for:
+- Code formatting and style consistency
+- Security vulnerabilities and credential detection
+- Type checking and static analysis
+- Import sorting and dependency validation
+
+### Documentation
+
+- **Development Setup**: [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md)
+- **AI Agent Instructions**: [docs/AI_AGENT_SETUP.md](docs/AI_AGENT_SETUP.md)
+- **Open Source Licenses**: [docs/OPEN_SOURCE_LICENSES.md](docs/OPEN_SOURCE_LICENSES.md)
+
+### Build and Deployment
+
+**AppImage Build**: Automated AppImage creation with proper metadata validation
+```bash
+./scripts/build-appimage.sh
+```
+
+**CI/CD Pipeline**: GitHub Actions workflows for:
+- Multi-language code quality checks
+- Automated testing and validation
+- AppImage build and release
+- Documentation quality assurance

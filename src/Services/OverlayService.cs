@@ -152,7 +152,7 @@ public class OverlayService : IOverlayService
     {
         // Check if running in headless mode
         bool headless = Environment.GetEnvironmentVariable("HEADLESS") == "1";
-        
+
         if (headless)
         {
             // Use mock overlay window for headless mode

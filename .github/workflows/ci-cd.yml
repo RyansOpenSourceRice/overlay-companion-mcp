@@ -33,50 +33,50 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should-deploy: ${{ steps.deployment-check.outputs.should-deploy }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        
+
     - name: Check deployment conditions
       id: deployment-check
       run: |
         SHOULD_DEPLOY="false"
-        
+
         # Deploy on main branch pushes
         if [ "${{ github.ref }}" == "refs/heads/main" ] && [ "${{ github.event_name }}" == "push" ]; then
           SHOULD_DEPLOY="true"
         fi
-        
+
         # Deploy on manual workflow dispatch
         if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           SHOULD_DEPLOY="true"
         fi
-        
+
         echo "should-deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
         echo "🚀 Should deploy: $SHOULD_DEPLOY"
 
   # Markdown Quality
   markdown-quality:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
-        
+
     - name: Install markdown tools
       run: |
         npm install -g markdownlint-cli cspell markdown-toc
-        
+
     - name: Run markdown linting
       continue-on-error: true
       run: |
@@ -86,19 +86,19 @@ jobs:
   # C# Quality and Build
   csharp-quality:
     runs-on: ubuntu-latest
-    
+
     outputs:
       build-success: ${{ steps.build-check.outputs.success }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -106,24 +106,24 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
-          
+
     - name: Restore dependencies
       run: |
         cd src
         dotnet restore
-        
+
     - name: Code formatting check
       continue-on-error: true
       run: |
         cd src
         echo "🔍 Applying code formatting..."
         dotnet format --verbosity minimal
-        
+
     - name: Build and analyze
       id: build-check
       run: |
         cd src
-        
+
         # Build with warnings as errors for quality
         if dotnet build --configuration Release --no-restore; then
           echo "success=true" >> $GITHUB_OUTPUT
@@ -133,13 +133,13 @@ jobs:
           echo "❌ Build failed"
           exit 1
         fi
-        
+
     - name: Security scan
       continue-on-error: true
       run: |
         cd src
         dotnet list package --vulnerable --include-transitive || echo "Security scan completed"
-        
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -152,25 +152,25 @@ jobs:
     runs-on: ubuntu-latest
     needs: csharp-quality
     if: needs.csharp-quality.outputs.build-success == 'true' && !github.event.inputs.skip_tests
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Restore dependencies
       run: |
         cd src
         dotnet restore
-        
+
     - name: Run unit tests
       run: |
         cd src
-        
+
         # Check if test projects exist
         if find . -name "*.Tests.csproj" -o -name "*Test*.csproj" | grep -q .; then
           echo "🧪 Running unit tests..."
@@ -179,7 +179,7 @@ jobs:
           echo "ℹ️ No test projects found - skipping unit tests"
           echo "Consider adding test projects for better code quality"
         fi
-        
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
@@ -195,38 +195,38 @@ jobs:
     runs-on: ubuntu-latest
     needs: csharp-quality
     if: needs.csharp-quality.outputs.build-success == 'true' && !github.event.inputs.skip_tests
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y xvfb libx11-dev libxrandr-dev
-        
+
     - name: Build application
       run: |
         cd src
         dotnet build --configuration Release
-        
+
     - name: Test application startup
       run: |
         cd src
-        
+
         # Test basic application startup with virtual display
         echo "🧪 Testing application startup..."
         timeout 10s xvfb-run -a dotnet run --configuration Release -- --help || echo "Startup test completed"
-        
+
     - name: Test MCP server mode
       run: |
         cd src
-        
+
         # Test MCP server initialization
         echo "🧪 Testing MCP server mode..."
         timeout 5s xvfb-run -a dotnet run --configuration Release -- --mcp --test || echo "MCP test completed"
@@ -234,11 +234,11 @@ jobs:
   # Security Scan
   security-scan:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
@@ -246,7 +246,7 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
-        
+
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v3
       if: always()
@@ -258,26 +258,26 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality-gates, markdown-quality, csharp-quality]
     if: needs.quality-gates.outputs.should-deploy == 'true'
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Install AppImage dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y wget imagemagick desktop-file-utils appstream-util fuse libfuse2
-        
+
     - name: Build AppImage
       run: |
         export APP_VERSION="$(date +%Y.%m.%d)"
         ./scripts/build-appimage.sh
-        
+
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
@@ -290,32 +290,32 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality-gates, build-appimage, unit-tests, integration-tests]
     if: |
-      always() && 
+      always() &&
       needs.quality-gates.outputs.should-deploy == 'true' &&
       needs.build-appimage.result == 'success' &&
       (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') &&
       (needs.integration-tests.result == 'success' || needs.integration-tests.result == 'skipped')
-    
+
     environment: ${{ github.event.inputs.deploy_environment || 'staging' }}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Download AppImage
       uses: actions/download-artifact@v4
       with:
         name: appimage-${{ github.sha }}
         path: ./deploy/
-        
+
     - name: Deploy to environment
       run: |
         ENV="${{ github.event.inputs.deploy_environment || 'staging' }}"
         echo "🚀 Deploying to $ENV environment..."
-        
+
         # List available AppImages
         ls -la deploy/
-        
+
         if [ "$ENV" == "production" ]; then
           echo "🎯 Production deployment would happen here"
           echo "- Create GitHub release"
@@ -326,7 +326,7 @@ jobs:
           echo "- AppImage available for testing"
           echo "- Internal distribution updated"
         fi
-        
+
     - name: Deployment summary
       run: |
         echo "=================================="
@@ -343,7 +343,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy, quality-gates]
     if: always() && needs.quality-gates.outputs.should-deploy == 'true'
-    
+
     steps:
     - name: Notify deployment status
       run: |

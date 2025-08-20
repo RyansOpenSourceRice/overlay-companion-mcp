@@ -35,31 +35,31 @@ env:
 jobs:
   build-appimage:
     runs-on: ubuntu-latest
-    
+
     outputs:
       version: ${{ steps.version.outputs.version }}
       appimage-name: ${{ steps.version.outputs.appimage-name }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Needed for version calculation
-        
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Calculate version
       id: version
       run: |
         # Calculate version based on YYYY.MM.DD[.N] schema
         DATE=$(date +%Y.%m.%d)
-        
+
         # Check if we already have releases today
         TODAY_RELEASES=$(gh release list --limit 100 --json tagName --jq '.[] | select(.tagName | startswith("'$DATE'")) | .tagName' | wc -l || echo "0")
-        
+
         if [ "$TODAY_RELEASES" -eq 0 ]; then
           VERSION="$DATE"
         else
@@ -68,16 +68,16 @@ jobs:
           NEXT_BUILD=$((HIGHEST_BUILD + 1))
           VERSION="$DATE.$NEXT_BUILD"
         fi
-        
+
         APPIMAGE_NAME="${{ env.APP_NAME }}-${VERSION}-x86_64.AppImage"
-        
+
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "appimage-name=$APPIMAGE_NAME" >> $GITHUB_OUTPUT
         echo "📅 Version: $VERSION"
         echo "📦 AppImage: $APPIMAGE_NAME"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -88,46 +88,46 @@ jobs:
           appstream-util \
           fuse \
           libfuse2
-          
+
     - name: Restore .NET dependencies
       run: |
         cd src
         dotnet restore
-        
+
     - name: Build AppImage
       run: |
         export APP_VERSION="${{ steps.version.outputs.version }}"
         ./scripts/build-appimage.sh
-        
+
     - name: Validate AppImage
       continue-on-error: true
       run: |
         APPIMAGE_PATH="build/${{ steps.version.outputs.appimage-name }}"
-        
+
         # Check if AppImage was created
         if [ ! -f "$APPIMAGE_PATH" ]; then
           echo "❌ AppImage not found at $APPIMAGE_PATH"
           exit 1
         fi
-        
+
         # Check AppImage properties
         echo "📊 AppImage Information:"
         echo "Size: $(du -h "$APPIMAGE_PATH" | cut -f1)"
         echo "Permissions: $(ls -la "$APPIMAGE_PATH")"
-        
+
         # Test AppImage extraction (basic validation)
         chmod +x "$APPIMAGE_PATH"
         "$APPIMAGE_PATH" --appimage-extract-and-run --help || echo "⚠️ Help command test inconclusive"
-        
+
         echo "✅ AppImage validation completed"
-        
+
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.version.outputs.appimage-name }}
         path: build/${{ steps.version.outputs.appimage-name }}
         retention-days: 30
-        
+
     - name: Upload build logs
       if: always()
       uses: actions/upload-artifact@v4
@@ -145,72 +145,72 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'release'
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Download AppImage artifact
       uses: actions/download-artifact@v4
       with:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./release/
-        
+
     - name: Generate release notes
       id: release-notes
       run: |
         VERSION="${{ needs.build-appimage.outputs.version }}"
         APPIMAGE_NAME="${{ needs.build-appimage.outputs.appimage-name }}"
-        
+
         # Create release notes
         cat > release_notes.md << EOF
         # Overlay Companion MCP v${VERSION}
-        
+
         ## 📦 AppImage Release
-        
+
         **Download:** \`${APPIMAGE_NAME}\`
-        
+
         ### Installation
-        
+
         1. Download the AppImage file
         2. Make it executable: \`chmod +x ${APPIMAGE_NAME}\`
         3. Run: \`./${APPIMAGE_NAME}\`
-        
+
         ### Features
-        
+
         - 🖥️ **Screen Interaction**: AI-assisted screen capture and overlay drawing
         - 🤖 **MCP Integration**: Compatible with Jan.ai and other MCP clients
         - 🛡️ **Human-in-the-Loop**: Safety controls and user confirmation for automated actions
         - 🖱️ **Input Simulation**: Controlled mouse and keyboard automation
         - 📱 **Multi-Monitor**: Support for complex display configurations
         - 🎨 **Overlay System**: Draw highlights, labels, and annotations on screen
-        
+
         ### System Requirements
-        
+
         - Linux x86_64
         - FUSE support (for AppImage execution)
         - X11 display server
         - .NET 8.0 runtime (bundled in AppImage)
-        
+
         ### Usage
-        
+
         #### Direct Execution
         \`\`\`bash
         ./${APPIMAGE_NAME}
         \`\`\`
-        
+
         #### MCP Server Mode
         \`\`\`bash
         ./${APPIMAGE_NAME} --mcp
         \`\`\`
-        
+
         #### HTTP Bridge Mode
         \`\`\`bash
         ./${APPIMAGE_NAME} --http
         \`\`\`
-        
+
         ### Integration with Jan.ai
-        
+
         Add to your Jan.ai MCP configuration:
         \`\`\`json
         {
@@ -222,18 +222,18 @@ jobs:
           }
         }
         \`\`\`
-        
+
         ---
-        
+
         **Build Information:**
         - Version: ${VERSION}
         - Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
         - Platform: Linux x86_64
         - .NET Version: 8.0
         - MCP SDK: 0.3.0-preview.3
-        
+
         EOF
-        
+
         # Add custom release notes if provided
         if [ -n "${{ github.event.inputs.release_notes }}" ]; then
           echo "" >> release_notes.md
@@ -241,10 +241,10 @@ jobs:
           echo "" >> release_notes.md
           echo "${{ github.event.inputs.release_notes }}" >> release_notes.md
         fi
-        
+
         echo "Generated release notes:"
         cat release_notes.md
-        
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
@@ -258,7 +258,7 @@ jobs:
         make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
     - name: Update latest release info
       run: |
         echo "🎉 Release created successfully!"
@@ -270,34 +270,34 @@ jobs:
     needs: build-appimage
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
     - name: Download AppImage artifact
       uses: actions/download-artifact@v4
       with:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./test/
-        
+
     - name: Install test dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y fuse libfuse2 xvfb
-        
+
     - name: Test AppImage execution
       run: |
         cd test
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
-        
+
         # Test basic execution with virtual display
         xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help || echo "Help test completed"
-        
+
         # Test AppImage extraction
         ./${{ needs.build-appimage.outputs.appimage-name }} --appimage-extract
-        
+
         # Verify extracted contents
         ls -la squashfs-root/
         test -f squashfs-root/AppRun
         test -f squashfs-root/usr/bin/overlay-companion-mcp
         test -f squashfs-root/*.desktop
-        
+
         echo "✅ AppImage tests passed"

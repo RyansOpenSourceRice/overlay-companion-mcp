@@ -44,7 +44,7 @@ public static class DrawOverlayTool
         // Adjust coordinates to be relative to the specified monitor
         var adjustedX = monitor.X + x;
         var adjustedY = monitor.Y + y;
-        
+
         // Create screen region with monitor-adjusted coordinates
         var bounds = new ScreenRegion(adjustedX, adjustedY, width, height);
 

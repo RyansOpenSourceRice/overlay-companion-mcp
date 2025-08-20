@@ -642,4 +642,3 @@ Purpose: provide a simple, key-free GUI test harness that runs inside the AllHan
 - No API keys: uses stdio MCP when available or performs visual smoke tests until MCP is fully wired
 - Not part of GitHub Actions by design; run manually in AllHands cloud
 
-

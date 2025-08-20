@@ -294,7 +294,7 @@ public class ScreenCaptureService : IScreenCaptureService
             return 0; // Default to primary monitor
 
         var monitors = await GetMonitorsAsync();
-        
+
         // Find which monitor contains the center of the region
         var centerX = region.X + region.Width / 2;
         var centerY = region.Y + region.Height / 2;
@@ -361,17 +361,17 @@ public class ScreenCaptureService : IScreenCaptureService
     private List<MonitorInfo> ParseXdpyinfoMonitors(string output)
     {
         var monitors = new List<MonitorInfo>();
-        
+
         // Basic parsing for xdpyinfo - usually shows single display info
         var lines = output.Split('\n');
         var dimensionsLine = lines.FirstOrDefault(l => l.Contains("dimensions:"));
-        
+
         if (dimensionsLine != null)
         {
             // Parse "dimensions: 1920x1080 pixels"
             var parts = dimensionsLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var dimPart = parts.FirstOrDefault(p => p.Contains("x"));
-            
+
             if (dimPart != null)
             {
                 var dimensions = dimPart.Split('x');

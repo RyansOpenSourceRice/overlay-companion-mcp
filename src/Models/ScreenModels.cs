@@ -54,7 +54,7 @@ public class OverlayElement
 public enum OperationalMode
 {
     Passive,    // View only, no actions
-    Assist,     // Suggest actions, require confirmation  
+    Assist,     // Suggest actions, require confirmation
     Autopilot,  // Execute actions with user oversight
     Composing,  // Content creation mode
     Custom      // User-defined mode

@@ -26,7 +26,7 @@ public class GetDisplayInfoTool
         try
         {
             var displays = await GetDisplaysInfoAsync();
-            
+
             return new
             {
                 displays = displays,
@@ -147,17 +147,17 @@ public class GetDisplayInfoTool
     private List<DisplayInfo> ParseXdpyinfoOutput(string output)
     {
         var displays = new List<DisplayInfo>();
-        
+
         // Basic parsing for xdpyinfo - usually shows single display info
         var lines = output.Split('\n');
         var dimensionsLine = lines.FirstOrDefault(l => l.Contains("dimensions:"));
-        
+
         if (dimensionsLine != null)
         {
             // Parse "dimensions: 1920x1080 pixels"
             var parts = dimensionsLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var dimPart = parts.FirstOrDefault(p => p.Contains("x"));
-            
+
             if (dimPart != null)
             {
                 var dimensions = dimPart.Split('x');
