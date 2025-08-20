@@ -18,6 +18,7 @@ public interface IOverlayService
     Task<string[]> DrawBatchOverlaysAsync(OverlayElement[] overlays, bool oneAtATime = false);
     Task ClearAllOverlaysAsync();
     Task<OverlayElement[]> GetActiveOverlaysAsync();
+    Task<bool> UpdateOverlayPositionAsync(string overlayId, ScreenRegion newBounds);
     event EventHandler<OverlayElement>? OverlayCreated;
     event EventHandler<string>? OverlayRemoved;
 }
@@ -128,11 +129,30 @@ public class OverlayService : IOverlayService
         return _activeOverlays.Values.ToArray();
     }
 
+    public async Task<bool> UpdateOverlayPositionAsync(string overlayId, ScreenRegion newBounds)
+    {
+        if (!_activeOverlays.TryGetValue(overlayId, out var overlay))
+        {
+            return false;
+        }
+
+        // Update the overlay element bounds
+        overlay.Bounds = newBounds;
+
+        // Update the overlay window position if it exists
+        if (_overlayWindows.TryGetValue(overlayId, out var window))
+        {
+            await window.UpdatePositionAsync(newBounds);
+        }
+
+        return true;
+    }
+
     private IOverlayWindow CreateOverlayWindow(OverlayElement overlay)
     {
         // Check if running in headless mode
         bool headless = Environment.GetEnvironmentVariable("HEADLESS") == "1";
-        
+
         if (headless)
         {
             // Use mock overlay window for headless mode

@@ -11,6 +11,47 @@
 
 A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
 
+## Installation
+
+### Download AppImage (Recommended)
+1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases)
+2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
+3. Run: `./overlay-companion-mcp-*.AppImage`
+
+### System Requirements
+- Linux with X11 display server
+- xrandr (for multi-monitor support)
+- Modern desktop environment (GNOME, KDE, XFCE, etc.)
+
+## Usage
+
+### MCP Integration
+Configure with Jan.ai or other MCP-compatible AI clients:
+
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "/path/to/overlay-companion-mcp",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### Available Tools
+- **Screen capture** with region selection
+- **Overlay drawing** for visual feedback
+- **Multi-monitor support** with automatic detection
+- **Input simulation** with safety controls
+- **Human-in-the-loop** confirmation for actions
+
+For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md).
+
+## Development
+
+**Contributors and AI agents:** See [DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md) for development environment setup.
+
 ## Documentation Quality
 
 This repository maintains high documentation standards with automated quality checks:

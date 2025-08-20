@@ -1,0 +1,274 @@
+name: Python Lint and Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/**/*.py'
+      - 'scripts/**/*.py'
+      - '**/*.py'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - '.github/workflows/python-lint.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/**/*.py'
+      - 'scripts/**/*.py'
+      - '**/*.py'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'setup.py'
+      - '.github/workflows/python-lint.yml'
+
+env:
+  PYTHON_VERSION: '3.12'
+  PIP_DISABLE_PIP_VERSION_CHECK: 1
+  PIP_NO_CACHE_DIR: 1
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+
+    - name: Cache Python packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install linting dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 mypy bandit safety isort pylint
+
+        # Install project dependencies if they exist
+        if [ -f "tests/ai-gui/requirements.txt" ]; then
+          pip install -r tests/ai-gui/requirements.txt
+        fi
+
+        # Install any other requirements files found
+        find . -name "requirements*.txt" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | while read req_file; do
+          echo "Installing from $req_file"
+          pip install -r "$req_file" || echo "Failed to install from $req_file"
+        done
+
+    - name: Code formatting check (Black)
+      continue-on-error: true
+      run: |
+        echo "🔍 Checking Python code formatting with Black..."
+        black --check --diff --color . || echo "❌ Black formatting issues found"
+
+    - name: Import sorting check (isort)
+      continue-on-error: true
+      run: |
+        echo "🔍 Checking import sorting with isort..."
+        isort --check-only --diff --color . || echo "❌ Import sorting issues found"
+
+    - name: Code style check (flake8)
+      continue-on-error: true
+      run: |
+        echo "🔍 Running flake8 style checks..."
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+
+    - name: Type checking (mypy)
+      continue-on-error: true
+      run: |
+        echo "🔍 Running mypy type checking..."
+
+        # Find Python files and run mypy on them
+        find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | while read py_file; do
+          echo "Type checking: $py_file"
+          mypy "$py_file" --ignore-missing-imports --no-strict-optional || echo "Type check issues in $py_file"
+        done
+
+    - name: Security scan (bandit)
+      continue-on-error: true
+      run: |
+        echo "🛡️ Running security scan with bandit..."
+        bandit -r . -f json -o bandit-report.json || echo "Security issues found"
+
+        # Show summary
+        if [ -f "bandit-report.json" ]; then
+          echo "Security scan summary:"
+          python -c "
+          import json
+          try:
+              with open('bandit-report.json') as f:
+                  data = json.load(f)
+              print(f'Total issues: {len(data.get(\"results\", []))}')
+              for result in data.get('results', [])[:5]:  # Show first 5 issues
+                  print(f'- {result.get(\"test_name\", \"Unknown\")}: {result.get(\"issue_text\", \"No description\")}')
+              if len(data.get('results', [])) > 5:
+                  print(f'... and {len(data.get(\"results\", [])) - 5} more issues')
+          except Exception as e:
+              print(f'Could not parse bandit report: {e}')
+          "
+        fi
+
+    - name: Dependency security check (safety)
+      continue-on-error: true
+      run: |
+        echo "🛡️ Checking for known security vulnerabilities in dependencies..."
+        safety check --json --output safety-report.json || echo "Dependency security issues found"
+
+        # Show summary
+        if [ -f "safety-report.json" ]; then
+          echo "Dependency security summary:"
+          python -c "
+          import json
+          try:
+              with open('safety-report.json') as f:
+                  data = json.load(f)
+              if isinstance(data, list):
+                  print(f'Vulnerable packages: {len(data)}')
+                  for vuln in data[:3]:  # Show first 3 vulnerabilities
+                      print(f'- {vuln.get(\"package\", \"Unknown\")}: {vuln.get(\"vulnerability\", \"No description\")}')
+                  if len(data) > 3:
+                      print(f'... and {len(data) - 3} more vulnerabilities')
+              else:
+                  print('No vulnerabilities found')
+          except Exception as e:
+              print(f'Could not parse safety report: {e}')
+          "
+        fi
+
+    - name: Code quality analysis (pylint)
+      continue-on-error: true
+      run: |
+        echo "📊 Running code quality analysis with pylint..."
+
+        # Find Python files and run pylint
+        find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | while read py_file; do
+          echo "Analyzing: $py_file"
+          pylint "$py_file" --output-format=text --reports=no --score=yes || echo "Quality issues in $py_file"
+        done
+
+    - name: Code metrics analysis
+      run: |
+        echo "📊 Analyzing Python code metrics..."
+
+        # Count lines of Python code
+        echo "Lines of Python code:"
+        find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | xargs wc -l | tail -1
+
+        # Count Python files
+        echo "Python files:"
+        find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | wc -l
+
+        # Check for TODO/FIXME comments
+        echo "TODO/FIXME comments in Python files:"
+        grep -r "TODO\|FIXME\|HACK" --include="*.py" . || echo "None found"
+
+        # Check for print statements (should use logging)
+        echo "Print statements found (consider using logging):"
+        grep -r "print(" --include="*.py" . | grep -v "__pycache__" | wc -l
+
+    - name: Test discovery
+      run: |
+        echo "🧪 Discovering Python tests..."
+
+        # Look for test files
+        echo "Test files found:"
+        find . -name "test_*.py" -o -name "*_test.py" | grep -v ".venv" | sort
+
+        # Check for pytest configuration
+        if [ -f "pytest.ini" ] || [ -f "pyproject.toml" ] || [ -f "setup.cfg" ]; then
+          echo "✅ Pytest configuration found"
+        else
+          echo "ℹ️ No pytest configuration found"
+        fi
+
+        # Check if tests can be imported
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, '.')
+        test_files = []
+        for root, dirs, files in os.walk('.'):
+            if '.venv' in root:
+                continue
+            for file in files:
+                if file.startswith('test_') and file.endswith('.py'):
+                    test_files.append(os.path.join(root, file))
+
+        print(f'Found {len(test_files)} test files')
+        for test_file in test_files[:5]:  # Show first 5
+            print(f'  {test_file}')
+        if len(test_files) > 5:
+            print(f'  ... and {len(test_files) - 5} more')
+        "
+
+    - name: Upload security reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-security-reports-${{ github.sha }}
+        path: |
+          bandit-report.json
+          safety-report.json
+        retention-days: 7
+
+    - name: Apply auto-formatting (if enabled)
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      continue-on-error: true
+      run: |
+        echo "🔧 Auto-formatting Python code..."
+
+        # Apply black formatting
+        black .
+
+        # Apply import sorting
+        isort .
+
+        # Check if there are changes to commit
+        if ! git diff --quiet; then
+          echo "📝 Auto-formatting applied changes"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add -A
+          git commit -m "style: Auto-format Python code with black and isort" || echo "No changes to commit"
+          git push || echo "Could not push auto-formatting changes"
+        else
+          echo "✅ Code already properly formatted"
+        fi
+
+    - name: Summary
+      if: always()
+      run: |
+        echo "=================================="
+        echo "🐍 Python Lint and Quality Summary"
+        echo "=================================="
+        echo "✅ Code formatting check completed"
+        echo "✅ Import sorting check completed"
+        echo "✅ Style check completed"
+        echo "✅ Type checking completed"
+        echo "✅ Security scan completed"
+        echo "✅ Dependency security check completed"
+        echo "✅ Code quality analysis completed"
+        echo "✅ Code metrics analyzed"
+
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "🎉 All Python quality checks completed!"
+        else
+          echo "⚠️ Some checks found issues. Review the logs above."
+        fi
+
+        echo ""
+        echo "📋 Python files analyzed:"
+        find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | wc -l
+        echo "🧪 Test files found:"
+        find . -name "test_*.py" -o -name "*_test.py" | grep -v ".venv" | wc -l

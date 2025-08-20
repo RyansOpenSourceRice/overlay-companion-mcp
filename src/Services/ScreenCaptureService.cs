@@ -15,6 +15,8 @@ public interface IScreenCaptureService
     Task<Screenshot> CaptureScreenAsync(ScreenRegion? region = null, bool fullScreen = true);
     Task<Screenshot> CaptureMonitorAsync(int monitorIndex);
     Task<(int width, int height)> GetScreenResolutionAsync();
+    Task<List<MonitorInfo>> GetMonitorsAsync();
+    Task<MonitorInfo?> GetMonitorInfoAsync(int monitorIndex);
     event EventHandler<Screenshot>? ScreenCaptured;
 }
 
@@ -39,7 +41,7 @@ public class ScreenCaptureService : IScreenCaptureService
                 ImageData = imageData,
                 Width = region?.Width ?? width,
                 Height = region?.Height ?? height,
-                MonitorIndex = 0, // TODO: Implement multi-monitor detection
+                MonitorIndex = await DetectMonitorIndexAsync(region),
                 DisplayScale = await GetDisplayScaleAsync(),
                 CaptureRegion = region
             };
@@ -57,9 +59,18 @@ public class ScreenCaptureService : IScreenCaptureService
 
     public async Task<Screenshot> CaptureMonitorAsync(int monitorIndex)
     {
-        // For now, treat as full screen capture
-        // TODO: Implement proper multi-monitor support
-        return await CaptureScreenAsync(fullScreen: true);
+        var monitor = await GetMonitorInfoAsync(monitorIndex);
+        if (monitor == null)
+        {
+            throw new ArgumentException($"Monitor {monitorIndex} not found");
+        }
+
+        // Create region for specific monitor
+        var region = new ScreenRegion(monitor.X, monitor.Y, monitor.Width, monitor.Height);
+
+        var screenshot = await CaptureScreenAsync(region, fullScreen: false);
+        screenshot.MonitorIndex = monitorIndex;
+        return screenshot;
     }
 
     private async Task<byte[]> CaptureUsingLinuxTools(ScreenRegion? region = null, bool fullScreen = true)
@@ -223,5 +234,194 @@ public class ScreenCaptureService : IScreenCaptureService
         }
 
         return 1.0; // Default scale
+    }
+
+    public async Task<List<MonitorInfo>> GetMonitorsAsync()
+    {
+        var monitors = new List<MonitorInfo>();
+
+        try
+        {
+            // Try xrandr first (most common on Linux)
+            var xrandrResult = await RunCommandAsync("xrandr", "--query");
+            if (!string.IsNullOrEmpty(xrandrResult))
+            {
+                monitors = ParseXrandrMonitors(xrandrResult);
+                if (monitors.Any())
+                    return monitors;
+            }
+        }
+        catch { }
+
+        try
+        {
+            // Fallback to xdpyinfo
+            var xdpyinfoResult = await RunCommandAsync("xdpyinfo", "");
+            if (!string.IsNullOrEmpty(xdpyinfoResult))
+            {
+                monitors = ParseXdpyinfoMonitors(xdpyinfoResult);
+                if (monitors.Any())
+                    return monitors;
+            }
+        }
+        catch { }
+
+        // Final fallback - single monitor with current resolution
+        var (width, height) = await GetScreenResolutionAsync();
+        monitors.Add(new MonitorInfo
+        {
+            Index = 0,
+            Name = "Monitor-0",
+            Width = width,
+            Height = height,
+            X = 0,
+            Y = 0,
+            IsPrimary = true
+        });
+
+        return monitors;
+    }
+
+    public async Task<MonitorInfo?> GetMonitorInfoAsync(int monitorIndex)
+    {
+        var monitors = await GetMonitorsAsync();
+        return monitors.FirstOrDefault(m => m.Index == monitorIndex);
+    }
+
+    private async Task<int> DetectMonitorIndexAsync(ScreenRegion? region)
+    {
+        if (region == null)
+            return 0; // Default to primary monitor
+
+        var monitors = await GetMonitorsAsync();
+
+        // Find which monitor contains the center of the region
+        var centerX = region.X + region.Width / 2;
+        var centerY = region.Y + region.Height / 2;
+
+        foreach (var monitor in monitors)
+        {
+            if (centerX >= monitor.X && centerX < monitor.X + monitor.Width &&
+                centerY >= monitor.Y && centerY < monitor.Y + monitor.Height)
+            {
+                return monitor.Index;
+            }
+        }
+
+        return 0; // Default to primary monitor if not found
+    }
+
+    private List<MonitorInfo> ParseXrandrMonitors(string output)
+    {
+        var monitors = new List<MonitorInfo>();
+        var lines = output.Split('\n');
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            if (line.Contains(" connected"))
+            {
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var name = parts[0];
+                var isPrimary = line.Contains("primary");
+
+                // Parse resolution and position (e.g., "1920x1080+0+0")
+                var resolutionPart = parts.FirstOrDefault(p => p.Contains("x") && p.Contains("+"));
+                if (resolutionPart != null)
+                {
+                    var resParts = resolutionPart.Split('+');
+                    if (resParts.Length >= 3)
+                    {
+                        var dimensions = resParts[0].Split('x');
+                        if (dimensions.Length == 2 &&
+                            int.TryParse(dimensions[0], out int width) &&
+                            int.TryParse(dimensions[1], out int height) &&
+                            int.TryParse(resParts[1], out int x) &&
+                            int.TryParse(resParts[2], out int y))
+                        {
+                            monitors.Add(new MonitorInfo
+                            {
+                                Index = index++,
+                                Name = name,
+                                Width = width,
+                                Height = height,
+                                X = x,
+                                Y = y,
+                                IsPrimary = isPrimary
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return monitors;
+    }
+
+    private List<MonitorInfo> ParseXdpyinfoMonitors(string output)
+    {
+        var monitors = new List<MonitorInfo>();
+
+        // Basic parsing for xdpyinfo - usually shows single display info
+        var lines = output.Split('\n');
+        var dimensionsLine = lines.FirstOrDefault(l => l.Contains("dimensions:"));
+
+        if (dimensionsLine != null)
+        {
+            // Parse "dimensions: 1920x1080 pixels"
+            var parts = dimensionsLine.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var dimPart = parts.FirstOrDefault(p => p.Contains("x"));
+
+            if (dimPart != null)
+            {
+                var dimensions = dimPart.Split('x');
+                if (dimensions.Length == 2 &&
+                    int.TryParse(dimensions[0], out int width) &&
+                    int.TryParse(dimensions[1], out int height))
+                {
+                    monitors.Add(new MonitorInfo
+                    {
+                        Index = 0,
+                        Name = "Monitor-0",
+                        Width = width,
+                        Height = height,
+                        X = 0,
+                        Y = 0,
+                        IsPrimary = true
+                    });
+                }
+            }
+        }
+
+        return monitors;
+    }
+
+    private async Task<string> RunCommandAsync(string command, string arguments)
+    {
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = command,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            return process.ExitCode == 0 ? output : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 }

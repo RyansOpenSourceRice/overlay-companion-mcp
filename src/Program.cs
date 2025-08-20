@@ -23,12 +23,12 @@ public class Program
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
-        // Support both stdio (direct) and HTTP bridge (segmented) deployments
-        bool useHttpBridge = args.Contains("--http") || args.Contains("--bridge");
+        // Support both stdio (for testing/legacy) and HTTP transport (primary)
+        bool useHttpTransport = args.Contains("--http") || args.Contains("--bridge");
 
-        if (useHttpBridge)
+        if (useHttpTransport)
         {
-            await RunWithHttpBridge(args);
+            await RunWithHttpTransport(args);
         }
         else
         {
@@ -97,7 +97,7 @@ public class Program
     }
 
     [RequiresUnreferencedCode("Calls Microsoft.Extensions.DependencyInjection.McpServerBuilderExtensions.WithToolsFromAssembly(Assembly, JsonSerializerOptions)")]
-    private static async Task RunWithHttpBridge(string[] args)
+    private static async Task RunWithHttpTransport(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -112,10 +112,22 @@ public class Program
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
 
-        // Add MCP server with official SDK
+        // Add MCP server with native HTTP transport using official SDK
         builder.Services
             .AddMcpServer()
+            .WithHttpTransport()  // Native HTTP transport with streaming support
             .WithToolsFromAssembly();
+
+        // Configure CORS for web integration
+        builder.Services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
 
         // Configure web server
         builder.WebHost.ConfigureKestrel(options =>
@@ -126,62 +138,19 @@ public class Program
         var app = builder.Build();
 
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Starting Overlay Companion HTTP Bridge...");
-        logger.LogInformation("Bridge provides system segmentation and deployment flexibility");
-        logger.LogInformation("HTTP Bridge listening on http://0.0.0.0:3000/mcp");
+        logger.LogInformation("Starting Overlay Companion with Native HTTP Transport...");
+        logger.LogInformation("Native HTTP provides multi-client support, streaming, and web integration");
+        logger.LogInformation("HTTP Transport listening on http://0.0.0.0:3000/mcp");
 
-        // Configure HTTP-to-stdio bridge endpoint for system segmentation
-        app.MapPost("/mcp", async (HttpContext context) =>
-        {
-            try
-            {
-                // Read the HTTP request body
-                using var reader = new StreamReader(context.Request.Body);
-                var requestBody = await reader.ReadToEndAsync();
+        // Enable CORS
+        app.UseCors();
 
-                // Start the stdio MCP server process (segmented from control plane)
-                var processInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    Arguments = "run --project /workspace/project/overlay-companion-mcp/src/OverlayCompanion.csproj",
-                    UseShellExecute = false,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
-
-                using var process = System.Diagnostics.Process.Start(processInfo);
-                if (process == null)
-                {
-                    context.Response.StatusCode = 500;
-                    await context.Response.WriteAsync("Failed to start segmented MCP server process");
-                    return;
-                }
-
-                // Forward request to segmented stdio MCP server
-                await process.StandardInput.WriteLineAsync(requestBody);
-                await process.StandardInput.FlushAsync();
-                process.StandardInput.Close();
-
-                // Return response from segmented server
-                var response = await process.StandardOutput.ReadToEndAsync();
-                await process.WaitForExitAsync();
-
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(response);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error in HTTP-to-stdio bridge");
-                context.Response.StatusCode = 500;
-                await context.Response.WriteAsync($"Bridge error: {ex.Message}");
-            }
-        });
+        // Map MCP endpoints (native HTTP transport with streaming support)
+        app.MapMcp();  // This registers the /mcp endpoint with full MCP protocol support
 
         try
         {
-            // Start HTTP bridge and (optionally) Avalonia GUI concurrently
+            // Start HTTP transport and (optionally) Avalonia GUI concurrently
             bool headless = args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
             Task? avaloniaTask = null;
@@ -201,7 +170,7 @@ public class Program
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "An error occurred while running the HTTP bridge");
+            logger.LogError(ex, "An error occurred while running the HTTP transport");
             throw;
         }
     }

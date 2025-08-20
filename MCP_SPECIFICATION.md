@@ -19,7 +19,7 @@
 - **Human-in-the-loop by default** — no automated actions unless explicitly enabled per mode or user confirmation.
 - **Mode-aware behavior** — switching modes adjusts behavior (e.g. clicking automatically vs. suggesting).
 - **Privacy-respecting** — screenshots can be scrubbed before being shared; clipboard access controlled by user permission.
-- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups.
+- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups (planned for future implementation).
 - **Rate-limited calls** — protects local and remote inference systems from overload and keeps operations low-latency.
 
 ### Extension Strategy
@@ -39,17 +39,19 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Name**: `overlay-companion-mcp`
 - **Version**: `1.0.0`
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
-- **Protocol**: HTTP-based MCP server
-- **Default Port**: `3000`
-- **Default Host**: `localhost`
-- **SDK**: Official ModelContextProtocol C# SDK
+- **Protocol**: MCP server with native HTTP transport (STDIO deprecated)
+- **Primary Transport**: Native HTTP transport using ModelContextProtocol.AspNetCore
+  - **Port**: 3000 (configurable)
+  - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled
+  - **Benefits**: Web integration, session management, real-time streaming, concurrent clients
+- **Legacy Transport**: Standard I/O (stdio) - deprecated, kept for testing only
+- **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
-- **Protocol Version**: MCP 1.0
-- **Transport**: Standard I/O (stdio)
+- **Protocol Version**: 2024-11-05
 
 ### Capabilities
 
-- **Tools**: Provides 12 tools for screen interaction
+- **Tools**: Provides 15 tools for screen interaction
 - **Resources**: None
 - **Prompts**: None
 - **Sampling**: None
@@ -94,7 +96,7 @@ The server implements standard MCP error responses:
     "overlay-companion": {
       "command": "http",
       "args": [
-        "http://localhost:3000/mcp"
+        "http://localhost:3000/"
       ],
       "env": {},
       "description": "Overlay Companion MCP - Screen interaction toolkit",
@@ -110,7 +112,7 @@ The server implements standard MCP error responses:
   "mcpServers": {
     "overlay-companion": {
       "command": "http",
-      "args": ["http://localhost:3000/mcp"],
+      "args": ["http://localhost:3000/"],
       "env": {}
     }
   }
@@ -413,13 +415,25 @@ All tools implement rate limiting to protect local and remote inference systems 
 
 ## Multi-Monitor Support
 
-The server is designed to be multi-monitor and DPI-aware with comprehensive support for:
+**Current Status**: Single monitor support only (monitor index 0)  
+**Roadmap**: Full multi-monitor support planned for future implementation
 
+**Current Limitations**:
+- All operations assume single monitor (index 0)
+- `CaptureMonitorAsync` treats all requests as full screen capture
+- Overlay coordinates not mapped across multiple displays
+
+**Planned Features**:
 - **Multiple Displays**: Proper handling of multi-monitor setups with different resolutions
 - **DPI Scaling**: Automatic detection and handling of different DPI scales per monitor
 - **Virtual Screen**: Support for extended desktop configurations
 - **Monitor Migration**: Handling of displays being connected/disconnected during operation
-- **Coordinate Translation**: Accurate coordinate mapping across different display configurations
+- **Coordinate Translation**: ✅ IMPLEMENTED - Accurate coordinate mapping across different display configurations
+- **`get_display_info` tool**: ✅ IMPLEMENTED - Returns monitor count, resolutions, positions, primary monitor
+- **Monitor-Specific Operations**: ✅ IMPLEMENTED - Overlays and screenshots can target specific monitors
+- **Boundary Clamping**: ✅ IMPLEMENTED - Overlays are automatically clamped to monitor bounds
+
+**Implementation Status**: ✅ COMPLETED - Full multi-monitor support implemented and tested
 
 ## Performance Considerations
 
@@ -435,3 +449,53 @@ The server is designed to be multi-monitor and DPI-aware with comprehensive supp
 - **Element Anchoring**: Persistent element identification across UI changes
 - **State Management**: Maintains context across multiple interactions
 - **Metadata Exchange**: Bidirectional context sharing with AI models
+
+## Development Environment
+
+### For AI Agents and AllHands Instances
+
+**Automatic Setup (Required):**
+```bash
+git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+cd overlay-companion-mcp
+./scripts/setup-dev-environment.sh
+```
+
+This repository uses **automated development environment setup** with:
+- ✅ Pre-commit hooks for code quality (Black, flake8, mypy, bandit)
+- ✅ Multi-language linting (Python, C#, Markdown)
+- ✅ Security scanning and dependency checking
+- ✅ Conventional commit enforcement
+- ✅ Automatic code formatting
+
+### Quality Standards
+
+**Multi-Language Linting Strategy**: Multiple workflow files (industry standard)
+- `python-lint.yml`: Comprehensive Python quality checks
+- `csharp-lint.yml`: C# formatting and analysis
+- `markdown-lint.yml`: Documentation quality assurance
+
+**Pre-commit Hooks**: All code changes are automatically validated for:
+- Code formatting and style consistency
+- Security vulnerabilities and credential detection
+- Type checking and static analysis
+- Import sorting and dependency validation
+
+### Documentation
+
+- **Development Setup**: [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md)
+- **AI Agent Instructions**: [docs/AI_AGENT_SETUP.md](docs/AI_AGENT_SETUP.md)
+- **Open Source Licenses**: [docs/OPEN_SOURCE_LICENSES.md](docs/OPEN_SOURCE_LICENSES.md)
+
+### Build and Deployment
+
+**AppImage Build**: Automated AppImage creation with proper metadata validation
+```bash
+./scripts/build-appimage.sh
+```
+
+**CI/CD Pipeline**: GitHub Actions workflows for:
+- Multi-language code quality checks
+- Automated testing and validation
+- AppImage build and release
+- Documentation quality assurance

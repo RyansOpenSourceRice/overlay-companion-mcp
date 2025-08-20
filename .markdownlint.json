@@ -4,7 +4,7 @@
   "MD033": {
     "allowed_elements": [
       "br",
-      "details", 
+      "details",
       "summary",
       "div",
       "span",

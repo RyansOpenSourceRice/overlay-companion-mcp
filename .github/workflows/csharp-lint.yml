@@ -22,16 +22,16 @@ env:
 jobs:
   lint-and-build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -39,12 +39,12 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
-          
+
     - name: Restore dependencies
       run: |
         cd src
         dotnet restore --verbosity minimal
-        
+
     - name: Apply code formatting
       continue-on-error: true
       run: |
@@ -52,54 +52,54 @@ jobs:
         echo "🔍 Applying code formatting..."
         dotnet format --verbosity minimal
         echo "✅ Code formatting applied"
-        
+
     - name: Build solution
       run: |
         cd src
         echo "🔨 Building solution..."
         dotnet build --configuration Release --no-restore --verbosity minimal
-        
+
     - name: Run static analysis
       continue-on-error: true
       run: |
         cd src
         echo "🔍 Running static analysis..."
         dotnet build --configuration Release --verbosity normal --property:TreatWarningsAsErrors=false --property:WarningsAsErrors="" --property:WarningsNotAsErrors=""
-        
+
     - name: Check for security vulnerabilities
       run: |
         cd src
         echo "🛡️ Checking for security vulnerabilities..."
         dotnet list package --vulnerable --include-transitive || echo "No vulnerabilities found or command not supported"
-        
+
     - name: Check for deprecated packages
       run: |
         cd src
         echo "📦 Checking for deprecated packages..."
         dotnet list package --deprecated || echo "No deprecated packages found or command not supported"
-        
+
     - name: Analyze code metrics
       run: |
         cd src
         echo "📊 Analyzing code metrics..."
-        
+
         # Count lines of code
         echo "Lines of C# code:"
         find . -name "*.cs" -not -path "./bin/*" -not -path "./obj/*" | xargs wc -l | tail -1
-        
+
         # Count files
         echo "C# files:"
         find . -name "*.cs" -not -path "./bin/*" -not -path "./obj/*" | wc -l
-        
+
         # Check for TODO/FIXME comments
         echo "TODO/FIXME comments:"
         grep -r "TODO\|FIXME\|HACK" --include="*.cs" . || echo "None found"
-        
+
     - name: Test build artifacts
       run: |
         cd src
         echo "🧪 Testing build artifacts..."
-        
+
         # Check if main executable was built
         if [ -f "bin/Release/net8.0/overlay-companion-mcp" ] || [ -f "bin/Release/net8.0/overlay-companion-mcp.exe" ]; then
           echo "✅ Main executable found"
@@ -107,10 +107,10 @@ jobs:
           echo "❌ Main executable not found"
           ls -la bin/Release/net8.0/ || echo "Build output directory not found"
         fi
-        
+
         # Check assembly info
         dotnet --info
-        
+
     - name: Upload build artifacts
       if: success()
       uses: actions/upload-artifact@v4
@@ -120,7 +120,7 @@ jobs:
           src/bin/Release/
           !src/bin/Release/**/*.pdb
         retention-days: 7
-        
+
     - name: Summary
       if: always()
       run: |
@@ -132,7 +132,7 @@ jobs:
         echo "✅ Static analysis completed"
         echo "✅ Security check completed"
         echo "✅ Code metrics analyzed"
-        
+
         if [ "${{ job.status }}" == "success" ]; then
           echo "🎉 All checks passed!"
         else

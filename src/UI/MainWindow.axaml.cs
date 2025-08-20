@@ -156,6 +156,7 @@ public partial class MainWindow : Window
             _transportTypeComboBox.SelectionChanged += OnTransportTypeChanged;
     }
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.UpdateMcpConfiguration()")]
     private void LoadSettings()
     {
         // Load settings from configuration or defaults
@@ -510,16 +511,19 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
 #   -d '{{""method"": ""tools/list"", ""params"": {{}}}}'";
     }
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.UpdateMcpConfiguration()")]
     private void OnConfigFormatChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
     {
         UpdateMcpConfiguration();
     }
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.UpdateMcpConfiguration()")]
     private void OnTransportTypeChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
     {
         UpdateMcpConfiguration();
     }
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.UpdateMcpConfiguration()")]
     private void OnRefreshConfigClicked(object? sender, RoutedEventArgs e)
     {
         UpdateMcpConfiguration();

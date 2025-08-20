@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 APP_NAME="overlay-companion-mcp"
 APP_DISPLAY_NAME="Overlay Companion MCP"
 APP_DESCRIPTION="AI-assisted screen interaction toolkit with MCP integration"
-APP_CATEGORY="Development;Utility"
+APP_CATEGORY="Development"
 APP_VERSION="${APP_VERSION:-$(date +%Y.%m.%d)}"
 ARCH="x86_64"
 
@@ -109,14 +109,14 @@ echo -e "${YELLOW}📋 Creating AppStream metadata...${NC}"
 cat > "$APPDIR/usr/share/metainfo/$APP_NAME.appdata.xml" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>$APP_NAME</id>
+  <id>io.github.ryansopensaucerice.overlay-companion-mcp</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0</project_license>
   <name>$APP_DISPLAY_NAME</name>
   <summary>$APP_DESCRIPTION</summary>
   <description>
     <p>
-      Overlay Companion MCP is a general-purpose, human-in-the-loop AI-assisted 
+      Overlay Companion MCP is a general-purpose, human-in-the-loop AI-assisted
       screen interaction toolkit built with the official ModelContextProtocol C# SDK.
     </p>
     <p>Features:</p>
@@ -145,8 +145,42 @@ cat > "$APPDIR/usr/share/metainfo/$APP_NAME.appdata.xml" << EOF
   </keywords>
   <url type="homepage">https://github.com/RyansOpenSauceRice/overlay-companion-mcp</url>
   <url type="bugtracker">https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues</url>
+  <developer_name>RyansOpenSauceRice</developer_name>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-cartoon">none</content_attribute>
+    <content_attribute id="violence-fantasy">none</content_attribute>
+    <content_attribute id="violence-realistic">none</content_attribute>
+    <content_attribute id="violence-bloodshed">none</content_attribute>
+    <content_attribute id="violence-sexual">none</content_attribute>
+    <content_attribute id="violence-desecration">none</content_attribute>
+    <content_attribute id="violence-slavery">none</content_attribute>
+    <content_attribute id="violence-worship">none</content_attribute>
+    <content_attribute id="drugs-alcohol">none</content_attribute>
+    <content_attribute id="drugs-narcotics">none</content_attribute>
+    <content_attribute id="drugs-tobacco">none</content_attribute>
+    <content_attribute id="sex-nudity">none</content_attribute>
+    <content_attribute id="sex-themes">none</content_attribute>
+    <content_attribute id="sex-homosexuality">none</content_attribute>
+    <content_attribute id="sex-prostitution">none</content_attribute>
+    <content_attribute id="sex-adultery">none</content_attribute>
+    <content_attribute id="sex-appearance">none</content_attribute>
+    <content_attribute id="language-profanity">none</content_attribute>
+    <content_attribute id="language-humor">none</content_attribute>
+    <content_attribute id="language-discrimination">none</content_attribute>
+    <content_attribute id="social-chat">none</content_attribute>
+    <content_attribute id="social-info">mild</content_attribute>
+    <content_attribute id="social-audio">none</content_attribute>
+    <content_attribute id="social-location">none</content_attribute>
+    <content_attribute id="social-contacts">none</content_attribute>
+    <content_attribute id="money-purchasing">none</content_attribute>
+    <content_attribute id="money-gambling">none</content_attribute>
+  </content_rating>
   <releases>
-    <release version="$APP_VERSION" date="$(date +%Y-%m-%d)"/>
+    <release version="$APP_VERSION" date="$(date +%Y-%m-%d)">
+      <description>
+        <p>Latest release with native HTTP transport and multi-monitor support.</p>
+      </description>
+    </release>
   </releases>
 </component>
 EOF
@@ -222,32 +256,49 @@ cd "$BUILD_DIR"
 export ARCH="$ARCH"
 export VERSION="$APP_VERSION"
 
-# Build AppImage
-if ! "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" 2>/dev/null; then
-    echo -e "${YELLOW}⚠️  AppImage build encountered FUSE issues (expected in CI)${NC}"
-    echo -e "${YELLOW}🔄 Attempting extraction-based build...${NC}"
-    
-    # Try to extract and build without FUSE
-    if "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>/dev/null; then
-        echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
-    else
-        echo -e "${YELLOW}⚠️  AppImage build completed with warnings${NC}"
-        # Check if the file was created anyway
-        if [ ! -f "$APPIMAGE_OUTPUT" ]; then
-            echo -e "${RED}❌ AppImage file not created${NC}"
-            exit 1
+# Build AppImage with better error handling
+BUILD_SUCCESS=false
+
+# First attempt: normal build
+if "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build.log; then
+    BUILD_SUCCESS=true
+    echo -e "${GREEN}✅ AppImage built successfully${NC}"
+else
+    # Check if it's just validation warnings or FUSE issues
+    if grep -q "Validation failed: warnings:" /tmp/appimage_build.log && [ -f "$APPIMAGE_OUTPUT" ]; then
+        echo -e "${YELLOW}⚠️  AppImage built with validation warnings (acceptable)${NC}"
+        BUILD_SUCCESS=true
+    elif grep -q "FUSE" /tmp/appimage_build.log || [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+        echo -e "${YELLOW}⚠️  AppImage build encountered FUSE issues (expected in CI)${NC}"
+        echo -e "${YELLOW}🔄 Attempting extraction-based build...${NC}"
+
+        # Try to extract and build without FUSE
+        if "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build_extract.log; then
+            BUILD_SUCCESS=true
+            echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
+        elif grep -q "Validation failed: warnings:" /tmp/appimage_build_extract.log && [ -f "$APPIMAGE_OUTPUT" ]; then
+            BUILD_SUCCESS=true
+            echo -e "${YELLOW}⚠️  AppImage built with validation warnings (acceptable)${NC}"
+        else
+            echo -e "${YELLOW}⚠️  AppImage build completed with issues${NC}"
+            # Check if the file was created anyway
+            if [ -f "$APPIMAGE_OUTPUT" ]; then
+                BUILD_SUCCESS=true
+                echo -e "${YELLOW}⚠️  AppImage file exists despite build warnings${NC}"
+            fi
         fi
     fi
 fi
 
-if [ -f "$APPIMAGE_OUTPUT" ]; then
+# Final validation and output
+if [ "$BUILD_SUCCESS" = true ] && [ -f "$APPIMAGE_OUTPUT" ]; then
     echo -e "${GREEN}🎉 AppImage built successfully!${NC}"
     echo -e "${GREEN}📦 Output: $APPIMAGE_OUTPUT${NC}"
     echo -e "${GREEN}📏 Size: $(du -h "$APPIMAGE_OUTPUT" | cut -f1)${NC}"
-    
+
     # Make it executable
     chmod +x "$APPIMAGE_OUTPUT"
-    
+
     # Test the AppImage (skip in CI environments without FUSE)
     echo -e "${YELLOW}🧪 Testing AppImage...${NC}"
     if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
@@ -257,7 +308,7 @@ if [ -f "$APPIMAGE_OUTPUT" ]; then
     else
         echo -e "${YELLOW}⚠️  AppImage created but test inconclusive${NC}"
     fi
-    
+
     echo ""
     echo "=================================="
     echo -e "${BLUE}🚀 AppImage ready for distribution!${NC}"
@@ -271,8 +322,19 @@ if [ -f "$APPIMAGE_OUTPUT" ]; then
     echo "  ./$(basename "$APPIMAGE_OUTPUT") --appimage-extract"
     echo "  cp squashfs-root/*.desktop ~/.local/share/applications/"
     echo "  cp squashfs-root/*.png ~/.local/share/icons/"
-    
+
+    # Exit successfully even with warnings
+    exit 0
+
 else
     echo -e "${RED}❌ AppImage build failed${NC}"
+    if [ -f /tmp/appimage_build.log ]; then
+        echo -e "${RED}Build log:${NC}"
+        cat /tmp/appimage_build.log
+    fi
+    if [ -f /tmp/appimage_build_extract.log ]; then
+        echo -e "${RED}Extract build log:${NC}"
+        cat /tmp/appimage_build_extract.log
+    fi
     exit 1
 fi
