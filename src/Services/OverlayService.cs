@@ -130,8 +130,19 @@ public class OverlayService : IOverlayService
 
     private IOverlayWindow CreateOverlayWindow(OverlayElement overlay)
     {
-        // Use real Avalonia UI overlay windows
-        return new AvaloniaOverlayWindow(overlay);
+        // Check if running in headless mode
+        bool headless = Environment.GetEnvironmentVariable("HEADLESS") == "1";
+        
+        if (headless)
+        {
+            // Use mock overlay window for headless mode
+            return new MockOverlayWindow(overlay);
+        }
+        else
+        {
+            // Use real Avalonia UI overlay windows
+            return new AvaloniaOverlayWindow(overlay);
+        }
     }
 }
 
