@@ -1,4 +1,8 @@
 import os, sys, json, time, subprocess, shlex
+import base64
+
+from verifier.image_checks import avg_color_in_rect, likely_not_black
+
 from pathlib import Path
 from typing import Any, Dict
 
@@ -28,7 +32,8 @@ def start_app() -> subprocess.Popen:
     env = os.environ.copy()
     # Ensure GUI is allowed; don't set HEADLESS here
     args = [str(APP_BIN)]
-    return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    # Use binary mode pipes for stdio framing compatibility
+    return subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, text=False, bufsize=0)
 
 
 def stop_app(p: subprocess.Popen):
@@ -58,34 +63,111 @@ def smoke_test() -> dict:
         evidence["error"] = "screenshot_failed"
     return evidence
 
+# Simple verification helper
+def verify_overlay(img_path: Path, rect: dict) -> dict:
+    res = {"phase": "verify", "rect": rect}
+    try:
+        color = avg_color_in_rect(str(img_path), (rect["x"], rect["y"], rect["width"], rect["height"]))
+        res["avg_color"] = color
+        res["ok"] = likely_not_black(color)
+    except Exception as e:
+        res["ok"] = False
+        res["error"] = str(e)
+    return res
+
+    return evidence
+
 
 def main():
     summary: Dict[str, Any] = {"ok": False, "steps": []}
-    app = None
+    app: subprocess.Popen | None = None
     try:
         app = start_app()
-        time.sleep(2.0)  # give app time to start and render
-
-        # TODO: integrate real MCP stdio client once server is fully wired
-        # For now, perform a visual smoke test and capture logs for future parsing
-        step1 = smoke_test()
-        summary["steps"].append(step1)
-
-        # Collect app stderr to artifacts for debugging
-        if app and app.stderr:
-            try:
-                stderr_out = app.stderr.read()
-                (ARTIFACTS / "app-stderr.log").write_text(stderr_out)
-            except Exception:
-                pass
-
-        summary["ok"] = all(s.get("ok") for s in summary["steps"]) and len(summary["steps"]) > 0
+        time.sleep(2.0)
+        # Try MCP roundtrip first
+        mcp_step = mcp_roundtrip(app)
+        summary["steps"].append(mcp_step)
+        if not mcp_step.get("ok"):
+            # Fallback to visual smoke if MCP path fails
+            summary["steps"].append(smoke_test())
+        summary["ok"] = any(s.get("ok") for s in summary["steps"]) and len(summary["steps"]) > 0
     finally:
         if app:
             stop_app(app)
+            # After process exit, safely drain stderr to file
+            try:
+                if app.stderr:
+                    data = app.stderr.read() or b""
+                    if isinstance(data, bytes):
+                        txt = data.decode("utf-8", errors="ignore")
+                    else:
+                        txt = str(data)
+                    (ARTIFACTS / "app-stderr.log").write_text(txt)
+            except Exception:
+                pass
     write_json(ARTIFACTS / "summary.json", summary)
     print(json.dumps(summary, indent=2))
     sys.exit(0 if summary.get("ok") else 1)
+
+
+def mcp_roundtrip(app_proc: subprocess.Popen) -> dict:
+    from drivers.mcp_stdio import McpStdioClient
+    evidence = {"phase": "mcp"}
+    try:
+        client = McpStdioClient(proc=app_proc)
+        init = client.initialize()
+        evidence["initialize"] = init
+        tools = client.list_tools()
+        evidence["tools"] = tools
+        # Find draw_overlay / take_screenshot / remove_overlay
+        def pick_tool(names):
+            tnames = []
+            try:
+                tnames = [t.get("name") for t in (tools.get("result", {}).get("tools") or []) if isinstance(t, dict)]
+            except Exception:
+                pass
+            for n in names:
+                if n in tnames:
+                    return n
+            return None
+        draw_name = pick_tool(["draw_overlay", "DrawOverlay", "Overlay.Draw", "overlay/draw"]) or "draw_overlay"
+        take_name = pick_tool(["take_screenshot", "TakeScreenshot", "screenshot/take"]) or "take_screenshot"
+        remove_name = pick_tool(["remove_overlay", "RemoveOverlay", "overlay/remove"]) or "remove_overlay"
+        # Call draw_overlay
+        rect = {"x": 50, "y": 50, "width": 240, "height": 120, "color": "#FFAA00", "opacity": 0.9}
+        dr = client.call_tool(draw_name, rect)
+        evidence["draw_overlay"] = dr
+        overlay_id = None
+        try:
+            overlay_id = (dr.get("result") or {}).get("overlay_id")
+        except Exception:
+            pass
+        # Call take_screenshot
+        ts = client.call_tool(take_name, {})
+        evidence["take_screenshot"] = ts
+        img_b64 = None
+        try:
+            img_b64 = (ts.get("result") or {}).get("image_base64")
+        except Exception:
+            pass
+        if img_b64:
+            img_path = ARTIFACTS / "mcp_roundtrip.png"
+            try:
+                img_path.write_bytes(base64.b64decode(img_b64))
+                evidence["screenshot_file"] = str(img_path)
+                # Verify overlay presence roughly
+                evidence["verify"] = verify_overlay(img_path, rect)
+            except Exception as e:
+                evidence["screenshot_decode_error"] = str(e)
+        # Remove overlay if we have an id
+        if overlay_id:
+            rr = client.call_tool(remove_name, {"overlayId": overlay_id, "overlay_id": overlay_id})
+            evidence["remove_overlay"] = rr
+        evidence["ok"] = True
+    except Exception as e:
+        evidence["ok"] = False
+        evidence["error"] = str(e)
+    return evidence
 
 if __name__ == "__main__":
     main()

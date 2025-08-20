@@ -58,3 +58,7 @@ build/
 
 # AI GUI Test artifacts
 tests/ai-gui/artifacts/
+
+# Local virtualenv
+/tests/ai-gui/.venv/
+
