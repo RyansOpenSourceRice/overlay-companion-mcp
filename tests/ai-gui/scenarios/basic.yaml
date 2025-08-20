@@ -1,0 +1,10 @@
+# Example creative scenario (not strictly required by harness yet)
+width: 1920
+height: 1080
+steps:
+  - kind: overlays
+    count: 3
+  - kind: screenshot
+  - kind: overlays
+    count: 2
+  - kind: remove_all

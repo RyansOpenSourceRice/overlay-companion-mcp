@@ -55,3 +55,6 @@ nunit-*.xml
 # AppImage build outputs
 build/
 
+
+# AI GUI Test artifacts
+tests/ai-gui/artifacts/
