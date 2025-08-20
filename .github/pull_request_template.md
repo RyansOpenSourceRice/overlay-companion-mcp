@@ -44,6 +44,8 @@ Please delete options that are not relevant:
 - [ ] I have updated the documentation accordingly
 - [ ] I have updated the MCP specification if needed
 - [ ] I have updated the general specification if needed
+- [ ] I have run tests/ai-gui/run.sh locally in AllHands cloud and attached artifacts if the run discovered issues
+
 - [ ] Code comments have been added/updated where necessary
 
 ## Checklist
