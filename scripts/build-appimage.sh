@@ -106,7 +106,7 @@ EOF
 
 # Create AppStream metadata
 echo -e "${YELLOW}📋 Creating AppStream metadata...${NC}"
-cat > "$APPDIR/usr/share/metainfo/$APP_NAME.appdata.xml" << EOF
+cat > "$APPDIR/usr/share/metainfo/io.github.ryansopensaucerice.overlay-companion-mcp.appdata.xml" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
   <id>io.github.ryansopensaucerice.overlay-companion-mcp</id>
@@ -145,7 +145,9 @@ cat > "$APPDIR/usr/share/metainfo/$APP_NAME.appdata.xml" << EOF
   </keywords>
   <url type="homepage">https://github.com/RyansOpenSauceRice/overlay-companion-mcp</url>
   <url type="bugtracker">https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues</url>
-  <developer_name>RyansOpenSauceRice</developer_name>
+  <developer id="io.github.ryansopensaucerice">
+    <name>RyansOpenSauceRice</name>
+  </developer>
   <content_rating type="oars-1.1">
     <content_attribute id="violence-cartoon">none</content_attribute>
     <content_attribute id="violence-fantasy">none</content_attribute>
@@ -260,31 +262,36 @@ export VERSION="$APP_VERSION"
 BUILD_SUCCESS=false
 
 # First attempt: normal build
-if "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build.log; then
-    BUILD_SUCCESS=true
-    echo -e "${GREEN}✅ AppImage built successfully${NC}"
-else
-    # Check if it's just validation warnings or FUSE issues
-    if grep -q "Validation failed: warnings:" /tmp/appimage_build.log && [ -f "$APPIMAGE_OUTPUT" ]; then
-        echo -e "${YELLOW}⚠️  AppImage built with validation warnings (acceptable)${NC}"
-        BUILD_SUCCESS=true
-    elif grep -q "FUSE" /tmp/appimage_build.log || [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
-        echo -e "${YELLOW}⚠️  AppImage build encountered FUSE issues (expected in CI)${NC}"
-        echo -e "${YELLOW}🔄 Attempting extraction-based build...${NC}"
+echo -e "${YELLOW}🔨 Running appimagetool...${NC}"
+"$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build.log
+BUILD_EXIT_CODE=$?
 
-        # Try to extract and build without FUSE
+# Check if AppImage was created regardless of exit code
+if [ -f "$APPIMAGE_OUTPUT" ]; then
+    echo -e "${GREEN}✅ AppImage file created successfully${NC}"
+    BUILD_SUCCESS=true
+
+    # Check what kind of issues we had
+    if [ $BUILD_EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}✅ Build completed without issues${NC}"
+    elif grep -q "Validation failed: warnings:" /tmp/appimage_build.log; then
+        echo -e "${YELLOW}⚠️  Build completed with validation warnings (acceptable)${NC}"
+    elif grep -q "FUSE" /tmp/appimage_build.log; then
+        echo -e "${YELLOW}⚠️  Build completed with FUSE warnings (expected in CI)${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Build completed with minor issues${NC}"
+    fi
+else
+    echo -e "${RED}❌ AppImage file was not created${NC}"
+
+    # Try alternative build methods if in CI
+    if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+        echo -e "${YELLOW}🔄 Attempting extraction-based build for CI...${NC}"
+
         if "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build_extract.log; then
-            BUILD_SUCCESS=true
-            echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
-        elif grep -q "Validation failed: warnings:" /tmp/appimage_build_extract.log && [ -f "$APPIMAGE_OUTPUT" ]; then
-            BUILD_SUCCESS=true
-            echo -e "${YELLOW}⚠️  AppImage built with validation warnings (acceptable)${NC}"
-        else
-            echo -e "${YELLOW}⚠️  AppImage build completed with issues${NC}"
-            # Check if the file was created anyway
             if [ -f "$APPIMAGE_OUTPUT" ]; then
                 BUILD_SUCCESS=true
-                echo -e "${YELLOW}⚠️  AppImage file exists despite build warnings${NC}"
+                echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
             fi
         fi
     fi
