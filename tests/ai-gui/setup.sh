@@ -23,3 +23,6 @@ pip install opencv-python-headless >/dev/null || true
 
 # For YAML scenarios
 pip install pyyaml rich >/dev/null
+
+# Official MCP Python SDK
+pip install mcp >/dev/null
