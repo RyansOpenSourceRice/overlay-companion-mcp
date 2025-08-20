@@ -35,10 +35,17 @@ export AI_GUI_APP_BIN="$APP_BIN"
 export AI_GUI_ROOT="$ROOT"
 export AI_GUI_ARTIFACTS="$ARTIFACTS"
 
-# Don’t set HEADLESS so GUI renders; harness can override for API-only tests
-
-xvfb-run -s "$XVFB_ARGS" bash -lc "\
-  set -euo pipefail; \
-  source '$HERE/.venv/bin/activate'; \
-  python '$HERE/harness.py' | tee '$ARTIFACTS/harness.log' \
-"
+if command -v xvfb-run >/dev/null 2>&1; then
+  xvfb-run -s "$XVFB_ARGS" bash -lc "\
+    set -euo pipefail; \
+    source '$HERE/.venv/bin/activate'; \
+    python '$HERE/harness.py' | tee '$ARTIFACTS/harness.log' \
+  "
+else
+  echo "[AI-GUI] WARNING: xvfb-run not found; falling back to HEADLESS API-only smoke test"
+  HEADLESS=1 bash -lc "\
+    set -euo pipefail; \
+    source '$HERE/.venv/bin/activate'; \
+    python '$HERE/harness.py' | tee '$ARTIFACTS/harness.log' \
+  "
+fi
