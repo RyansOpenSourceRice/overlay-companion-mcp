@@ -630,3 +630,16 @@ To keep the repository clean and reproducible, packaging outputs are generated a
 
 This policy prevents accidental commits of generated binaries and ensures the build remains deterministic across environments.
 
+---
+
+## AI GUI Tests (AllHands-only)
+
+Purpose: provide a simple, key-free GUI test harness that runs inside the AllHands cloud environment and is not tied to GitHub Actions.
+
+- Location: tests/ai-gui/
+- Runner: tests/ai-gui/run.sh (invokes setup, builds app, launches under Xvfb, runs harness)
+- Evidence: tests/ai-gui/artifacts/ (screenshots, logs, JSON summary)
+- No API keys: uses stdio MCP when available or performs visual smoke tests until MCP is fully wired
+- Not part of GitHub Actions by design; run manually in AllHands cloud
+
+
