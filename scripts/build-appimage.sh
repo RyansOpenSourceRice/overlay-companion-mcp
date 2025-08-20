@@ -284,15 +284,38 @@ if [ -f "$APPIMAGE_OUTPUT" ]; then
 else
     echo -e "${RED}❌ AppImage file was not created${NC}"
 
-    # Try alternative build methods if in CI
-    if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
-        echo -e "${YELLOW}🔄 Attempting extraction-based build for CI...${NC}"
+    # Check if it's a FUSE issue and try alternative methods
+    if grep -q "FUSE" /tmp/appimage_build.log || grep -q "libfuse" /tmp/appimage_build.log; then
+        echo -e "${YELLOW}🔄 FUSE not available, attempting extraction-based build...${NC}"
 
-        if "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build_extract.log; then
+        # Try extraction method
+        "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build_extract.log
+        EXTRACT_EXIT_CODE=$?
+
+        if [ -f "$APPIMAGE_OUTPUT" ]; then
+            BUILD_SUCCESS=true
+            echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
+        elif [ $EXTRACT_EXIT_CODE -eq 0 ] || grep -q "Validation failed: warnings:" /tmp/appimage_build_extract.log; then
+            # Sometimes the file is created even with warnings
             if [ -f "$APPIMAGE_OUTPUT" ]; then
                 BUILD_SUCCESS=true
-                echo -e "${GREEN}✅ AppImage built using extraction method${NC}"
+                echo -e "${YELLOW}⚠️  AppImage built with warnings using extraction method${NC}"
             fi
+        fi
+    fi
+
+    # If still no success, try one more approach for CI environments
+    if [ "$BUILD_SUCCESS" = false ] && ([ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]); then
+        echo -e "${YELLOW}🔄 Attempting CI-specific build approach...${NC}"
+
+        # Set environment variables that might help
+        export APPIMAGE_EXTRACT_AND_RUN=1
+
+        "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" --no-appstream 2>&1 | tee /tmp/appimage_build_ci.log || true
+
+        if [ -f "$APPIMAGE_OUTPUT" ]; then
+            BUILD_SUCCESS=true
+            echo -e "${GREEN}✅ AppImage built using CI-specific method${NC}"
         fi
     fi
 fi
