@@ -19,7 +19,7 @@
 - **Human-in-the-loop by default** — no automated actions unless explicitly enabled per mode or user confirmation.
 - **Mode-aware behavior** — switching modes adjusts behavior (e.g. clicking automatically vs. suggesting).
 - **Privacy-respecting** — screenshots can be scrubbed before being shared; clipboard access controlled by user permission.
-- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups.
+- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups (planned for future implementation).
 - **Rate-limited calls** — protects local and remote inference systems from overload and keeps operations low-latency.
 
 ### Extension Strategy
@@ -41,8 +41,10 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
 - **Protocol**: MCP server with stdio and HTTP transports
 - **Primary Transport**: Standard I/O (stdio) - recommended for direct integration
-- **HTTP Transport**: Available via `--http` flag on port 3000
-- **SDK**: Official ModelContextProtocol C# SDK
+- **HTTP Transport**: Bridge implementation available via `--http` flag on port 3000
+  - **Future**: Native HTTP transport using ModelContextProtocol.AspNetCore planned
+  - **Benefits**: Multi-client support, web integration, session management, streaming
+- **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
 - **Protocol Version**: 2024-11-05
 
@@ -412,13 +414,23 @@ All tools implement rate limiting to protect local and remote inference systems 
 
 ## Multi-Monitor Support
 
-The server is designed to be multi-monitor and DPI-aware with comprehensive support for:
+**Current Status**: Single monitor support only (monitor index 0)  
+**Roadmap**: Full multi-monitor support planned for future implementation
 
+**Current Limitations**:
+- All operations assume single monitor (index 0)
+- `CaptureMonitorAsync` treats all requests as full screen capture
+- Overlay coordinates not mapped across multiple displays
+
+**Planned Features**:
 - **Multiple Displays**: Proper handling of multi-monitor setups with different resolutions
 - **DPI Scaling**: Automatic detection and handling of different DPI scales per monitor
 - **Virtual Screen**: Support for extended desktop configurations
 - **Monitor Migration**: Handling of displays being connected/disconnected during operation
 - **Coordinate Translation**: Accurate coordinate mapping across different display configurations
+- **`get_display_info` tool**: Return monitor count, resolutions, positions, primary monitor
+
+**Implementation Priority**: HIGH - Critical for professional/enterprise use
 
 ## Performance Considerations
 
