@@ -39,18 +39,19 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Name**: `overlay-companion-mcp`
 - **Version**: `1.0.0`
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
-- **Protocol**: MCP server with stdio and HTTP transports
-- **Primary Transport**: Standard I/O (stdio) - recommended for direct integration
-- **HTTP Transport**: Bridge implementation available via `--http` flag on port 3000
-  - **Future**: Native HTTP transport using ModelContextProtocol.AspNetCore planned
-  - **Benefits**: Multi-client support, web integration, session management, streaming
+- **Protocol**: MCP server with native HTTP transport (STDIO deprecated)
+- **Primary Transport**: Native HTTP transport using ModelContextProtocol.AspNetCore
+  - **Port**: 3000 (configurable)
+  - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled
+  - **Benefits**: Web integration, session management, real-time streaming, concurrent clients
+- **Legacy Transport**: Standard I/O (stdio) - deprecated, kept for testing only
 - **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
 - **Protocol Version**: 2024-11-05
 
 ### Capabilities
 
-- **Tools**: Provides 13 tools for screen interaction
+- **Tools**: Provides 15 tools for screen interaction
 - **Resources**: None
 - **Prompts**: None
 - **Sampling**: None
@@ -95,7 +96,7 @@ The server implements standard MCP error responses:
     "overlay-companion": {
       "command": "http",
       "args": [
-        "http://localhost:3000/mcp"
+        "http://localhost:3000/"
       ],
       "env": {},
       "description": "Overlay Companion MCP - Screen interaction toolkit",
@@ -111,7 +112,7 @@ The server implements standard MCP error responses:
   "mcpServers": {
     "overlay-companion": {
       "command": "http",
-      "args": ["http://localhost:3000/mcp"],
+      "args": ["http://localhost:3000/"],
       "env": {}
     }
   }
@@ -427,10 +428,12 @@ All tools implement rate limiting to protect local and remote inference systems 
 - **DPI Scaling**: Automatic detection and handling of different DPI scales per monitor
 - **Virtual Screen**: Support for extended desktop configurations
 - **Monitor Migration**: Handling of displays being connected/disconnected during operation
-- **Coordinate Translation**: Accurate coordinate mapping across different display configurations
-- **`get_display_info` tool**: Return monitor count, resolutions, positions, primary monitor
+- **Coordinate Translation**: ✅ IMPLEMENTED - Accurate coordinate mapping across different display configurations
+- **`get_display_info` tool**: ✅ IMPLEMENTED - Returns monitor count, resolutions, positions, primary monitor
+- **Monitor-Specific Operations**: ✅ IMPLEMENTED - Overlays and screenshots can target specific monitors
+- **Boundary Clamping**: ✅ IMPLEMENTED - Overlays are automatically clamped to monitor bounds
 
-**Implementation Priority**: HIGH - Critical for professional/enterprise use
+**Implementation Status**: ✅ COMPLETED - Full multi-monitor support implemented and tested
 
 ## Performance Considerations
 

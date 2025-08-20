@@ -70,3 +70,19 @@ public class InputEvent
     public string EventType { get; set; } = string.Empty; // "click", "move", "key"
     public string? Data { get; set; } // Additional event data
 }
+
+/// <summary>
+/// Information about a monitor/display
+/// </summary>
+public class MonitorInfo
+{
+    public int Index { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public bool IsPrimary { get; set; }
+    public double Scale { get; set; } = 1.0;
+    public double RefreshRate { get; set; } = 60.0;
+}
