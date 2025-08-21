@@ -26,7 +26,8 @@ export AVALONIA_USE_WAYLAND=1
 export OC_WINDOW_READY_FILE=/tmp/oc_window_ready_wayland.txt
 
 set +e
-"$APPIMAGE_PATH" --smoke-test > /tmp/appimage-wayland.log 2>&1 &
+export HEADLESS=0
+"$APPIMAGE_PATH" --smoke-test --http > /tmp/appimage-wayland.log 2>&1 &
 PID=$!
 set -e
 

@@ -21,7 +21,8 @@ export OC_SMOKE_TEST=1
 
 # Some environments require --appimage-extract-and-run; try normally first then fallback
 set +e
-"$APPIMAGE_PATH" --smoke-test > /tmp/oc-appimage.log 2>&1 &
+export HEADLESS=0
+"$APPIMAGE_PATH" --smoke-test --http > /tmp/oc-appimage.log 2>&1 &
 PID=$!
 
 # Optional: log xvfb-run display when under Xvfb
