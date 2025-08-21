@@ -289,7 +289,7 @@ jobs:
     - name: Install test dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y fuse libfuse2 xvfb weston xwayland
+        sudo apt-get install -y fuse libfuse2 xvfb weston xwayland dbus-x11 libgl1 libegl1
 
     - name: Test AppImage execution and extraction
       working-directory: test
