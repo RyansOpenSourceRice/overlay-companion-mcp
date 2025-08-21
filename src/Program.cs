@@ -24,13 +24,13 @@ public class Program
 {
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
-            // Enable smoke-test hooks if requested
-            if (args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1")
-            {
-                ConfigureSmokeTestHooks();
-            }
-
     {
+        // Enable smoke-test hooks if requested
+        if (args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1")
+        {
+            ConfigureSmokeTestHooks();
+        }
+
         // Support both stdio (for testing/legacy) and HTTP transport (primary)
         bool useHttpTransport = args.Contains("--http") || args.Contains("--bridge");
 
