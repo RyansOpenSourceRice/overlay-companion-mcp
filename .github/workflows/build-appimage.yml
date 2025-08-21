@@ -283,6 +283,9 @@ jobs:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./test/
 
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Install test dependencies
       run: |
         sudo apt-get update
