@@ -6,7 +6,7 @@ set -euo pipefail
 
 APPIMAGE_PATH="${1:-build/*.AppImage}"
 READY_FILE="${OC_WINDOW_READY_FILE:-$HOME/.cache/overlay-companion-mcp/window-ready.txt}"
-TIMEOUT_SEC=${TIMEOUT_SEC:-30}
+TIMEOUT_SEC=${TIMEOUT_SEC:-60}
 
 if [ ! -e $APPIMAGE_PATH ]; then
   echo "AppImage not found. Run the AppImage build first (scripts/build-appimage.sh)." >&2
@@ -21,8 +21,12 @@ export OC_SMOKE_TEST=1
 
 # Some environments require --appimage-extract-and-run; try normally first then fallback
 set +e
-"$APPIMAGE_PATH" --smoke-test > /tmp/oc-appimage.log 2>&1 &
+export HEADLESS=0
+"$APPIMAGE_PATH" --smoke-test --http > /tmp/oc-appimage.log 2>&1 &
 PID=$!
+
+# Optional: log xvfb-run display when under Xvfb
+export DISPLAY=${DISPLAY:-:99}
 set -e
 
 # Wait for ready file
@@ -33,9 +37,17 @@ for i in $(seq 1 $TIMEOUT_SEC); do
     exit 0
   fi
   sleep 1
+  if ! kill -0 $PID >/dev/null 2>&1; then
+    echo "❌ AppImage process exited early before window was ready. Logs:" >&2
+    tail -n +1 /tmp/oc-appimage.log >&2 || true
+    exit 1
+  fi
+
 done
 
 echo "❌ Window did not appear within ${TIMEOUT_SEC}s. Logs:" >&2
 cat /tmp/oc-appimage.log >&2 || true
 kill $PID >/dev/null 2>&1 || true
+ps aux | grep overlay-companion-mcp || true
+
 exit 1

@@ -14,6 +14,7 @@ public class OverlayApplication : Application
 {
     public static event Action? WindowShown;
     public IServiceProvider? ServiceProvider { get; set; }
+    public static IServiceProvider? GlobalServiceProvider { get; set; }
 
     public override void Initialize()
     {

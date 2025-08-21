@@ -277,6 +277,9 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Download AppImage artifact
       uses: actions/download-artifact@v4
       with:
@@ -286,14 +289,14 @@ jobs:
     - name: Install test dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y fuse libfuse2 xvfb
+        sudo apt-get install -y fuse libfuse2 xvfb weston xwayland dbus-x11 libgl1 libegl1
 
-    - name: Test AppImage execution
+    - name: Test AppImage execution and extraction
+      working-directory: test
       run: |
-        cd test
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
 
-        # Test basic execution with virtual display
+        # Test basic execution with virtual display (help)
         xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help || echo "Help test completed"
 
         # Test AppImage extraction
@@ -304,5 +307,33 @@ jobs:
         test -f squashfs-root/AppRun
         test -f squashfs-root/usr/bin/overlay-companion-mcp
         test -f squashfs-root/*.desktop
+
+    - name: Smoke test (X11/Xvfb)
+      env:
+        OC_SMOKE_TEST: "1"
+        HEADLESS: "0"
+      run: |
+        chmod +x tests/local-appimage-smoke.sh
+        xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
+
+
+    - name: Upload smoke logs (always)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: appimage-smoke-logs
+        path: |
+          /tmp/oc-appimage.log
+          /tmp/appimage-wayland.log
+          /tmp/weston.log
+          /tmp/appimage_build.log
+          /tmp/*appimage*.log
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Smoke test (Wayland via weston headless + Xwayland)
+      run: |
+        chmod +x tests/ci/appimage-smoke-weston.sh || true
+        bash tests/ci/appimage-smoke-weston.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
 
         echo "✅ AppImage tests passed"

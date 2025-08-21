@@ -1,16 +1,15 @@
 # Task List
 
-1. ✅ Read all README and documentation files
-Reviewed README.md, ROADMAP.md, SPECIFICATION.md, MCP_SPECIFICATION.md, docs/*.md. Identified X11 mentions and existing Wayland support (clipboard).
-2. ✅ Search repository for 'X11' occurrences (code + markdown)
-Found occurrences in README, roadmap, workflows, implementation guide, code (xdotool, xrandr), clipboard tools, tests.
-3. ✅ Replace X11 with Wayland in Markdown files
-Updated README system requirements, workflow AppImage readme, implementation guide wording.
-4. ✅ Replace X11 with Wayland in code where applicable
-Wayland-first: grim capture, swaymsg/hyprctl display info, wl-clipboard clipboard, Wayland cursor attempts; X11 kept as fallback.
-5. ✅ Assess Wayland alternatives to X11 functionality
-Documented alternatives: grim/slurp, wl-clipboard, swaymsg/hyprctl/wayland-info, kscreen-doctor, xdg-desktop-portal (Screenshot/ScreenCast/RemoteDesktop), PipeWire, wtype/ydotool. C# interop via Tmds.DBus.
-6. ✅ Assess clipboard integration via MCP (user->agent and agent->user)
-Confirmed implemented tools get_clipboard/set_clipboard. Wayland-first via wl-clipboard. ModeManager may require confirmation. Supports text format currently.
-7. ✅ Commit changes to repo with appropriate message
+1. ✅ Explore repository and read all README/markdown docs
+Reviewed README.md, MCP_SPECIFICATION.md, SPECIFICATION.md, ROADMAP.md, docs/*.md, tests docs
+2. ✅ Audit code for X11-specific paths and confirm/implement Wayland-first with X11 fallback
+Clipboard wl-clipboard; screen capture grim first; display info swaymsg/hyprctl; input ydotool/wtype added; X11 kept as fallback
+3. ✅ Update Markdown docs to emphasize Wayland-first and reflect weston-headless tests
+README system requirements updated; docs already Wayland-first
+4. ✅ Update code comments/messages to reflect Wayland-first; avoid blind string replacements
+Adjusted InputMonitorService to try ydotool first; tests scripts force GUI path and Wayland smoke via weston
+5. ✅ Verify MCP clipboard tools exist and work on Wayland/X11; document usage
+get_clipboard/set_clipboard implemented; Wayland via wl-clipboard with xclip fallback; UI checkbox controls access; ModeManager enforces policy
+6. ✅ Summarize available Wayland libraries/tools replacing X11 equivalents
+grim/slurp, wl-clipboard, wtype/ydotool, swaymsg/hyprctl, xdg-desktop-portal + PipeWire for screenshots/screencast, Tmds.DBus for C# portal access
 
