@@ -14,4 +14,3 @@ Documented alternatives: grim/slurp, wl-clipboard, swaymsg/hyprctl/wayland-info,
 Confirmed implemented tools get_clipboard/set_clipboard. Wayland-first via wl-clipboard. ModeManager may require confirmation. Supports text format currently.
 7. ✅ Commit changes to repo with appropriate message
 
-
