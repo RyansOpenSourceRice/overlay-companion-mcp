@@ -316,6 +316,19 @@ jobs:
         chmod +x tests/local-appimage-smoke.sh
         xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
 
+
+    - name: Upload smoke logs (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: appimage-smoke-logs
+        path: |
+          /tmp/oc-appimage.log
+          /tmp/appimage-wayland.log
+          /tmp/weston.log
+          /tmp/appimage_build.log
+          /tmp/*appimage*.log
+
     - name: Smoke test (Wayland via weston headless + Xwayland)
       run: |
         chmod +x tests/ci/appimage-smoke-weston.sh || true
