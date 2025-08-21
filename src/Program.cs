@@ -79,7 +79,8 @@ public class Program
         try
         {
             // Start MCP host and (optionally) Avalonia GUI concurrently
-            bool headless = args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
+            bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
+            bool headless = !smoke && (args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1");
             var hostTask = host.RunAsync();
             Task? avaloniaTask = null;
             if (!headless)
@@ -87,10 +88,10 @@ public class Program
                 avaloniaTask = Task.Run(() => StartAvaloniaApp(host.Services));
             }
 
-            // Wait appropriately based on whether GUI is running
+            // Wait appropriately: if GUI started, tie process lifetime to GUI
             if (avaloniaTask is not null)
             {
-                await Task.WhenAny(avaloniaTask, hostTask);
+                await avaloniaTask;
             }
             else
             {
@@ -159,7 +160,8 @@ public class Program
         try
         {
             // Start HTTP transport and (optionally) Avalonia GUI concurrently
-            bool headless = args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
+            bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
+            bool headless = !smoke && (args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1");
             var webAppTask = app.RunAsync();
             Task? avaloniaTask = null;
             if (!headless)
@@ -169,7 +171,7 @@ public class Program
 
             if (avaloniaTask is not null)
             {
-                await Task.WhenAny(avaloniaTask, webAppTask);
+                await avaloniaTask;
             }
             else
             {
