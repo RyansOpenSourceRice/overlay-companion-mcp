@@ -286,14 +286,14 @@ jobs:
     - name: Install test dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y fuse libfuse2 xvfb
+        sudo apt-get install -y fuse libfuse2 xvfb weston xwayland
 
-    - name: Test AppImage execution
+    - name: Test AppImage execution and extraction
       run: |
         cd test
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
 
-        # Test basic execution with virtual display
+        # Test basic execution with virtual display (help)
         xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help || echo "Help test completed"
 
         # Test AppImage extraction
@@ -304,5 +304,15 @@ jobs:
         test -f squashfs-root/AppRun
         test -f squashfs-root/usr/bin/overlay-companion-mcp
         test -f squashfs-root/*.desktop
+
+    - name: Smoke test (X11/Xvfb)
+      run: |
+        chmod +x tests/local-appimage-smoke.sh
+        xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
+
+    - name: Smoke test (Wayland via weston headless + Xwayland)
+      run: |
+        chmod +x tests/ci/appimage-smoke-weston.sh || true
+        bash tests/ci/appimage-smoke-weston.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
 
         echo "✅ AppImage tests passed"
