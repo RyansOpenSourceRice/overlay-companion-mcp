@@ -37,9 +37,17 @@ for i in $(seq 1 $TIMEOUT_SEC); do
     exit 0
   fi
   sleep 1
+  if ! kill -0 $PID >/dev/null 2>&1; then
+    echo "❌ AppImage process exited early before window was ready. Logs:" >&2
+    tail -n +1 /tmp/oc-appimage.log >&2 || true
+    exit 1
+  fi
+
 done
 
 echo "❌ Window did not appear within ${TIMEOUT_SEC}s. Logs:" >&2
 cat /tmp/oc-appimage.log >&2 || true
 kill $PID >/dev/null 2>&1 || true
+ps aux | grep overlay-companion-mcp || true
+
 exit 1
