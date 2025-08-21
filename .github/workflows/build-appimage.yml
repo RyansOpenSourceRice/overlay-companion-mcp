@@ -317,8 +317,8 @@ jobs:
         xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
 
 
-    - name: Upload smoke logs (on failure)
-      if: failure()
+    - name: Upload smoke logs (always)
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: appimage-smoke-logs
@@ -328,6 +328,8 @@ jobs:
           /tmp/weston.log
           /tmp/appimage_build.log
           /tmp/*appimage*.log
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Smoke test (Wayland via weston headless + Xwayland)
       run: |
