@@ -194,19 +194,91 @@ public class InputMonitorService : IInputMonitorService
     {
         try
         {
-            var buttonArg = button.ToLower() switch
+            var buttonNum = button.ToLower() switch
             {
                 "right" => "3",
                 "middle" => "2",
                 _ => "1" // left
             };
 
+            // Wayland-first: try ydotool (may require uinput permissions)
+            try
+            {
+                var whichYdt = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "sh",
+                        Arguments = "-lc 'command -v ydotool'",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
+                whichYdt.Start();
+                whichYdt.WaitForExit();
+                if (whichYdt.ExitCode == 0)
+                {
+                    var move = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = "ydotool",
+                            Arguments = $"mousemove {position.X} {position.Y}",
+                            UseShellExecute = false,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        }
+                    };
+                    move.Start();
+                    await move.WaitForExitAsync();
+                    if (move.ExitCode == 0)
+                    {
+                        bool ok = true;
+                        for (int i = 0; i < clicks; i++)
+                        {
+                            var clickProc = new Process
+                            {
+                                StartInfo = new ProcessStartInfo
+                                {
+                                    FileName = "ydotool",
+                                    Arguments = $"click {buttonNum}",
+                                    UseShellExecute = false,
+                                    RedirectStandardError = true,
+                                    CreateNoWindow = true
+                                }
+                            };
+                            clickProc.Start();
+                            await clickProc.WaitForExitAsync();
+                            if (clickProc.ExitCode != 0) { ok = false; break; }
+                        }
+                        if (ok)
+                        {
+                            var inputEvent = new InputEvent
+                            {
+                                Position = position,
+                                EventType = "click",
+                                Data = $"{button}:{clicks}"
+                            };
+                            MouseClicked?.Invoke(this, inputEvent);
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // fall through to X11 fallback
+            }
+
+            // Fallback: xdotool (X11)
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "xdotool",
-                    Arguments = $"mousemove {position.X} {position.Y} click --repeat {clicks} {buttonArg}",
+                    Arguments = $"mousemove {position.X} {position.Y} click --repeat {clicks} {buttonNum}",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -219,7 +291,6 @@ public class InputMonitorService : IInputMonitorService
 
             if (process.ExitCode == 0)
             {
-                // Fire click event
                 var inputEvent = new InputEvent
                 {
                     Position = position,
