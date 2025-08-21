@@ -41,25 +41,13 @@ Configure with Jan.ai or other MCP-compatible AI clients:
 ```
 
 ### Available Tools
-- Screen capture (Wayland-first via grim/spectacle/gnome-screenshot; X11 fallback via scrot/maim)
-- Overlay drawing for visual feedback
-- Multi-monitor info (Wayland via swaymsg/hyprctl; X11 fallback via xrandr/xdpyinfo)
-- Input simulation (Wayland via wtype; X11 fallback via xdotool)
-- Clipboard access (Wayland via wl-copy/wl-paste; X11 fallback via xclip)
-- Human-in-the-loop confirmation for actions
+- Screen capture, overlays, multi-monitor info
+- Input simulation and clipboard tools
+- Human-in-the-loop confirmations
+
+Note: Wayland is preferred with X11 fallback. See SPECIFICATION.md for platform integration details.
 
 For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md).
-
-### Wayland-first stack (X11 fallback)
-- Clipboard: wl-clipboard (wl-copy, wl-paste) → fallback: xclip
-- Typing: wtype → fallback: xdotool
-- Screenshots: grim (+ slurp for region) or gnome-screenshot/spectacle → fallback: scrot/maim/ImageMagick import
-- Display info: swaymsg, hyprctl → fallback: xrandr, xdpyinfo
-
-### Clipboard round-trip with MCP
-- Read clipboard in the AI agent: call MCP tool get_clipboard; the app prefers Wayland wl-paste and falls back to xclip.
-- Write clipboard from the AI agent: call MCP tool set_clipboard with text; the app prefers wl-copy and falls back to xclip.
-- Safety: Clipboard tools respect the current mode; in Assist/Autopilot, set_clipboard may require confirmation depending on settings.
 
 ## Development
 

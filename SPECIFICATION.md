@@ -469,6 +469,14 @@ All tools return standard MCP error responses for:
 
 ### Platform Integration
 
+#### Linux: Wayland-first with X11 fallback
+- Clipboard: wl-clipboard (wl-copy/wl-paste) preferred; fallback: xclip
+- Typing/input: wtype preferred; fallback: xdotool
+- Screenshots: grim (+ slurp for region) or gnome-screenshot/spectacle; fallback: scrot/maim/ImageMagick import
+- Display/monitors: swaymsg, hyprctl; fallback: xrandr, xdpyinfo
+- Cursor/position queries: compositor-native where available; fallback via xdotool
+
+#### General
 - Respects system accessibility settings
 - Works with screen readers and assistive technology
 - Follows platform-specific UI guidelines
