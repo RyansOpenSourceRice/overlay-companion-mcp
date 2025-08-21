@@ -12,6 +12,7 @@ namespace OverlayCompanion.UI;
 /// </summary>
 public class OverlayApplication : Application
 {
+    public static event Action? WindowShown;
     public IServiceProvider? ServiceProvider { get; set; }
 
     public override void Initialize()
@@ -35,6 +36,12 @@ public class OverlayApplication : Application
             {
                 // Fallback without DI
                 desktop.MainWindow = new MainWindow(null!, null!, null!);
+            }
+
+            // Fire event when main window is opened (for smoke tests)
+            if (desktop.MainWindow != null)
+            {
+                desktop.MainWindow.Opened += (s, e) => WindowShown?.Invoke();
             }
         }
 

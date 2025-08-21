@@ -41,11 +41,11 @@ Configure with Jan.ai or other MCP-compatible AI clients:
 ```
 
 ### Available Tools
-- **Screen capture** with region selection
-- **Overlay drawing** for visual feedback
-- **Multi-monitor support** with automatic detection
-- **Input simulation** with safety controls
-- **Human-in-the-loop** confirmation for actions
+- Screen capture, overlays, multi-monitor info
+- Input simulation and clipboard tools
+- Human-in-the-loop confirmations
+
+Note: Wayland is preferred with X11 fallback. See SPECIFICATION.md for platform integration details.
 
 For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md).
 
