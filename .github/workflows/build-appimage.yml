@@ -141,10 +141,15 @@ jobs:
   create-release:
     needs: build-appimage
     runs-on: ubuntu-latest
+    # Only attempt releases on the upstream repo owner; skip silently elsewhere
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      github.event_name == 'release'
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') ||
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        github.event_name == 'release'
+      ) && github.repository_owner == 'RyansOpenSauceRice'
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -246,6 +251,7 @@ jobs:
         cat release_notes.md
 
     - name: Create GitHub Release
+      continue-on-error: true
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.build-appimage.outputs.version }}
@@ -261,10 +267,9 @@ jobs:
 
     - name: Update latest release info
       run: |
-        echo "🎉 Release created successfully!"
         echo "📦 AppImage: ${{ needs.build-appimage.outputs.appimage-name }}"
         echo "🏷️ Version: ${{ needs.build-appimage.outputs.version }}"
-        echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ needs.build-appimage.outputs.version }}"
+        echo "ℹ️  If release wasn't created (permissions), this step is informational only."
 
   test-appimage:
     needs: build-appimage
