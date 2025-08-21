@@ -233,6 +233,9 @@ export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
 cd "${HOME}"
 
 # Execute the application
+if [[ " $@ " == *" --smoke-test "* ]]; then
+  export OC_SMOKE_TEST=1
+fi
 exec "${HERE}/usr/bin/overlay-companion-mcp" "$@"
 EOF
 
