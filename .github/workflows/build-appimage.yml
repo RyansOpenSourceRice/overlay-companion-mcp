@@ -309,6 +309,9 @@ jobs:
         test -f squashfs-root/*.desktop
 
     - name: Smoke test (X11/Xvfb)
+      env:
+        OC_SMOKE_TEST: "1"
+        HEADLESS: "0"
       run: |
         chmod +x tests/local-appimage-smoke.sh
         xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}

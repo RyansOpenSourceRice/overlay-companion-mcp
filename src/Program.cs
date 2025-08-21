@@ -221,6 +221,7 @@ public class Program
         if (app.Instance is OverlayApplication overlayApp)
         {
             overlayApp.ServiceProvider = services;
+            OverlayApplication.GlobalServiceProvider = services;
         }
 
         app.StartWithClassicDesktopLifetime(Array.Empty<string>());
