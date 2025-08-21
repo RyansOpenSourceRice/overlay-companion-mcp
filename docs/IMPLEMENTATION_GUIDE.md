@@ -14,10 +14,10 @@
 - **Jan.ai Client** - AI model integration via MCP protocol
 
 ### Linux Integration
-- **X11/Wayland** - Native Linux window management
-- **xdotool** - Mouse and keyboard automation
-- **gnome-screenshot/scrot/maim** - Screen capture utilities
-- **xrandr** - Multi-monitor support
+- **Wayland-first (X11 fallback)** - Linux window management and compositors
+- **wtype/ydotool (Wayland) / xdotool (X11)** - Mouse and keyboard automation
+- **grim/spectacle/gnome-screenshot (Wayland) / scrot/maim (X11)** - Screen capture utilities
+- **swaymsg/hyprctl/wayland-info (Wayland) / xrandr (X11)** - Multi-monitor support
 - **gsettings** - HiDPI detection
 
 ## Project Structure

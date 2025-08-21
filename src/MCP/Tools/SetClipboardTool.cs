@@ -66,13 +66,12 @@ public static class SetClipboardTool
     {
         try
         {
-            // Use xclip to set clipboard content on Linux
+            // Prefer Wayland clipboard first
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "xclip",
-                    Arguments = "-selection clipboard",
+                    FileName = "wl-copy",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardError = true,
@@ -92,17 +91,18 @@ public static class SetClipboardTool
         }
         catch
         {
-            // Try alternative clipboard tools
+            // Try X11 clipboard tools next
         }
 
         try
         {
-            // Try wl-copy for Wayland
+            // Fallback to xclip on X11
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "wl-copy",
+                    FileName = "xclip",
+                    Arguments = "-selection clipboard",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardError = true,

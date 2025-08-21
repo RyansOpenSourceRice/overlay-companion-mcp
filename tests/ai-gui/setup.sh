@@ -12,8 +12,8 @@ python -m pip install --upgrade pip >/dev/null
 # Try install minimal apt packages (best effort)
 if command -v apt-get >/dev/null 2>&1; then
   (sudo apt-get update -y || apt-get update -y) >/dev/null || true
-  (sudo apt-get install -y xvfb xauth imagemagick xdotool libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxtst6 libxcb1 libgl1 libfontconfig1 fonts-dejavu-core || \
-   apt-get install -y xvfb xauth imagemagick xdotool libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxtst6 libxcb1 libgl1 libfontconfig1 fonts-dejavu-core) >/dev/null || true
+  (sudo apt-get install -y xvfb xauth imagemagick xdotool libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxtst6 libxcb1 libgl1 libfontconfig1 fonts-dejavu-core wl-clipboard grim slurp wtype || \
+   apt-get install -y xvfb xauth imagemagick xdotool libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxtst6 libxcb1 libgl1 libfontconfig1 fonts-dejavu-core wl-clipboard grim slurp wtype) >/dev/null || true
 fi
 
 # Python deps (keep minimal)

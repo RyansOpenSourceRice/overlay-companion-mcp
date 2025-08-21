@@ -208,7 +208,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libx11-dev libxrandr-dev
+        sudo apt-get install -y xvfb libx11-dev libxrandr-dev wl-clipboard grim slurp wtype
 
     - name: Build application
       run: |

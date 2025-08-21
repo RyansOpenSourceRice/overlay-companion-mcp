@@ -189,7 +189,7 @@ jobs:
 
         - Linux x86_64
         - FUSE support (for AppImage execution)
-        - X11 display server
+        - Wayland compositor (preferred) or X11 (fallback)
         - .NET 8.0 runtime (bundled in AppImage)
 
         ### Usage

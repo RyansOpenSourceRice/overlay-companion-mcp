@@ -19,8 +19,9 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 3. Run: `./overlay-companion-mcp-*.AppImage`
 
 ### System Requirements
-- Linux with X11 display server
-- xrandr (for multi-monitor support)
+- Linux (Wayland preferred; X11 supported as fallback)
+- Wayland compositor (e.g., GNOME, KDE, Sway, Hyprland)
+- Recommended tools: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
 - Modern desktop environment (GNOME, KDE, XFCE, etc.)
 
 ## Usage

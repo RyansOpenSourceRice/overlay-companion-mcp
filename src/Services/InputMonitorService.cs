@@ -99,7 +99,54 @@ public class InputMonitorService : IInputMonitorService
     {
         try
         {
-            // For Linux, we'll use xdotool to get cursor position
+            // Wayland-first: try wev/wtype utilities or ydotool (root)
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "sh",
+                    Arguments = "-lc 'command -v wlrctl >/dev/null 2>&1 && wlrctl pointer location || command -v hyprctl >/dev/null 2>&1 && hyprctl -j cursorpos || command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_seats'",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                // Try to parse "x y" or JSON {"x":..,"y":..}
+                output = output.Trim();
+                if (output.StartsWith("{"))
+                {
+                    try
+                    {
+                        var doc = System.Text.Json.JsonDocument.Parse(output);
+                        if (doc.RootElement.TryGetProperty("x", out var xEl) && doc.RootElement.TryGetProperty("y", out var yEl))
+                        {
+                            return new ScreenPoint(xEl.GetInt32(), yEl.GetInt32());
+                        }
+                    }
+                    catch { }
+                }
+                else
+                {
+                    var parts = output.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2 && int.TryParse(parts[0], out var x) && int.TryParse(parts[1], out var y))
+                    {
+                        return new ScreenPoint(x, y);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            // Fallback to X11 xdotool
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -198,19 +245,56 @@ public class InputMonitorService : IInputMonitorService
     /// </summary>
     public async Task<bool> SimulateTypingAsync(string text, int typingSpeedWpm = 60)
     {
+        // Calculate delay between characters based on WPM
+        // Average word length is 5 characters, so WPM * 5 = characters per minute
+        var charactersPerMinute = Math.Max(typingSpeedWpm * 5, 1);
+        var delayMs = 60000 / charactersPerMinute; // milliseconds per character
+        var escaped = text.Replace("\"", "\\\"");
+
+        // Wayland-first: try wtype
         try
         {
-            // Calculate delay between characters based on WPM
-            // Average word length is 5 characters, so WPM * 5 = characters per minute
-            var charactersPerMinute = typingSpeedWpm * 5;
-            var delayMs = 60000 / charactersPerMinute; // milliseconds per character
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "wtype",
+                    Arguments = $"-d {delayMs} -- \"{escaped}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                }
+            };
 
+            process.Start();
+            await process.WaitForExitAsync();
+            if (process.ExitCode == 0)
+            {
+                var inputEvent = new InputEvent
+                {
+                    Position = GetCurrentMousePosition(),
+                    EventType = "key",
+                    Data = text
+                };
+                KeyPressed?.Invoke(this, inputEvent);
+                return true;
+            }
+        }
+        catch
+        {
+            // fall through to X11 fallback
+        }
+
+        // Fallback: xdotool (X11)
+        try
+        {
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "xdotool",
-                    Arguments = $"type --delay {delayMs} \"{text.Replace("\"", "\\\"")}\"",
+                    Arguments = $"type --delay {delayMs} \"{escaped}\"",
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -223,7 +307,6 @@ public class InputMonitorService : IInputMonitorService
 
             if (process.ExitCode == 0)
             {
-                // Fire key event
                 var inputEvent = new InputEvent
                 {
                     Position = GetCurrentMousePosition(),
