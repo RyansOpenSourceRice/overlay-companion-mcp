@@ -277,14 +277,14 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Download AppImage artifact
       uses: actions/download-artifact@v4
       with:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./test/
-
-    - name: Checkout code
-      uses: actions/checkout@v4
 
     - name: Install test dependencies
       run: |
@@ -292,8 +292,8 @@ jobs:
         sudo apt-get install -y fuse libfuse2 xvfb weston xwayland
 
     - name: Test AppImage execution and extraction
+      working-directory: test
       run: |
-        cd test
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
 
         # Test basic execution with virtual display (help)
