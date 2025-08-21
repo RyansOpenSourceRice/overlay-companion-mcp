@@ -152,7 +152,7 @@ app.MapMcp();  // Registers /mcp endpoint with streaming support
 ## 🛠️ **Technical Implementation Notes**
 
 ### Multi-Monitor Implementation Strategy:
-1. **Linux**: Use `xrandr` to detect monitors, `DISPLAY` environment for targeting
+1. **Linux**: Prefer Wayland compositor APIs (hyprctl, swaymsg, wayland-info) with X11 `xrandr` as fallback
 2. **Cross-platform**: Abstract monitor detection behind `IDisplayService`
 3. **Coordinate mapping**: Transform screen coordinates between monitors
 4. **Overlay positioning**: Ensure overlays appear on correct monitor

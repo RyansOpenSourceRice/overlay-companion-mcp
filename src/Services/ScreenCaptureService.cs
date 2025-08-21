@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace OverlayCompanion.Services;
 
@@ -117,7 +118,7 @@ public class ScreenCaptureService : IScreenCaptureService
                 }
             }
 
-            throw new InvalidOperationException("No suitable screen capture tool found. Please install gnome-screenshot, scrot, or ImageMagick.");
+            throw new InvalidOperationException("No suitable screen capture tool found. Please install grim, gnome-screenshot, spectacle, scrot, or ImageMagick.");
         }
         finally
         {
@@ -133,31 +134,74 @@ public class ScreenCaptureService : IScreenCaptureService
     {
         return new[]
         {
+            ("grim", $"{outputFile}"), // Wayland-native (wlroots)
             ("gnome-screenshot", $"-f {outputFile}"),
+            ("spectacle", $"-b -n -o {outputFile}"), // KDE
+            ("maim", outputFile), // X11 alternative
             ("scrot", outputFile),
-            ("import", $"-window root {outputFile}"), // ImageMagick
-            ("maim", outputFile), // Modern alternative to scrot
-            ("spectacle", $"-b -n -o {outputFile}") // KDE
+            ("import", $"-window root {outputFile}") // ImageMagick (X11)
         };
     }
 
     private static (string tool, string args)[] GetRegionTools(string outputFile, ScreenRegion region)
     {
+        var geom = $"{region.X},{region.Y} {region.Width}x{region.Height}";
         return new[]
         {
-            ("gnome-screenshot", $"-a -f {outputFile}"), // Area selection
-            ("scrot", $"-s {outputFile}"), // Select area
-            ("import", $"{outputFile}"), // ImageMagick interactive
-            ("maim", $"-s {outputFile}"), // Select area
-            ("spectacle", $"-r -b -n -o {outputFile}") // KDE region
+            ("grim", $"-g \"{geom}\" {outputFile}"), // Non-interactive on Wayland
+            ("gnome-screenshot", $"-a -f {outputFile}"), // Interactive region selection (Wayland-supported)
+            ("spectacle", $"-r -b -n -o {outputFile}"), // KDE region (Wayland-supported)
+            ("maim", $"-g {region.Width}x{region.Height}+{region.X}+{region.Y} {outputFile}"), // X11
+            ("scrot", $"-a {region.X},{region.Y},{region.Width},{region.Height} {outputFile}"), // X11
+            ("import", $"-window root -crop {region.Width}x{region.Height}+{region.X}+{region.Y} {outputFile}") // ImageMagick (X11)
         };
     }
 
     public async Task<(int width, int height)> GetScreenResolutionAsync()
     {
+        // Try Wayland compositors first
         try
         {
-            // Try to get screen resolution using xrandr
+            var swayJson = await RunCommandAsync("swaymsg", "-t get_outputs -r");
+            if (!string.IsNullOrWhiteSpace(swayJson))
+            {
+                using var doc = JsonDocument.Parse(swayJson);
+                var first = doc.RootElement.EnumerateArray().FirstOrDefault();
+                if (first.ValueKind != JsonValueKind.Undefined && first.TryGetProperty("current_mode", out var mode) && mode.ValueKind == JsonValueKind.Object)
+                {
+                    if (mode.TryGetProperty("width", out var w) && mode.TryGetProperty("height", out var h))
+                    {
+                        return (w.GetInt32(), h.GetInt32());
+                    }
+                }
+                if (first.TryGetProperty("rect", out var rect))
+                {
+                    return (rect.GetProperty("width").GetInt32(), rect.GetProperty("height").GetInt32());
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            var hyprJson = await RunCommandAsync("hyprctl", "monitors -j");
+            if (!string.IsNullOrWhiteSpace(hyprJson))
+            {
+                using var doc = JsonDocument.Parse(hyprJson);
+                var first = doc.RootElement.EnumerateArray().FirstOrDefault();
+                if (first.ValueKind != JsonValueKind.Undefined)
+                {
+                    var width = first.GetProperty("width").GetInt32();
+                    var height = first.GetProperty("height").GetInt32();
+                    return (width, height);
+                }
+            }
+        }
+        catch { }
+
+        try
+        {
+            // Try to get screen resolution using xrandr (X11)
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -240,9 +284,32 @@ public class ScreenCaptureService : IScreenCaptureService
     {
         var monitors = new List<MonitorInfo>();
 
+        // Wayland-first: try compositor-specific queries
         try
         {
-            // Try xrandr first (most common on Linux)
+            var swayJson = await RunCommandAsync("swaymsg", "-t get_outputs -r");
+            if (!string.IsNullOrWhiteSpace(swayJson))
+            {
+                monitors = ParseSwaymsgMonitors(swayJson);
+                if (monitors.Any()) return monitors;
+            }
+        }
+        catch { }
+
+        try
+        {
+            var hyprJson = await RunCommandAsync("hyprctl", "monitors -j");
+            if (!string.IsNullOrWhiteSpace(hyprJson))
+            {
+                monitors = ParseHyprctlMonitors(hyprJson);
+                if (monitors.Any()) return monitors;
+            }
+        }
+        catch { }
+
+        try
+        {
+            // Try xrandr first (most common on Linux/X11)
             var xrandrResult = await RunCommandAsync("xrandr", "--query");
             if (!string.IsNullOrEmpty(xrandrResult))
             {
@@ -255,7 +322,7 @@ public class ScreenCaptureService : IScreenCaptureService
 
         try
         {
-            // Fallback to xdpyinfo
+            // Fallback to xdpyinfo (X11)
             var xdpyinfoResult = await RunCommandAsync("xdpyinfo", "");
             if (!string.IsNullOrEmpty(xdpyinfoResult))
             {
@@ -393,6 +460,59 @@ public class ScreenCaptureService : IScreenCaptureService
             }
         }
 
+        return monitors;
+    }
+
+    private List<MonitorInfo> ParseSwaymsgMonitors(string json)
+    {
+        var monitors = new List<MonitorInfo>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            int idx = 0;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (el.TryGetProperty("rect", out var rect))
+                {
+                    monitors.Add(new MonitorInfo
+                    {
+                        Index = idx++,
+                        Name = el.GetProperty("name").GetString() ?? $"Display-{idx}",
+                        Width = rect.GetProperty("width").GetInt32(),
+                        Height = rect.GetProperty("height").GetInt32(),
+                        X = rect.GetProperty("x").GetInt32(),
+                        Y = rect.GetProperty("y").GetInt32(),
+                        IsPrimary = el.TryGetProperty("primary", out var primary) && primary.GetBoolean()
+                    });
+                }
+            }
+        }
+        catch { }
+        return monitors;
+    }
+
+    private List<MonitorInfo> ParseHyprctlMonitors(string json)
+    {
+        var monitors = new List<MonitorInfo>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            int idx = 0;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                monitors.Add(new MonitorInfo
+                {
+                    Index = idx++,
+                    Name = el.GetProperty("name").GetString() ?? $"Display-{idx}",
+                    Width = el.GetProperty("width").GetInt32(),
+                    Height = el.GetProperty("height").GetInt32(),
+                    X = el.GetProperty("x").GetInt32(),
+                    Y = el.GetProperty("y").GetInt32(),
+                    IsPrimary = el.TryGetProperty("focused", out var focused) && focused.GetBoolean()
+                });
+            }
+        }
+        catch { }
         return monitors;
     }
 
