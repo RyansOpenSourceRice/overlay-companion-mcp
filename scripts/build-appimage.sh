@@ -89,7 +89,7 @@ if [ -f "$BUILD_DIR/publish/appsettings.json" ]; then
     cp "$BUILD_DIR/publish/appsettings.json" "$APPDIR/usr/bin/"
 fi
 
-# Copy native libraries (critical for Avalonia/Skia)
+# Copy native libraries (from publish output, if any)
 echo -e "${YELLOW}📚 Copying native libraries...${NC}"
 NATIVE_LIBS_COPIED=0
 for lib in "$BUILD_DIR/publish"/*.so; do
@@ -106,6 +106,99 @@ if [ $NATIVE_LIBS_COPIED -eq 0 ]; then
     echo -e "${YELLOW}  ⚠️  No native libraries found in publish output${NC}"
 else
     echo -e "${GREEN}  ✅ Copied $NATIVE_LIBS_COPIED native libraries${NC}"
+fi
+
+# Bundle GTK4 runtime (self-contained AppImage)
+echo -e "${YELLOW}🧩 Bundling GTK4 runtime...${NC}"
+LINUXDEPLOY="$BUILD_DIR/linuxdeploy-x86_64.AppImage"
+GTK_PLUGIN="$BUILD_DIR/linuxdeploy-plugin-gtk.sh"
+if [ ! -f "$LINUXDEPLOY" ]; then
+    wget -q "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage" -O "$LINUXDEPLOY"
+    chmod +x "$LINUXDEPLOY"
+fi
+if [ ! -f "$GTK_PLUGIN" ]; then
+    wget -q "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh" -O "$GTK_PLUGIN"
+    chmod +x "$GTK_PLUGIN"
+fi
+
+
+# Make GTK plugin discoverable by linuxdeploy
+ln -sf "$GTK_PLUGIN" "$BUILD_DIR/linuxdeploy-plugin-gtk"
+# Ensure linuxdeploy plugins are on PATH
+export PATH="$BUILD_DIR:$PATH"
+
+# Ensure basic desktop and icon exist before linuxdeploy runs
+mkdir -p "$APPDIR/usr/share/applications"
+mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+ICON_DEST="$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png"
+DESKTOP_DEST="$APPDIR/usr/share/applications/$APP_NAME.desktop"
+if [ ! -f "$ICON_DEST" ]; then
+  echo -n 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > "$ICON_DEST"
+fi
+if [ ! -f "$DESKTOP_DEST" ]; then
+  cat > "$DESKTOP_DEST" << EOD
+[Desktop Entry]
+Type=Application
+Name=$APP_DISPLAY_NAME
+Exec=$APP_NAME
+Icon=$APP_NAME
+Categories=$APP_CATEGORY
+Terminal=false
+EOD
+fi
+
+# Try with GTK plugin first (best effort; may not fully support GTK4)
+PLUGIN_OK=true
+if ! APPDIR="$APPDIR" "$LINUXDEPLOY" --appdir "$APPDIR" \
+    -e "$APPDIR/usr/bin/$APP_NAME" \
+    -d "$APPDIR/usr/share/applications/$APP_NAME.desktop" \
+    -i "$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png" \
+    --plugin gtk 2>/tmp/linuxdeploy_gtk.log; then
+    echo -e "${YELLOW}  ⚠️  linuxdeploy GTK plugin run had issues (continuing)${NC}"
+    PLUGIN_OK=false
+fi
+
+# If libgtk-4 is still missing, directly deploy GTK libs via linuxdeploy --library
+if ! find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4; then
+    echo -e "${YELLOW}  🔎 GTK4 not found after plugin. Attempting direct library deployment...${NC}"
+    # Locate libraries on the build system
+    find_lib() { ldconfig -p 2>/dev/null | awk -v n="$1" '$0 ~ n {print $NF}' | head -n1; }
+    LIBGTK=$(find_lib 'libgtk-4\\.so')
+    LIBGDK=$(find_lib 'libgdk-4\\.so')
+    LIBGLIB=$(find_lib 'libglib-2\\.0\\.so')
+    LIBGOBJ=$(find_lib 'libgobject-2\\.0\\.so')
+    LIBGIO=$(find_lib 'libgio-2\\.0\\.so')
+    LIBPANGO=$(find_lib 'libpango-1\\.0\\.so')
+    LIBHARF=$(find_lib 'libharfbuzz\\.so')
+    LIBCAIRO=$(find_lib 'libcairo\\.so')
+    LIBGRAPH=$(find_lib 'libgraphene-1\\.0\\.so')
+    LIBEPOXY=$(find_lib 'libepoxy\\.so')
+    LIBFRIBIDI=$(find_lib 'libfribidi\\.so')
+
+    LINUXDEPLOY_CMD=("$LINUXDEPLOY" --appdir "$APPDIR" \
+        -e "$APPDIR/usr/bin/$APP_NAME" \
+        -d "$APPDIR/usr/share/applications/$APP_NAME.desktop" \
+        -i "$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png")
+
+    for L in "$LIBGTK" "$LIBGDK" "$LIBGLIB" "$LIBGOBJ" "$LIBGIO" "$LIBPANGO" "$LIBHARF" "$LIBCAIRO" "$LIBGRAPH" "$LIBEPOXY" "$LIBFRIBIDI"; do
+        if [ -n "$L" ] && [ -f "$L" ]; then
+            LINUXDEPLOY_CMD+=( -l "$L" )
+        fi
+    done
+
+    if [ ${#LINUXDEPLOY_CMD[@]} -gt 5 ]; then
+        echo -e "${YELLOW}  📦 Deploying GTK4 and related libraries via linuxdeploy --library...${NC}"
+        APPDIR="$APPDIR" "${LINUXDEPLOY_CMD[@]}" || echo -e "${YELLOW}  ⚠️  linuxdeploy --library run had issues (continuing)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  Could not locate GTK4 libraries on this build system. Skipping direct deployment.${NC}"
+    fi
+fi
+
+# Summary of GTK bundling
+if find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4; then
+    echo -e "${GREEN}  ✅ GTK4 runtime bundled into AppImage AppDir${NC}"
+else
+    echo -e "${YELLOW}  ⚠️  GTK4 runtime not bundled (will require system GTK4 at runtime)${NC}"
 fi
 
 # Create desktop entry
@@ -224,7 +317,8 @@ else
             -annotate +0-20 'MCP' \
             -fill white -pointsize 24 -gravity center \
             -annotate +0+30 'Overlay' \
-            "$ICON_DEST"
+
+	            "$ICON_DEST"
         echo -e "${GREEN}✅ Generated placeholder icon${NC}"
     else
         # Create a very basic PNG if ImageMagick is not available
@@ -250,6 +344,13 @@ export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
 
 # Change to a writable directory for configuration files
+
+# Prefer Wayland by default for GTK
+export GDK_BACKEND="${GDK_BACKEND:-wayland,x11}"
+export GSETTINGS_SCHEMA_DIR="${HERE}/usr/share/glib-2.0/schemas"
+export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"
+export GI_TYPELIB_PATH="${HERE}/usr/lib/girepository-1.0:${GI_TYPELIB_PATH}"
+
 cd "${HOME}"
 
 # Execute the application
