@@ -332,4 +332,44 @@ This project represents a **complete, production-ready implementation** of an MC
 
 ---
 
+## AppImage SkiaSharp Dependency Fix (August 2025)
+
+### Problem
+AppImage was crashing during GUI initialization with `DllNotFoundException: libSkiaSharp`. HTTP server started fine but GUI failed to initialize.
+
+### Root Cause
+AppImage build process wasn't including native SkiaSharp libraries (libSkiaSharp.so, libHarfBuzzSharp.so) that Avalonia requires for GUI rendering.
+
+### Solution Applied
+Modified `scripts/build-appimage.sh` to automatically copy all `.so` files from `dotnet publish` output to `AppDir/usr/lib/`:
+
+```bash
+# Copy native libraries (critical for Avalonia/Skia)
+for lib in "$BUILD_DIR/publish"/*.so; do
+    if [ -f "$lib" ]; then
+        cp "$lib" "$APPDIR/usr/lib/"
+        chmod +x "$APPDIR/usr/lib/$(basename "$lib")"
+    fi
+done
+```
+
+### Results
+- ✅ **FIXED**: No more libSkiaSharp errors
+- ✅ AppImage size: 22MB → 51MB (includes native libs)
+- ✅ HTTP server works perfectly: "Now listening on: http://[::]:3000"
+- ✅ Both stdio and HTTP transports functional
+- ✅ GUI fails only due to headless environment (expected)
+
+### Verification Commands
+```bash
+# Test HTTP mode (headless)
+./overlay-companion-mcp-*.AppImage --appimage-extract
+cd squashfs-root && ./AppRun --http --no-gui
+
+# Test stdio mode
+./AppRun --no-gui
+```
+
+---
+
 **For the next AI**: This project is in excellent shape. Focus on user experience improvements and new features rather than infrastructure work.

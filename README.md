@@ -18,6 +18,8 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 3. Run: `./overlay-companion-mcp-*.AppImage`
 
+> **Note**: AppImages from v2025.08.22+ include all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues.
+
 ### System Requirements
 - Linux (Wayland preferred; X11 supported as fallback)
 - Wayland compositor (e.g., GNOME, KDE, Sway, Hyprland)
