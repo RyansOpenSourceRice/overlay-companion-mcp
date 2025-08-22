@@ -15,8 +15,8 @@ namespace OverlayCompanion.UI;
 public partial class MainWindow : Window
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<MainWindow> _logger;
-    private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly ILogger<MainWindow>? _logger;
+    private readonly IHostApplicationLifetime? _applicationLifetime;
     private bool _serverRunning = false;
 
     // UI Controls
@@ -62,7 +62,7 @@ public partial class MainWindow : Window
     private TextBox? _testOverlayDurationInput;
     private Button? _createTestOverlayButton;
 
-    public MainWindow(IServiceProvider serviceProvider, ILogger<MainWindow> logger, IHostApplicationLifetime applicationLifetime)
+    public MainWindow(IServiceProvider serviceProvider, ILogger<MainWindow>? logger, IHostApplicationLifetime? applicationLifetime)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
@@ -81,7 +81,7 @@ public partial class MainWindow : Window
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
         };
 
-        _logger.LogInformation("Main window initialized (simplified mode)");
+        _logger?.LogInformation("Main window initialized (simplified mode)");
     }
 
     private void InitializeControls()
@@ -250,7 +250,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error starting/stopping server");
+            _logger?.LogError(ex, "Error starting/stopping server");
             LogMessage($"Error: {ex.Message}");
         }
     }
@@ -297,14 +297,14 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error saving settings");
+            _logger?.LogError(ex, "Error saving settings");
             LogMessage($"Error saving settings: {ex.Message}");
         }
     }
 
     private void OnExitClicked(object? sender, RoutedEventArgs e)
     {
-        _applicationLifetime.StopApplication();
+        _applicationLifetime?.StopApplication();
     }
 
     private void OnClearLogsClicked(object? sender, RoutedEventArgs e)
@@ -645,7 +645,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error stopping session");
+            _logger?.LogError(ex, "Error stopping session");
             LogMessage($"Error stopping session: {ex.Message}");
         }
     }
@@ -664,7 +664,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error resuming session");
+            _logger?.LogError(ex, "Error resuming session");
             LogMessage($"Error resuming session: {ex.Message}");
         }
     }
@@ -683,7 +683,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error clearing overlays");
+            _logger?.LogError(ex, "Error clearing overlays");
             LogMessage($"Error clearing overlays: {ex.Message}");
         }
     }
@@ -730,7 +730,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating test overlay");
+            _logger?.LogError(ex, "Error creating test overlay");
             LogMessage($"Error creating test overlay: {ex.Message}");
         }
     }
@@ -779,7 +779,7 @@ export MCP_OVERLAY_ALLOW_CLIPBOARD_ACCESS=""{(_allowClipboardAccessCheckBox?.IsC
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error refreshing overlays list");
+            _logger?.LogError(ex, "Error refreshing overlays list");
         }
     }
 

@@ -80,7 +80,7 @@ public class Program
         {
             // Start MCP host and (optionally) Avalonia GUI concurrently
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = !smoke && (args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1");
+            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var hostTask = host.RunAsync();
             Task? avaloniaTask = null;
             if (!headless)
@@ -161,7 +161,7 @@ public class Program
         {
             // Start HTTP transport and (optionally) Avalonia GUI concurrently
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = !smoke && (args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1");
+            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
             Task? avaloniaTask = null;
             if (!headless)
