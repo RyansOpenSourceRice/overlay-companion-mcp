@@ -1,6 +1,6 @@
-using GirCore.Gtk;
-using GirCore.Gdk;
-using GirCore.Cairo;
+using Gtk;
+using Gdk;
+using Cairo;
 using OverlayCompanion.Models;
 using OverlayCompanion.Services;
 using System.Threading.Tasks;
@@ -29,7 +29,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
     private void InitializeWindow()
     {
         // Create application window
-        _window = ApplicationWindow.New(Gtk4Application.Instance);
+        _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
         
         // Configure window properties
         _window.SetTitle($"Overlay {_overlay.Id}");
@@ -46,7 +46,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _drawingArea.SetSizeRequest((int)_overlay.Bounds.Width, (int)_overlay.Bounds.Height);
         
         // Set up drawing callback
-        _drawingArea.SetDrawFunc(OnDraw, IntPtr.Zero, null);
+        _drawingArea.SetDrawFunc(OnDraw);
         
         // Add drawing area to window
         _window.SetChild(_drawingArea);
@@ -79,7 +79,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         }
     }
 
-    private void OnDraw(DrawingArea area, Context cr, int width, int height, IntPtr userData)
+    private void OnDraw(Gtk.DrawingArea area, Cairo.Context cr, int width, int height)
     {
         // Parse color
         var color = ParseColor(_overlay.Color);
@@ -102,14 +102,14 @@ public class Gtk4OverlayWindow : IOverlayWindow
             cr.ShowText(_overlay.Label);
         }
         
-        // Draw border
-        cr.SetSourceRgba(color.Red, color.Green, color.Blue, 1.0); // Solid border
-        cr.SetLineWidth(2.0);
+        // Draw border (approximate using stroke with default width)
+        cr.SetSourceRgba(color.Red, color.Green, color.Blue, 1.0);
         cr.Rectangle(0, 0, width, height);
         cr.Stroke();
     }
 
     private (double Red, double Green, double Blue, double Alpha) ParseColor(string colorName)
+    
     {
         // Simple color parsing - could be enhanced
         return colorName.ToLowerInvariant() switch
@@ -198,10 +198,10 @@ public class Gtk4OverlayWindow : IOverlayWindow
 /// </summary>
 public static class Gtk4Application
 {
-    private static Application? _instance;
+    private static Gtk.Application? _instance;
     private static readonly object _lock = new object();
 
-    public static Application Instance
+    public static Gtk.Application Instance
     {
         get
         {
@@ -209,7 +209,7 @@ public static class Gtk4Application
             {
                 if (_instance == null)
                 {
-                    _instance = Application.New("com.overlaycompanion.mcp", GirCore.Gio.ApplicationFlags.FlagsNone);
+                    _instance = Gtk.Application.New("com.overlaycompanion.mcp", Gio.ApplicationFlags.FlagsNone);
                 }
                 return _instance;
             }
@@ -222,7 +222,7 @@ public static class Gtk4Application
         {
             if (_instance == null)
             {
-                _instance = Application.New("com.overlaycompanion.mcp", GirCore.Gio.ApplicationFlags.FlagsNone);
+                _instance = Gtk.Application.New("com.overlaycompanion.mcp", Gio.ApplicationFlags.FlagsNone);
             }
         }
     }

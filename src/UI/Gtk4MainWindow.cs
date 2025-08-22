@@ -1,6 +1,6 @@
-using GirCore.Gtk;
-using GirCore.Gio;
-using static GirCore.GLib.Functions;
+using Gtk;
+using static GLib.Functions;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -20,8 +20,8 @@ public class Gtk4MainWindow : IDisposable
     private readonly ILogger<Gtk4MainWindow>? _logger;
     private readonly IHostApplicationLifetime? _applicationLifetime;
     
-    private ApplicationWindow? _window;
-    private Notebook? _notebook;
+    private Gtk.ApplicationWindow? _window;
+    private Gtk.Notebook? _notebook;
     private bool _disposed = false;
     private bool _serverRunning = false;
 
@@ -31,14 +31,14 @@ public class Gtk4MainWindow : IDisposable
     private IModeManager? _modeManager;
 
     // UI Controls for different tabs
-    private Label? _serverStatusLabel;
-    private Button? _startStopButton;
-    private Entry? _portEntry;
-    private Entry? _hostEntry;
-    private TextView? _logTextView;
-    private ListBox? _toolsListBox;
+    private Gtk.Label? _serverStatusLabel;
+    private Gtk.Button? _startStopButton;
+    private Gtk.Entry? _portEntry;
+    private Gtk.Entry? _hostEntry;
+    private Gtk.TextView? _logTextView;
+    private Gtk.ListBox? _toolsListBox;
 
-    public static event Action? WindowShown;
+    public static event System.Action? WindowShown;
 
     public Gtk4MainWindow(IServiceProvider serviceProvider, ILogger<Gtk4MainWindow>? logger, IHostApplicationLifetime? applicationLifetime)
     {
@@ -57,7 +57,7 @@ public class Gtk4MainWindow : IDisposable
     private void InitializeWindow()
     {
         // Create main application window
-        _window = ApplicationWindow.New(Gtk4Application.Instance);
+        _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
         _window.SetTitle("Overlay Companion MCP Server");
         _window.SetDefaultSize(800, 600);
         
@@ -287,7 +287,7 @@ public class Gtk4MainWindow : IDisposable
                     _logger?.LogInformation($"Screenshot captured: {screenshot.Width}x{screenshot.Height}");
                     
                     // Update UI on main thread
-                    IdleAdd(() =>
+                    GLib.Functions.IdleAdd(0, () =>
                     {
                         // Could show a notification or update status
                         return false;
