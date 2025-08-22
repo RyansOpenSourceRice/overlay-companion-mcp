@@ -46,6 +46,7 @@ public class OverlayElement
     public int TemporaryMs { get; set; } = 0; // 0 = permanent
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public int MonitorIndex { get; set; } = 0;
+    public bool ClickThrough { get; set; } = true; // Enable click-through by default
 }
 
 /// <summary>

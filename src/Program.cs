@@ -1,5 +1,3 @@
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,9 +20,8 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
-    private static bool _avaloniaInitialized = false;
-    private static readonly object _avaloniaLock = new object();
-    private static AppBuilder? _appBuilder = null;
+    private static bool _gtk4Initialized = false;
+    private static readonly object _gtk4Lock = new object();
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -88,16 +85,16 @@ public class Program
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
             bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var hostTask = host.RunAsync();
-            Task? avaloniaTask = null;
+            Task? gtk4Task = null;
             if (!headless)
             {
-                avaloniaTask = Task.Run(() => StartAvaloniaApp(host.Services));
+                gtk4Task = Task.Run(() => StartGtk4App(host.Services));
             }
 
             // Wait appropriately: if GUI started, tie process lifetime to GUI
-            if (avaloniaTask is not null)
+            if (gtk4Task is not null)
             {
-                await avaloniaTask;
+                await gtk4Task;
             }
             else
             {
@@ -165,14 +162,14 @@ public class Program
 
         try
         {
-            // Start HTTP transport and (optionally) Avalonia GUI concurrently
+            // Start HTTP transport and (optionally) GTK4 GUI concurrently
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
             bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
-            Task? avaloniaTask = null;
+            Task? gtk4Task = null;
             if (!headless)
             {
-                avaloniaTask = Task.Run(() => StartAvaloniaApp(app.Services));
+                gtk4Task = Task.Run(() => StartGtk4App(app.Services));
             }
 
             // In smoke test mode, create ready file after HTTP server starts and exit after delay
@@ -204,9 +201,9 @@ public class Program
                 return;
             }
 
-            if (avaloniaTask is not null)
+            if (gtk4Task is not null)
             {
-                await avaloniaTask;
+                await gtk4Task;
             }
             else
             {
@@ -232,7 +229,7 @@ public class Program
         }
         catch { /* best-effort */ }
 
-        OverlayApplication.WindowShown += () =>
+        Gtk4OverlayApplication.WindowShown += () =>
         {
             try
             {
@@ -243,43 +240,33 @@ public class Program
     }
 
 
-    private static void StartAvaloniaApp(IServiceProvider services)
+    private static void StartGtk4App(IServiceProvider services)
     {
-        lock (_avaloniaLock)
+        lock (_gtk4Lock)
         {
-            if (_avaloniaInitialized)
+            if (_gtk4Initialized)
             {
-                Console.WriteLine("WARNING: Avalonia already initialized, skipping duplicate initialization.");
+                Console.WriteLine("WARNING: GTK4 already initialized, skipping duplicate initialization.");
                 return;
             }
-            _avaloniaInitialized = true;
+            _gtk4Initialized = true;
 
             try
             {
-                // Create a fresh AppBuilder each time but ensure Setup() is only called once
-                var app = AppBuilder.Configure<OverlayApplication>()
-                    .UsePlatformDetect()
-                    // .WithInterFont() // Not available in this Avalonia version
-                    .LogToTrace();
+                // Initialize GTK4 application manager
+                Gtk4ApplicationManager.Initialize();
+                
+                // Set service provider for dependency injection
+                Gtk4ApplicationManager.SetServiceProvider(services);
 
-                // Set service provider for dependency injection BEFORE setup
-                if (app.Instance is OverlayApplication overlayApp)
-                {
-                    overlayApp.ServiceProvider = services;
-                    OverlayApplication.GlobalServiceProvider = services;
-                }
-
-                // Use SetupWithLifetime instead of separate Setup + StartWithClassicDesktopLifetime
-                var lifetime = new ClassicDesktopStyleApplicationLifetime();
-                app.SetupWithLifetime(lifetime);
-
-                // Start the application
-                lifetime.Start(Array.Empty<string>());
+                // Run the GTK4 application
+                Gtk4ApplicationManager.RunApplication(Array.Empty<string>());
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
-                _avaloniaInitialized = false; // Reset flag on failure
+                Console.WriteLine($"ERROR: Failed to start GTK4 application: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                _gtk4Initialized = false; // Reset flag on failure
                 throw;
             }
         }
