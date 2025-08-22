@@ -158,6 +158,9 @@ EOD
 fi
 
 # Try with GTK plugin first (best effort; supports GTK4 when forced)
+# Ensure pkg-config can locate gtk4.pc on common distros
+export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/usr/lib64/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/local/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig"
+
 PLUGIN_OK=true
 export DEPLOY_GTK_VERSION="${DEPLOY_GTK_VERSION:-4}"
 if ! APPDIR="$APPDIR" "$LINUXDEPLOY" --appdir "$APPDIR" \
