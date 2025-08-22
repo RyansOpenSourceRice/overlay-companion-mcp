@@ -74,10 +74,12 @@ repos:
         args: ["--fix"]
 
   # Spell checking
-  - repo: https://github.com/streetsidesoftware/cspell-cli
-    rev: v8.14.4
+  - repo: local
     hooks:
       - id: cspell
+        name: cspell
+        entry: cspell
+        language: system
         files: \.md$
         args: ["--no-progress"]
 
