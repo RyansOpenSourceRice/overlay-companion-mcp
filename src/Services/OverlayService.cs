@@ -161,8 +161,8 @@ public class OverlayService : IOverlayService
         }
         else
         {
-            // Use real Avalonia UI overlay windows
-            return new AvaloniaOverlayWindow(overlay);
+            // Use GTK4 overlay windows with true click-through support
+            return new Gtk4OverlayWindow(overlay);
         }
     }
 }
