@@ -175,6 +175,35 @@ public class Program
                 avaloniaTask = Task.Run(() => StartAvaloniaApp(app.Services));
             }
 
+            // In smoke test mode, create ready file after HTTP server starts and exit after delay
+            if (smoke && headless)
+            {
+                // Wait a moment for HTTP server to fully start
+                await Task.Delay(2000);
+                
+                // Create ready file to signal successful startup
+                var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
+                if (!string.IsNullOrEmpty(readyFile))
+                {
+                    try
+                    {
+                        var dir = Path.GetDirectoryName(readyFile)!;
+                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        File.WriteAllText(readyFile, DateTime.UtcNow.ToString("o"));
+                        logger.LogInformation("Smoke test: Created ready file at {ReadyFile}", readyFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Smoke test: Failed to create ready file at {ReadyFile}", readyFile);
+                    }
+                }
+                
+                // Exit after a short delay to complete smoke test
+                await Task.Delay(3000);
+                logger.LogInformation("Smoke test completed successfully");
+                return;
+            }
+
             if (avaloniaTask is not null)
             {
                 await avaloniaTask;
