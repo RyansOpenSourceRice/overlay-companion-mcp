@@ -18,7 +18,8 @@ public class OverlayApplication : Application
 
     public override void Initialize()
     {
-        AvaloniaXamlLoader.Load(this);
+        // Initialize without XAML - we'll set up styles programmatically if needed
+        // AvaloniaXamlLoader.Load(this); // Commented out since we don't have App.axaml
     }
 
     public override void OnFrameworkInitializationCompleted()

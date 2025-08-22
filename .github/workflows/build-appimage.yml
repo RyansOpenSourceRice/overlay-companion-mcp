@@ -161,6 +161,25 @@ jobs:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./release/
 
+    - name: Generate checksums
+      id: checksums
+      run: |
+        APPIMAGE_PATH="./release/${{ needs.build-appimage.outputs.appimage-name }}"
+        
+        # Generate checksums in GearLever order (md5, sha1, sha256)
+        MD5_HASH=$(md5sum "$APPIMAGE_PATH" | cut -d' ' -f1)
+        SHA1_HASH=$(sha1sum "$APPIMAGE_PATH" | cut -d' ' -f1)
+        SHA256_HASH=$(sha256sum "$APPIMAGE_PATH" | cut -d' ' -f1)
+        
+        echo "md5=$MD5_HASH" >> $GITHUB_OUTPUT
+        echo "sha1=$SHA1_HASH" >> $GITHUB_OUTPUT
+        echo "sha256=$SHA256_HASH" >> $GITHUB_OUTPUT
+        
+        echo "Generated checksums:"
+        echo "md5: $MD5_HASH"
+        echo "sha1: $SHA1_HASH"
+        echo "sha256: $SHA256_HASH"
+
     - name: Generate release notes
       id: release-notes
       run: |
@@ -174,6 +193,14 @@ jobs:
         ## 📦 AppImage Release
 
         **Download:** \`${APPIMAGE_NAME}\`
+
+        ### Checksums (GearLever compatible)
+        
+        \`\`\`
+        md5: ${{ steps.checksums.outputs.md5 }}
+        sha1: ${{ steps.checksums.outputs.sha1 }}
+        sha256: ${{ steps.checksums.outputs.sha256 }}
+        \`\`\`
 
         ### Installation
 
