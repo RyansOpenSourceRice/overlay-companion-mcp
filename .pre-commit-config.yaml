@@ -73,6 +73,16 @@ repos:
         files: \.md$
         args: ["--fix"]
 
+  # Spell checking
+  - repo: local
+    hooks:
+      - id: cspell
+        name: cspell
+        entry: cspell
+        language: system
+        files: \.md$
+        args: ["--no-progress"]
+
   # Security scanning
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.4.0

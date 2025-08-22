@@ -23,6 +23,7 @@ Jan.ai → HTTP → MCP Server (OverlayCompanion)
 - **Use Case**: Modern integration, multi-client support, image handling
 - **Security**: Network-level isolation, CORS support
 - **Features**: Server-Sent Events streaming, concurrent clients, web integration
+- **Architecture**: HTTP server + GUI interface (GUI can be disabled for testing with `--no-gui`)
 - **Command**: `dotnet run` (default) or `./overlay-companion-mcp.AppImage`
 
 #### 2. Legacy STDIO Transport (Deprecated)

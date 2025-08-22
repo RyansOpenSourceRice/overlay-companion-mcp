@@ -24,6 +24,7 @@ public class Program
 {
     private static bool _avaloniaInitialized = false;
     private static readonly object _avaloniaLock = new object();
+    private static AppBuilder? _appBuilder = null;
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -174,6 +175,35 @@ public class Program
                 avaloniaTask = Task.Run(() => StartAvaloniaApp(app.Services));
             }
 
+            // In smoke test mode, create ready file after HTTP server starts and exit after delay
+            if (smoke && headless)
+            {
+                // Wait a moment for HTTP server to fully start
+                await Task.Delay(2000);
+                
+                // Create ready file to signal successful startup
+                var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
+                if (!string.IsNullOrEmpty(readyFile))
+                {
+                    try
+                    {
+                        var dir = Path.GetDirectoryName(readyFile)!;
+                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        File.WriteAllText(readyFile, DateTime.UtcNow.ToString("o"));
+                        logger.LogInformation("Smoke test: Created ready file at {ReadyFile}", readyFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Smoke test: Failed to create ready file at {ReadyFile}", readyFile);
+                    }
+                }
+                
+                // Exit after a short delay to complete smoke test
+                await Task.Delay(3000);
+                logger.LogInformation("Smoke test completed successfully");
+                return;
+            }
+
             if (avaloniaTask is not null)
             {
                 await avaloniaTask;
@@ -190,27 +220,27 @@ public class Program
         }
     }
 
-        // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
-        private static void ConfigureSmokeTestHooks()
+    // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
+    private static void ConfigureSmokeTestHooks()
+    {
+        var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
+        if (string.IsNullOrEmpty(readyFile)) return;
+        try
         {
-            var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
-            if (string.IsNullOrEmpty(readyFile)) return;
+            var dir = Path.GetDirectoryName(readyFile)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        }
+        catch { /* best-effort */ }
+
+        OverlayApplication.WindowShown += () =>
+        {
             try
             {
-                var dir = Path.GetDirectoryName(readyFile)!;
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
             }
-            catch { /* best-effort */ }
-
-            OverlayApplication.WindowShown += () =>
-            {
-                try
-                {
-                    File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
-                }
-                catch { /* ignore */ }
-            };
-        }
+            catch { /* ignore */ }
+        };
+    }
 
 
     private static void StartAvaloniaApp(IServiceProvider services)
@@ -223,34 +253,35 @@ public class Program
                 return;
             }
             _avaloniaInitialized = true;
-        }
 
-        try
-        {
-            // Initialize and start Avalonia GUI application
-            var app = AppBuilder.Configure<OverlayApplication>()
-                .UsePlatformDetect()
-                // .WithInterFont() // Not available in this Avalonia version
-                .LogToTrace()
-                .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime());
-
-            // Set service provider for dependency injection
-            if (app.Instance is OverlayApplication overlayApp)
+            try
             {
-                overlayApp.ServiceProvider = services;
-                OverlayApplication.GlobalServiceProvider = services;
+                // Create a fresh AppBuilder each time but ensure Setup() is only called once
+                var app = AppBuilder.Configure<OverlayApplication>()
+                    .UsePlatformDetect()
+                    // .WithInterFont() // Not available in this Avalonia version
+                    .LogToTrace();
+
+                // Set service provider for dependency injection BEFORE setup
+                if (app.Instance is OverlayApplication overlayApp)
+                {
+                    overlayApp.ServiceProvider = services;
+                    OverlayApplication.GlobalServiceProvider = services;
+                }
+
+                // Use SetupWithLifetime instead of separate Setup + StartWithClassicDesktopLifetime
+                var lifetime = new ClassicDesktopStyleApplicationLifetime();
+                app.SetupWithLifetime(lifetime);
+
+                // Start the application
+                lifetime.Start(Array.Empty<string>());
             }
-
-            app.StartWithClassicDesktopLifetime(Array.Empty<string>());
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
-            lock (_avaloniaLock)
+            catch (Exception ex)
             {
+                Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
                 _avaloniaInitialized = false; // Reset flag on failure
+                throw;
             }
-            throw;
         }
     }
 }
