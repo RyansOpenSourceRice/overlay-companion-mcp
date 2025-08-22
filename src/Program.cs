@@ -24,6 +24,7 @@ public class Program
 {
     private static bool _avaloniaInitialized = false;
     private static readonly object _avaloniaLock = new object();
+    private static AppBuilder? _appBuilder = null;
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -223,34 +224,35 @@ public class Program
                 return;
             }
             _avaloniaInitialized = true;
-        }
 
-        try
-        {
-            // Initialize and start Avalonia GUI application
-            var app = AppBuilder.Configure<OverlayApplication>()
-                .UsePlatformDetect()
-                // .WithInterFont() // Not available in this Avalonia version
-                .LogToTrace()
-                .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime());
-
-            // Set service provider for dependency injection
-            if (app.Instance is OverlayApplication overlayApp)
+            try
             {
-                overlayApp.ServiceProvider = services;
-                OverlayApplication.GlobalServiceProvider = services;
+                // Create a fresh AppBuilder each time but ensure Setup() is only called once
+                var app = AppBuilder.Configure<OverlayApplication>()
+                    .UsePlatformDetect()
+                    // .WithInterFont() // Not available in this Avalonia version
+                    .LogToTrace();
+
+                // Set service provider for dependency injection BEFORE setup
+                if (app.Instance is OverlayApplication overlayApp)
+                {
+                    overlayApp.ServiceProvider = services;
+                    OverlayApplication.GlobalServiceProvider = services;
+                }
+
+                // Use SetupWithLifetime instead of separate Setup + StartWithClassicDesktopLifetime
+                var lifetime = new ClassicDesktopStyleApplicationLifetime();
+                app.SetupWithLifetime(lifetime);
+                
+                // Start the application
+                lifetime.Start(Array.Empty<string>());
             }
-
-            app.StartWithClassicDesktopLifetime(Array.Empty<string>());
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
-            lock (_avaloniaLock)
+            catch (Exception ex)
             {
+                Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
                 _avaloniaInitialized = false; // Reset flag on failure
+                throw;
             }
-            throw;
         }
     }
 }
