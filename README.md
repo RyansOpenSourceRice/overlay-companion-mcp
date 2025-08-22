@@ -31,14 +31,28 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 ## Usage
 
 ### MCP Integration
-Configure with Jan.ai or other MCP-compatible AI clients:
+Configure with Jan.ai or other MCP-compatible AI clients using HTTP transport (recommended):
 
 ```json
 {
   "mcpServers": {
     "overlay-companion": {
       "command": "/path/to/overlay-companion-mcp",
-      "args": ["--mcp"]
+      "args": [],
+      "transport": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+**Legacy STDIO transport** (deprecated, use only if HTTP is not supported):
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "/path/to/overlay-companion-mcp",
+      "args": ["--stdio"]
     }
   }
 }

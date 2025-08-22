@@ -14,37 +14,40 @@ ecosystem.
 
 The system supports two deployment architectures to meet different security and operational requirements:
 
-#### 1. Direct stdio Transport (Default)
+#### 1. Native HTTP Transport (Default & Recommended)
+
+```text
+Jan.ai → HTTP → MCP Server (OverlayCompanion)
+```
+
+- **Use Case**: Modern integration, multi-client support, image handling
+- **Security**: Network-level isolation, CORS support
+- **Features**: Server-Sent Events streaming, concurrent clients, web integration
+- **Command**: `dotnet run` (default) or `./overlay-companion-mcp.AppImage`
+
+#### 2. Legacy STDIO Transport (Deprecated)
 
 ```text
 Jan.ai → stdio → MCP Server (OverlayCompanion)
 ```
 
-- **Use Case**: Direct integration, minimal latency
+- **Use Case**: Legacy compatibility only
+- **Limitations**: No image support, single client, deprecated
 - **Security**: Process-level isolation
-- **Command**: `dotnet run`
+- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp.AppImage --stdio`
 
-#### 2. HTTP Bridge (Segmented Deployment)
+### HTTP Transport Benefits
 
-```text
-Jan.ai → HTTP → Bridge Server → stdio → MCP Server (OverlayCompanion)
-```
+The native HTTP transport provides critical advantages for modern MCP deployments:
 
-- **Use Case**: System segmentation, risk-averse deployments
-- **Security**: Network-level isolation, separate control plane
-- **Flexibility**: Remote deployment, containerization, network policies
-- **Command**: `dotnet run --http` or `dotnet run --bridge`
-
-### HTTP Bridge Benefits
-
-The HTTP bridge provides critical deployment flexibility for enterprise and security-conscious environments:
-
-1. **System Segmentation**: Separates Jan.ai control plane from core MCP server
-2. **Network Isolation**: Allows firewall rules and network policies between components
-3. **Remote Deployment**: MCP server can run on different machines/containers
-4. **Risk Mitigation**: Additional layer of isolation for sensitive operations
-5. **Monitoring**: HTTP traffic can be logged, monitored, and audited
-6. **Load Balancing**: Multiple MCP server instances behind HTTP bridge
+1. **Image Support**: Native handling of images and binary data (STDIO cannot handle images)
+2. **Multi-Client Support**: Multiple AI clients can connect simultaneously
+3. **Web Integration**: Direct browser access and web-based tooling
+4. **Streaming**: Server-Sent Events for real-time updates
+5. **Remote Deployment**: MCP server can run on different machines/containers
+6. **Monitoring**: HTTP traffic can be logged, monitored, and audited
+7. **Load Balancing**: Multiple MCP server instances with standard HTTP load balancers
+8. **CORS Support**: Cross-origin requests for web applications
 
 ---
 

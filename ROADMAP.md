@@ -3,7 +3,9 @@
 ## 🎯 Current Status (v1.0.0)
 
 ### ✅ **COMPLETED - Core Functionality**
-- **MCP Protocol**: Full stdio transport implementation with 13 working tools
+- **MCP Protocol**: Full HTTP transport implementation (primary) with 13 working tools
+- **Transport Layer**: Native HTTP transport with image support, multi-client capability
+- **Legacy Support**: STDIO transport (deprecated) for backward compatibility
 - **Overlay System**: Complete with MockOverlayWindow for headless and AvaloniaOverlayWindow for GUI
 - **Screenshot Capture**: Working with Linux tools (scrot/gnome-screenshot)
 - **Input Simulation**: Click and type functionality implemented
