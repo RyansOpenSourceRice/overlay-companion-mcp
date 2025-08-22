@@ -121,6 +121,9 @@ if [ ! -f "$GTK_PLUGIN" ]; then
     chmod +x "$GTK_PLUGIN"
 fi
 
+# Run AppImages without FUSE (CI-safe)
+export APPIMAGE_EXTRACT_AND_RUN=1
+
 
 # Make GTK plugin discoverable by linuxdeploy
 ln -sf "$GTK_PLUGIN" "$BUILD_DIR/linuxdeploy-plugin-gtk"
