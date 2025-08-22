@@ -194,14 +194,6 @@ jobs:
 
         **Download:** \`${APPIMAGE_NAME}\`
 
-        ### Checksums (GearLever compatible)
-        
-        \`\`\`
-        md5: ${{ steps.checksums.outputs.md5 }}
-        sha1: ${{ steps.checksums.outputs.sha1 }}
-        sha256: ${{ steps.checksums.outputs.sha256 }}
-        \`\`\`
-
         ### Installation
 
         1. Download the AppImage file
@@ -263,6 +255,16 @@ jobs:
         - Platform: Linux x86_64
         - .NET Version: 8.0
         - MCP SDK: 0.3.0-preview.3
+
+        ---
+
+        ### Checksums (GearLever compatible)
+        
+        \`\`\`
+        md5: ${{ steps.checksums.outputs.md5 }}
+        sha1: ${{ steps.checksums.outputs.sha1 }}
+        sha256: ${{ steps.checksums.outputs.sha256 }}
+        \`\`\`
 
         EOF
 
