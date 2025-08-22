@@ -75,6 +75,7 @@ echo -e "${GREEN}✅ .NET application built successfully${NC}"
 # Create AppDir structure
 echo -e "${YELLOW}📦 Creating AppDir structure...${NC}"
 mkdir -p "$APPDIR/usr/bin"
+mkdir -p "$APPDIR/usr/lib"
 mkdir -p "$APPDIR/usr/share/applications"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$APPDIR/usr/share/metainfo"
@@ -86,6 +87,25 @@ chmod +x "$APPDIR/usr/bin/$APP_NAME"
 # Copy configuration files
 if [ -f "$BUILD_DIR/publish/appsettings.json" ]; then
     cp "$BUILD_DIR/publish/appsettings.json" "$APPDIR/usr/bin/"
+fi
+
+# Copy native libraries (critical for Avalonia/Skia)
+echo -e "${YELLOW}📚 Copying native libraries...${NC}"
+NATIVE_LIBS_COPIED=0
+for lib in "$BUILD_DIR/publish"/*.so; do
+    if [ -f "$lib" ]; then
+        lib_name=$(basename "$lib")
+        cp "$lib" "$APPDIR/usr/lib/"
+        chmod +x "$APPDIR/usr/lib/$lib_name"
+        echo -e "${GREEN}  ✅ Copied $lib_name${NC}"
+        NATIVE_LIBS_COPIED=$((NATIVE_LIBS_COPIED + 1))
+    fi
+done
+
+if [ $NATIVE_LIBS_COPIED -eq 0 ]; then
+    echo -e "${YELLOW}  ⚠️  No native libraries found in publish output${NC}"
+else
+    echo -e "${GREEN}  ✅ Copied $NATIVE_LIBS_COPIED native libraries${NC}"
 fi
 
 # Create desktop entry
