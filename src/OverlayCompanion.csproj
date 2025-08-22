@@ -27,13 +27,12 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
 
     <!-- GTK4 UI for overlay windows and GUI with true click-through support -->
-    <!-- Note: Using stub implementations for now until runtime environment is configured -->
-    <!-- <PackageReference Include="GirCore.Gtk-4.0" Version="0.6.3" />
+    <PackageReference Include="GirCore.Gtk-4.0" Version="0.6.3" />
     <PackageReference Include="GirCore.Cairo-1.0" Version="0.6.3" />
     <PackageReference Include="GirCore.Gdk-4.0" Version="0.6.3" />
     <PackageReference Include="GirCore.Gio-2.0" Version="0.6.3" />
     <PackageReference Include="GirCore.GLib-2.0" Version="0.6.3" />
-    <PackageReference Include="GirCore.GObject-2.0" Version="0.6.3" /> -->
+    <PackageReference Include="GirCore.GObject-2.0" Version="0.6.3" />
 
     <!-- System libraries (updated for security) -->
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
@@ -47,6 +46,7 @@
     <Compile Remove="UI\avalonia-backup\**" />
     <EmbeddedResource Remove="UI\avalonia-backup\**" />
     <None Remove="UI\avalonia-backup\**" />
+    <Compile Remove="UI\Gtk4Stubs.cs" />
   </ItemGroup>
 
 

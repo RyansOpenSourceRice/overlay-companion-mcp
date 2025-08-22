@@ -1,6 +1,6 @@
-using GirCore.Gtk;
-using GirCore.Gio;
-using static GirCore.Gtk.Functions;
+using Gtk;
+using Gio;
+using static Gtk.Functions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,18 +14,18 @@ namespace OverlayCompanion.UI;
 /// </summary>
 public class Gtk4OverlayApplication : IDisposable
 {
-    public static event Action? WindowShown;
+    public static event System.Action? WindowShown;
     public IServiceProvider? ServiceProvider { get; set; }
     public static IServiceProvider? GlobalServiceProvider { get; set; }
 
-    private Application? _application;
+    private Gtk.Application? _application;
     private Gtk4MainWindow? _mainWindow;
     private bool _disposed = false;
 
     public Gtk4OverlayApplication()
     {
         // Initialize GTK4 application
-        _application = Application.New("com.overlaycompanion.mcp", ApplicationFlags.FlagsNone);
+        _application = Gtk.Application.New("com.overlaycompanion.mcp", ApplicationFlags.FlagsNone);
         
         // Set up application events
         _application.OnActivate += OnActivate;
