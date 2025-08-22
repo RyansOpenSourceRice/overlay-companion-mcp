@@ -135,8 +135,15 @@ mkdir -p "$APPDIR/usr/share/applications"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 ICON_DEST="$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png"
 DESKTOP_DEST="$APPDIR/usr/share/applications/$APP_NAME.desktop"
+# Prefer repository icon if available (valid size for linuxdeploy)
+ICON_SOURCE_PRE="$PROJECT_ROOT/assets/icon.png"
 if [ ! -f "$ICON_DEST" ]; then
-  echo -n 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > "$ICON_DEST"
+  if [ -f "$ICON_SOURCE_PRE" ]; then
+    cp "$ICON_SOURCE_PRE" "$ICON_DEST"
+  else
+    # Minimal fallback; will be replaced later
+    echo -n 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > "$ICON_DEST"
+  fi
 fi
 if [ ! -f "$DESKTOP_DEST" ]; then
   cat > "$DESKTOP_DEST" << EOD
@@ -150,8 +157,9 @@ Terminal=false
 EOD
 fi
 
-# Try with GTK plugin first (best effort; may not fully support GTK4)
+# Try with GTK plugin first (best effort; supports GTK4 when forced)
 PLUGIN_OK=true
+export DEPLOY_GTK_VERSION="${DEPLOY_GTK_VERSION:-4}"
 if ! APPDIR="$APPDIR" "$LINUXDEPLOY" --appdir "$APPDIR" \
     -e "$APPDIR/usr/bin/$APP_NAME" \
     -d "$APPDIR/usr/share/applications/$APP_NAME.desktop" \
