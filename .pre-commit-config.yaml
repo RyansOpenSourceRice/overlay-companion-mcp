@@ -73,6 +73,14 @@ repos:
         files: \.md$
         args: ["--fix"]
 
+  # Spell checking
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v8.14.4
+    hooks:
+      - id: cspell
+        files: \.md$
+        args: ["--no-progress"]
+
   # Security scanning
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.4.0

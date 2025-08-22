@@ -72,10 +72,10 @@ public partial class MainWindow : Window
         Title = "Overlay Companion MCP Server";
         Width = 600;
         Height = 500;
-        
+
         // Create a simple text block for now
-        Content = new TextBlock 
-        { 
+        Content = new TextBlock
+        {
             Text = "Overlay Companion MCP Server\n\nGUI temporarily disabled - use command line options:\n\n--http : Start HTTP server\n--no-gui : Run in headless mode",
             Margin = new Avalonia.Thickness(20),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
@@ -84,11 +84,12 @@ public partial class MainWindow : Window
         _logger?.LogInformation("Main window initialized (simplified mode)");
     }
 
+    [RequiresAssemblyFiles("Calls OverlayCompanion.UI.MainWindow.OnRefreshConfigClicked(Object, RoutedEventArgs)")]
     private void InitializeControls()
     {
         // XAML controls temporarily disabled
         return;
-        
+
         // Get references to named controls
         _portTextBox = this.FindControl<TextBox>("PortTextBox");
         _hostTextBox = this.FindControl<TextBox>("HostTextBox");
@@ -172,7 +173,7 @@ public partial class MainWindow : Window
     {
         // XAML controls temporarily disabled
         return;
-        
+
         // Load settings from configuration or defaults
         if (_portTextBox != null) _portTextBox.Text = "3000";
         if (_hostTextBox != null) _hostTextBox.Text = "localhost";
@@ -191,7 +192,7 @@ public partial class MainWindow : Window
     {
         // XAML controls temporarily disabled
         return;
-        
+
         if (_toolsListBox == null) return;
 
         var tools = new List<string>

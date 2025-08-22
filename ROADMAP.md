@@ -179,19 +179,19 @@ app.MapMcp();  // Registers /mcp endpoint with streaming support
 3. Fix HTTP bridge or implement native HTTP transport
 
 ### Phase 2: Production Ready (2-3 weeks)  
-4. Enhanced screenshot verification with image processing
-5. Comprehensive scenario-based testing
-6. Performance optimization and persistent connections
+1. Enhanced screenshot verification with image processing
+2. Comprehensive scenario-based testing
+3. Performance optimization and persistent connections
 
 ### Phase 3: Advanced Features (1-2 months)
-7. Full multi-monitor support with coordinate mapping
-8. Advanced input simulation (drag/drop, gestures)
-9. Cross-platform support (Windows/macOS)
+1. Full multi-monitor support with coordinate mapping
+2. Advanced input simulation (drag/drop, gestures)
+3. Cross-platform support (Windows/macOS)
 
 ### Phase 4: Enterprise/AI Integration (3-6 months)
-10. OCR and AI-powered element detection
-11. Enterprise security and audit features
-12. Cloud-native deployment options
+1. OCR and AI-powered element detection
+2. Enterprise security and audit features
+3. Cloud-native deployment options
 
 ---
 

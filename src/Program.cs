@@ -191,27 +191,27 @@ public class Program
         }
     }
 
-        // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
-        private static void ConfigureSmokeTestHooks()
+    // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
+    private static void ConfigureSmokeTestHooks()
+    {
+        var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
+        if (string.IsNullOrEmpty(readyFile)) return;
+        try
         {
-            var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
-            if (string.IsNullOrEmpty(readyFile)) return;
+            var dir = Path.GetDirectoryName(readyFile)!;
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        }
+        catch { /* best-effort */ }
+
+        OverlayApplication.WindowShown += () =>
+        {
             try
             {
-                var dir = Path.GetDirectoryName(readyFile)!;
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
             }
-            catch { /* best-effort */ }
-
-            OverlayApplication.WindowShown += () =>
-            {
-                try
-                {
-                    File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
-                }
-                catch { /* ignore */ }
-            };
-        }
+            catch { /* ignore */ }
+        };
+    }
 
 
     private static void StartAvaloniaApp(IServiceProvider services)
@@ -243,7 +243,7 @@ public class Program
                 // Use SetupWithLifetime instead of separate Setup + StartWithClassicDesktopLifetime
                 var lifetime = new ClassicDesktopStyleApplicationLifetime();
                 app.SetupWithLifetime(lifetime);
-                
+
                 // Start the application
                 lifetime.Start(Array.Empty<string>());
             }
