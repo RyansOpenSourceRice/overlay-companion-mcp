@@ -12,7 +12,7 @@ namespace OverlayCompanion.Services;
 /// </summary>
 public interface IOverlayService
 {
-    Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0);
+    Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0, bool clickThrough = true);
     Task<string> DrawOverlayAsync(OverlayElement overlay);
     Task<bool> RemoveOverlayAsync(string overlayId);
     Task<string[]> DrawBatchOverlaysAsync(OverlayElement[] overlays, bool oneAtATime = false);
@@ -36,14 +36,15 @@ public class OverlayService : IOverlayService
     public event EventHandler<OverlayElement>? OverlayCreated;
     public event EventHandler<string>? OverlayRemoved;
 
-    public async Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0)
+    public async Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0, bool clickThrough = true)
     {
         var overlay = new OverlayElement
         {
             Bounds = bounds,
             Color = color,
             Label = label,
-            TemporaryMs = temporaryMs
+            TemporaryMs = temporaryMs,
+            ClickThrough = clickThrough
         };
 
         // Create and show overlay window

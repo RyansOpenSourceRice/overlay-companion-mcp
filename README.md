@@ -25,12 +25,16 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 > **Note**: AppImages from v2025.08.22.4+ include the Avalonia double initialization fix, smoke test timeout fix, and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues or CI test timeouts.
 
 ### System Requirements
-- Linux (Wayland preferred; X11 supported as fallback)
-- Wayland compositor (e.g., GNOME, KDE, Sway, Hyprland)
-- Recommended tools: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
-- Clipboard: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
+- **Target Platform**: Fedora Linux with Wayland (GNOME)
+- **Current GUI Framework**: Avalonia UI (cross-platform)
+- **Click-Through Limitation**: Overlays are transparent but not fully click-through on native Wayland
+- **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
+- **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
 
-- Modern desktop environment (GNOME, KDE, XFCE, etc.)
+### Known Limitations
+- **Overlay Click-Through**: Current Avalonia implementation provides visual transparency but limited click-through on Wayland
+- **Workaround**: Run under XWayland for better click-through support
+- **Future**: Migration to GTK4 planned for native Wayland click-through support
 
 ## Usage
 
