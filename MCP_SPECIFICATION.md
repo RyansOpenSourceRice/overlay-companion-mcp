@@ -39,12 +39,13 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Name**: `overlay-companion-mcp`
 - **Version**: `1.0.0`
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
-- **Protocol**: MCP server with native HTTP transport (STDIO deprecated)
+- **Protocol**: MCP server with native HTTP transport (default)
 - **Primary Transport**: Native HTTP transport using ModelContextProtocol.AspNetCore
   - **Port**: 3000 (configurable)
-  - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled
-  - **Benefits**: Web integration, session management, real-time streaming, concurrent clients
-- **Legacy Transport**: Standard I/O (stdio) - deprecated, kept for testing only
+  - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled, **image handling**
+  - **Benefits**: Web integration, session management, real-time streaming, concurrent clients, binary data support
+- **Legacy Transport**: Standard I/O (stdio) - **DEPRECATED** (use `--stdio` flag)
+  - **Limitations**: No image support, single client only, legacy compatibility only
 - **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
 - **Protocol Version**: 2024-11-05
@@ -89,30 +90,45 @@ The server implements standard MCP error responses:
 
 ## Connection Configuration
 
-### Jan.ai Configuration
+### Jan.ai Configuration (HTTP Transport - Recommended)
 ```json
 {
   "mcpServers": {
     "overlay-companion": {
       "command": "http",
       "args": [
-        "http://localhost:3000/"
+        "http://localhost:3000/mcp"
       ],
       "env": {},
-      "description": "Overlay Companion MCP - Screen interaction toolkit",
+      "description": "Overlay Companion MCP - Screen interaction toolkit with image support",
       "disabled": false
     }
   }
 }
 ```
 
-### Claude Desktop Configuration
+### Claude Desktop Configuration (HTTP Transport - Recommended)
 ```json
 {
   "mcpServers": {
     "overlay-companion": {
       "command": "http",
-      "args": ["http://localhost:3000/"],
+      "args": ["http://localhost:3000/mcp"],
+      "env": {}
+    }
+  }
+}
+```
+
+### Legacy STDIO Configuration (Deprecated)
+**⚠️ STDIO transport is deprecated and lacks image support. Use HTTP transport above.**
+
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "/path/to/overlay-companion-mcp",
+      "args": ["--stdio"],
       "env": {}
     }
   }

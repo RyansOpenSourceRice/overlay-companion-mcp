@@ -22,6 +22,8 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
+    private static bool _avaloniaInitialized = false;
+    private static readonly object _avaloniaLock = new object();
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -31,16 +33,18 @@ public class Program
             ConfigureSmokeTestHooks();
         }
 
-        // Support both stdio (for testing/legacy) and HTTP transport (primary)
-        bool useHttpTransport = args.Contains("--http") || args.Contains("--bridge");
+        // HTTP transport is now the primary and default transport
+        // STDIO transport is deprecated and only available for legacy compatibility
+        bool useStdioTransport = args.Contains("--stdio") || args.Contains("--legacy");
 
-        if (useHttpTransport)
+        if (useStdioTransport)
         {
-            await RunWithHttpTransport(args);
+            Console.WriteLine("WARNING: STDIO transport is deprecated. Use HTTP transport (default) for better performance and features.");
+            await RunStdioMcpServer(args);
         }
         else
         {
-            await RunStdioMcpServer(args);
+            await RunWithHttpTransport(args);
         }
     }
 
@@ -73,7 +77,8 @@ public class Program
         var host = builder.Build();
 
         var logger = host.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Starting Overlay Companion MCP Server (stdio transport)...");
+        logger.LogWarning("Starting Overlay Companion MCP Server (DEPRECATED stdio transport)...");
+        logger.LogWarning("STDIO transport is deprecated. Please use HTTP transport (default) for better performance and features.");
         logger.LogInformation("Server will listen for stdio MCP connections from Jan.ai or other MCP clients");
 
         try
@@ -147,8 +152,8 @@ public class Program
         var app = builder.Build();
 
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Starting Overlay Companion with Native HTTP Transport...");
-        logger.LogInformation("Native HTTP provides multi-client support, streaming, and web integration");
+        logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");
+        logger.LogInformation("HTTP transport provides multi-client support, streaming, web integration, and image handling");
         logger.LogInformation("HTTP Transport listening on http://0.0.0.0:3000/mcp");
 
         // Enable CORS
@@ -210,20 +215,42 @@ public class Program
 
     private static void StartAvaloniaApp(IServiceProvider services)
     {
-        // Initialize and start Avalonia GUI application
-        var app = AppBuilder.Configure<OverlayApplication>()
-            .UsePlatformDetect()
-            // .WithInterFont() // Not available in this Avalonia version
-            .LogToTrace()
-            .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime());
-
-        // Set service provider for dependency injection
-        if (app.Instance is OverlayApplication overlayApp)
+        lock (_avaloniaLock)
         {
-            overlayApp.ServiceProvider = services;
-            OverlayApplication.GlobalServiceProvider = services;
+            if (_avaloniaInitialized)
+            {
+                Console.WriteLine("WARNING: Avalonia already initialized, skipping duplicate initialization.");
+                return;
+            }
+            _avaloniaInitialized = true;
         }
 
-        app.StartWithClassicDesktopLifetime(Array.Empty<string>());
+        try
+        {
+            // Initialize and start Avalonia GUI application
+            var app = AppBuilder.Configure<OverlayApplication>()
+                .UsePlatformDetect()
+                // .WithInterFont() // Not available in this Avalonia version
+                .LogToTrace()
+                .SetupWithLifetime(new ClassicDesktopStyleApplicationLifetime());
+
+            // Set service provider for dependency injection
+            if (app.Instance is OverlayApplication overlayApp)
+            {
+                overlayApp.ServiceProvider = services;
+                OverlayApplication.GlobalServiceProvider = services;
+            }
+
+            app.StartWithClassicDesktopLifetime(Array.Empty<string>());
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR: Failed to start Avalonia application: {ex.Message}");
+            lock (_avaloniaLock)
+            {
+                _avaloniaInitialized = false; // Reset flag on failure
+            }
+            throw;
+        }
     }
 }
