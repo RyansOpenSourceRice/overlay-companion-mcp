@@ -18,7 +18,7 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 3. Run: `./overlay-companion-mcp-*.AppImage`
 
-> **Note**: AppImages from v2025.08.22.2+ include the Avalonia double initialization fix and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues.
+> **Note**: AppImages from v2025.08.22.4+ include the Avalonia double initialization fix, smoke test timeout fix, and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues or CI test timeouts.
 
 ### System Requirements
 - Linux (Wayland preferred; X11 supported as fallback)
@@ -85,7 +85,7 @@ For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md
 - Application crashes with Avalonia setup error
 
 **Solution:**
-- **Update to latest AppImage** (v2025.08.22.2 or newer)
+- **Update to latest AppImage** (v2025.08.22.4 or newer)
 - For older versions, use headless mode: `HEADLESS=1 ./overlay-companion-mcp.AppImage`
 
 #### GUI Not Starting
@@ -102,7 +102,7 @@ For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md
 #### Native Library Issues
 
 **libSkiaSharp/libHarfBuzzSharp errors:**
-- Update to AppImage v2025.08.22+ (includes all native dependencies)
+- Update to AppImage v2025.08.22.4+ (includes all native dependencies and fixes)
 - For manual builds, ensure native libraries are in LD_LIBRARY_PATH
 
 ### Transport Issues
