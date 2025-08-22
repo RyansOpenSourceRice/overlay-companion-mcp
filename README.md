@@ -18,6 +18,10 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 3. Run: `./overlay-companion-mcp-*.AppImage`
 
+**Architecture**: The application runs an **HTTP server** (required for MCP protocol) with a **GUI interface**:
+- **Normal operation**: HTTP server + GUI (default)
+- **Testing only**: GUI can be disabled with `--no-gui` or `HEADLESS=1` for automated testing
+
 > **Note**: AppImages from v2025.08.22.4+ include the Avalonia double initialization fix, smoke test timeout fix, and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues or CI test timeouts.
 
 ### System Requirements
@@ -86,7 +90,7 @@ For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md
 
 **Solution:**
 - **Update to latest AppImage** (v2025.08.22.4 or newer)
-- For older versions, use headless mode: `HEADLESS=1 ./overlay-companion-mcp.AppImage`
+- For older versions, temporary workaround: `HEADLESS=1 ./overlay-companion-mcp.AppImage` (testing mode only)
 
 #### GUI Not Starting
 
