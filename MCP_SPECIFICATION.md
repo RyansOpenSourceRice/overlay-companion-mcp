@@ -94,14 +94,12 @@ The server implements standard MCP error responses:
 ```json
 {
   "mcpServers": {
-    "overlay-companion": {
-      "command": "http",
-      "args": [
-        "http://localhost:3000/mcp"
-      ],
-      "env": {},
-      "description": "Overlay Companion MCP - Screen interaction toolkit with image support",
-      "disabled": false
+    "overlay_companion": {
+      "url": "http://localhost:3000/mcp",
+      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "provider": "Overlay Companion",
+      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
   }
 }
@@ -121,10 +119,12 @@ These endpoints include proper metadata (description, tags, provider info) for b
 ```json
 {
   "mcpServers": {
-    "overlay-companion": {
-      "command": "http",
-      "args": ["http://localhost:3000/mcp"],
-      "env": {}
+    "overlay_companion": {
+      "url": "http://localhost:3000/mcp",
+      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "provider": "Overlay Companion",
+      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
   }
 }
