@@ -123,6 +123,8 @@ public class Program
         builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
+        builder.Services.AddSingleton<UpdateService>();
+        builder.Services.AddHttpClient();
 
         // Add MCP server with native HTTP transport using official SDK
         builder.Services

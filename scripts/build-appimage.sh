@@ -479,6 +479,11 @@ cd "$BUILD_DIR"
 export ARCH="$ARCH"
 export VERSION="$APP_VERSION"
 
+# Add update information for AppImageUpdate support
+echo -e "${YELLOW}🔄 Adding update information for automatic updates...${NC}"
+UPDATE_INFO="gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|${APP_NAME}-*-${ARCH}.AppImage.zsync"
+export UPDATE_INFORMATION="$UPDATE_INFO"
+
 # Build AppImage with better error handling
 BUILD_SUCCESS=false
 
