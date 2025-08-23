@@ -65,6 +65,34 @@ repos:
         files: \.(cs|csproj)$
         pass_filenames: false
 
+      # AppImage and build validation
+      - id: check-build-scripts-executable
+        name: Check build scripts are executable
+        entry: bash -c 'for script in scripts/*.sh; do [ -x "$script" ] || { echo "❌ $script is not executable. Run: chmod +x $script"; exit 1; }; done'
+        language: system
+        files: ^scripts/.*\.sh$
+        pass_filenames: false
+
+      - id: validate-appimage-if-exists
+        name: Validate AppImage if exists
+        entry: bash -c 'if ls build/*.AppImage 1> /dev/null 2>&1; then echo "🔍 Found AppImage, running validation..."; ./scripts/validate-appimage.sh build/*.AppImage; else echo "ℹ️  No AppImage found, skipping validation"; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: check-workflow-syntax
+        name: Check GitHub Actions workflow syntax
+        entry: python3 -c "import yaml, sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]"
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+
+      - id: check-npm-cache-config
+        name: Check for npm cache configuration issues
+        entry: bash -c 'if grep -r "cache.*npm" .github/workflows/ && ! find . -name "package*.json" -type f | grep -q .; then echo "❌ npm cache configured but no package.json found"; exit 1; fi'
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.38.0

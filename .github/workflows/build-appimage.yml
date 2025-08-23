@@ -87,7 +87,16 @@ jobs:
           desktop-file-utils \
           appstream-util \
           fuse \
-          libfuse2
+          libfuse2 \
+          libgtk-4-dev \
+          libgtk-4-1 \
+          pkg-config \
+          libglib2.0-dev \
+          libcairo2-dev \
+          libpango1.0-dev \
+          libgdk-pixbuf2.0-dev \
+          libgraphene-1.0-dev \
+          libepoxy-dev
 
     - name: Restore .NET dependencies
       run: |
@@ -100,7 +109,6 @@ jobs:
         ./scripts/build-appimage.sh
 
     - name: Validate AppImage
-      continue-on-error: true
       run: |
         APPIMAGE_PATH="build/${{ steps.version.outputs.appimage-name }}"
 
@@ -110,16 +118,9 @@ jobs:
           exit 1
         fi
 
-        # Check AppImage properties
-        echo "📊 AppImage Information:"
-        echo "Size: $(du -h "$APPIMAGE_PATH" | cut -f1)"
-        echo "Permissions: $(ls -la "$APPIMAGE_PATH")"
-
-        # Test AppImage extraction (basic validation)
-        chmod +x "$APPIMAGE_PATH"
-        "$APPIMAGE_PATH" --appimage-extract-and-run --help || echo "⚠️ Help command test inconclusive"
-
-        echo "✅ AppImage validation completed"
+        # Run comprehensive validation
+        chmod +x scripts/validate-appimage.sh
+        ./scripts/validate-appimage.sh "$APPIMAGE_PATH"
 
     - name: Upload AppImage artifact
       uses: actions/upload-artifact@v4
@@ -325,17 +326,49 @@ jobs:
       run: |
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
 
-        # Test basic execution with virtual display (help)
-        xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help || echo "Help test completed"
+        # Test basic execution with virtual display (help) - capture output for analysis
+        echo "Testing AppImage help command..."
+        if ! xvfb-run -a timeout 30 ./${{ needs.build-appimage.outputs.appimage-name }} --help > appimage_help_test.log 2>&1; then
+          echo "❌ AppImage help test failed. Checking for critical errors..."
+          cat appimage_help_test.log
+          
+          # Check for critical dependency errors that should fail the build
+          if grep -q "Unable to load shared library.*Gtk" appimage_help_test.log; then
+            echo "❌ CRITICAL: GTK4 dependencies missing from AppImage"
+            exit 1
+          elif grep -q "DllNotFoundException" appimage_help_test.log; then
+            echo "❌ CRITICAL: Native library dependencies missing from AppImage"
+            exit 1
+          elif grep -q "Unhandled exception" appimage_help_test.log; then
+            echo "❌ CRITICAL: Unhandled exception during AppImage startup"
+            exit 1
+          else
+            echo "⚠️  Help test failed but no critical dependency errors detected"
+          fi
+        else
+          echo "✅ AppImage help test passed"
+        fi
 
         # Test AppImage extraction
+        echo "Testing AppImage extraction..."
         ./${{ needs.build-appimage.outputs.appimage-name }} --appimage-extract
 
         # Verify extracted contents
+        echo "Verifying extracted contents..."
         ls -la squashfs-root/
         test -f squashfs-root/AppRun
         test -f squashfs-root/usr/bin/overlay-companion-mcp
         test -f squashfs-root/*.desktop
+        
+        # Check for GTK4 libraries in extracted AppImage
+        echo "Checking for GTK4 libraries in AppImage..."
+        if find squashfs-root/usr/lib -name 'libgtk-4*.so*' 2>/dev/null | grep -q libgtk-4; then
+          echo "✅ GTK4 libraries found in AppImage"
+        else
+          echo "❌ WARNING: GTK4 libraries not found in AppImage - runtime will require system GTK4"
+          echo "Available libraries:"
+          find squashfs-root/usr/lib -name '*.so*' 2>/dev/null | head -20 || true
+        fi
 
     - name: Smoke test (X11/Xvfb)
       env:

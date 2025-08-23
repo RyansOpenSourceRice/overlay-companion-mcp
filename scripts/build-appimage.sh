@@ -213,6 +213,16 @@ if find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4; 
     echo -e "${GREEN}  ✅ GTK4 runtime bundled into AppImage AppDir${NC}"
 else
     echo -e "${YELLOW}  ⚠️  GTK4 runtime not bundled (will require system GTK4 at runtime)${NC}"
+    echo -e "${YELLOW}  📋 Available libraries in AppDir:${NC}"
+    find "$APPDIR/usr/lib" -name '*.so*' | head -10 || true
+    echo -e "${YELLOW}  📋 System GTK4 libraries:${NC}"
+    find_lib() { ldconfig -p 2>/dev/null | awk -v n="$1" '$0 ~ n {print $NF}' | head -n1; }
+    LIBGTK=$(find_lib 'libgtk-4\\.so')
+    if [ -n "$LIBGTK" ]; then
+        echo -e "${YELLOW}    Found system GTK4: $LIBGTK${NC}"
+    else
+        echo -e "${RED}    ❌ No system GTK4 found - AppImage will fail at runtime${NC}"
+    fi
 fi
 
 # Create desktop entry
