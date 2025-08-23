@@ -68,7 +68,7 @@ repos:
       # AppImage and build validation
       - id: check-build-scripts-executable
         name: Check build scripts are executable
-        entry: bash -c 'for script in scripts/*.sh; do [ -x "$script" ] || { echo "❌ $script is not executable. Run: chmod +x $script"; exit 1; }; done'
+        entry: bash -c 'for script in scripts/*.sh; do [ -x "$script" ] || { echo "❌ $script is not executable. Run chmod +x $script"; exit 1; }; done'
         language: system
         files: ^scripts/.*\.sh$
         pass_filenames: false
