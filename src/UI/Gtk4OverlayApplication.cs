@@ -26,7 +26,7 @@ public class Gtk4OverlayApplication : IDisposable
     {
         // Initialize GTK4 application
         _application = Gtk.Application.New("com.overlaycompanion.mcp", ApplicationFlags.FlagsNone);
-        
+
         // Set up application events
         _application.OnActivate += OnActivate;
         _application.OnStartup += OnStartup;
@@ -49,13 +49,13 @@ public class Gtk4OverlayApplication : IDisposable
                 var lifetime = ServiceProvider.GetService<IHostApplicationLifetime>();
 
                 _mainWindow = new Gtk4MainWindow(ServiceProvider, logger, lifetime);
-                
+
                 // Subscribe to window shown event
                 Gtk4MainWindow.WindowShown += () => WindowShown?.Invoke();
-                
+
                 // Show the window
                 _mainWindow.Show();
-                
+
                 Console.WriteLine("GTK4 main window created and shown");
             }
             catch (Exception ex)
@@ -110,10 +110,10 @@ public class Gtk4OverlayApplication : IDisposable
         if (!_disposed)
         {
             _disposed = true;
-            
+
             _mainWindow?.Dispose();
             _mainWindow = null;
-            
+
             // Note: Don't dispose _application as it's managed by GTK
             _application = null;
         }

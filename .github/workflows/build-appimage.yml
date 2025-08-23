@@ -331,7 +331,7 @@ jobs:
         if ! xvfb-run -a timeout 30 ./${{ needs.build-appimage.outputs.appimage-name }} --help > appimage_help_test.log 2>&1; then
           echo "❌ AppImage help test failed. Checking for critical errors..."
           cat appimage_help_test.log
-          
+
           # Check for critical dependency errors that should fail the build
           if grep -q "Unable to load shared library.*Gtk" appimage_help_test.log; then
             echo "❌ CRITICAL: GTK4 dependencies missing from AppImage"
@@ -359,7 +359,7 @@ jobs:
         test -f squashfs-root/AppRun
         test -f squashfs-root/usr/bin/overlay-companion-mcp
         test -f squashfs-root/*.desktop
-        
+
         # Check for GTK4 libraries in extracted AppImage
         echo "Checking for GTK4 libraries in AppImage..."
         if find squashfs-root/usr/lib -name 'libgtk-4*.so*' 2>/dev/null | grep -q libgtk-4; then

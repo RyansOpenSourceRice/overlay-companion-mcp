@@ -177,7 +177,7 @@ public class Program
             {
                 // Wait a moment for HTTP server to fully start
                 await Task.Delay(2000);
-                
+
                 // Create ready file to signal successful startup
                 var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
                 if (!string.IsNullOrEmpty(readyFile))
@@ -194,7 +194,7 @@ public class Program
                         logger.LogWarning(ex, "Smoke test: Failed to create ready file at {ReadyFile}", readyFile);
                     }
                 }
-                
+
                 // Exit after a short delay to complete smoke test
                 await Task.Delay(3000);
                 logger.LogInformation("Smoke test completed successfully");
@@ -255,7 +255,7 @@ public class Program
             {
                 // Initialize GTK4 application manager
                 Gtk4ApplicationManager.Initialize();
-                
+
                 // Set service provider for dependency injection
                 Gtk4ApplicationManager.SetServiceProvider(services);
 

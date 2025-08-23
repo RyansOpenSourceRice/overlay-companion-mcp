@@ -28,7 +28,7 @@ public class MockOverlayWindow : IOverlayWindow
         {
             _visible = true;
             Console.WriteLine($"MockOverlayWindow shown: {_overlay.Id} - Color: {_overlay.Color}, Label: {_overlay.Label ?? "none"}, ClickThrough: {_overlay.ClickThrough}");
-            
+
             // Handle temporary overlays
             if (_overlay.TemporaryMs > 0)
             {
