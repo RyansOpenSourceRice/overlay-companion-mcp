@@ -108,6 +108,7 @@ jobs:
     - name: Build AppImage
       run: |
         export APP_VERSION="${{ steps.version.outputs.version }}"
+        chmod +x ./scripts/build-appimage.sh
         ./scripts/build-appimage.sh
 
     - name: Validate AppImage

@@ -130,7 +130,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
                 if (_overlay.ClickThrough)
                 {
                     // Set null input region for complete click-through
-                    surface.SetInputRegion(null);
+                    surface.SetInputRegion(null!);
                     Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
                 }
 
