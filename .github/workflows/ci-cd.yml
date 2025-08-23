@@ -237,11 +237,15 @@ jobs:
             exit 1
           fi
           
-          # If timeout occurred but help was displayed, that's acceptable
-          if grep -q "Usage:" startup_test.log || grep -q "Options:" startup_test.log; then
+          # Check if the application started successfully (HTTP server indicates success)
+          if grep -q "Now listening on:" startup_test.log || grep -q "Application started" startup_test.log; then
             echo "✅ Application startup successful (timeout is expected)"
+          elif grep -q "Usage:" startup_test.log || grep -q "Options:" startup_test.log; then
+            echo "✅ Help output displayed successfully"
           else
             echo "⚠️ Application may have failed to start properly"
+            echo "📋 Full startup test output:"
+            cat startup_test.log
             exit 1
           fi
         else
