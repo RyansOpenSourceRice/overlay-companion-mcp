@@ -61,3 +61,8 @@ tests/ai-gui/artifacts/
 
 # Local virtualenv
 /tests/ai-gui/.venv/
+
+# Server logs
+*.log
+server.log
+/src/server.log
