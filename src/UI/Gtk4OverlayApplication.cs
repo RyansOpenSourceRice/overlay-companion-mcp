@@ -21,6 +21,8 @@ public class Gtk4OverlayApplication : IDisposable
     private Gtk.Application? _application;
     private Gtk4MainWindow? _mainWindow;
     private bool _disposed = false;
+    
+    public Gtk.Application? Application => _application;
 
     public Gtk4OverlayApplication()
     {
@@ -48,7 +50,8 @@ public class Gtk4OverlayApplication : IDisposable
                 var logger = ServiceProvider.GetService<ILogger<Gtk4MainWindow>>();
                 var lifetime = ServiceProvider.GetService<IHostApplicationLifetime>();
 
-                _mainWindow = new Gtk4MainWindow(ServiceProvider, logger, lifetime);
+                // Pass the application instance to the main window
+                _mainWindow = new Gtk4MainWindow(ServiceProvider, logger, lifetime, _application);
 
                 // Subscribe to window shown event
                 Gtk4MainWindow.WindowShown += () => WindowShown?.Invoke();

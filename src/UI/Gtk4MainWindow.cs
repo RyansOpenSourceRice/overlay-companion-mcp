@@ -19,6 +19,7 @@ public class Gtk4MainWindow : IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<Gtk4MainWindow>? _logger;
     private readonly IHostApplicationLifetime? _applicationLifetime;
+    private readonly Gtk.Application? _gtkApplication;
 
     private Gtk.ApplicationWindow? _window;
     private Gtk.Notebook? _notebook;
@@ -40,11 +41,12 @@ public class Gtk4MainWindow : IDisposable
 
     public static event System.Action? WindowShown;
 
-    public Gtk4MainWindow(IServiceProvider serviceProvider, ILogger<Gtk4MainWindow>? logger, IHostApplicationLifetime? applicationLifetime)
+    public Gtk4MainWindow(IServiceProvider serviceProvider, ILogger<Gtk4MainWindow>? logger, IHostApplicationLifetime? applicationLifetime, Gtk.Application? gtkApplication = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _applicationLifetime = applicationLifetime;
+        _gtkApplication = gtkApplication;
 
         // Get services
         _screenCaptureService = _serviceProvider.GetService<IScreenCaptureService>();
@@ -56,8 +58,11 @@ public class Gtk4MainWindow : IDisposable
 
     private void InitializeWindow()
     {
-        // Create main application window
-        _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
+        // Use the provided GTK application instance, or fall back to the static instance
+        var gtkApp = _gtkApplication ?? Gtk4Application.Instance;
+        
+        // Create main application window using the correct application instance
+        _window = Gtk.ApplicationWindow.New(gtkApp);
         _window.SetTitle("Overlay Companion MCP Server");
         _window.SetDefaultSize(800, 600);
 
