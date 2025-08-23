@@ -10,6 +10,7 @@ jobs:
   merge-ready:
     name: Core Functionality Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
@@ -21,21 +22,25 @@ jobs:
         dotnet-version: '8.0.x'
 
     - name: Restore dependencies
+      timeout-minutes: 5
       run: |
         cd src
-        dotnet restore
+        echo "📦 Restoring dependencies (max 5 minutes)..."
+        timeout 300s dotnet restore
 
     - name: Build application
+      timeout-minutes: 8
       run: |
         cd src
-        echo "🔨 Building application..."
-        dotnet build --configuration Release --no-restore
+        echo "🔨 Building application (max 8 minutes)..."
+        timeout 480s dotnet build --configuration Release --no-restore
         echo "✅ Build completed successfully"
 
     - name: Basic functionality test
+      timeout-minutes: 3
       run: |
         cd src
-        echo "🧪 Testing basic functionality..."
+        echo "🧪 Testing basic functionality (max 3 minutes)..."
         # Test that the application can start (help command)
         timeout 10s dotnet run -- --help || echo "Help command test completed"
         echo "✅ Basic functionality verified"

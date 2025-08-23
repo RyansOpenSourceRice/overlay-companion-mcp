@@ -22,6 +22,7 @@ env:
 jobs:
   lint-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
     - name: Checkout code
@@ -41,42 +42,49 @@ jobs:
           ${{ runner.os }}-nuget-
 
     - name: Restore dependencies
+      timeout-minutes: 5
       run: |
         cd src
-        dotnet restore --verbosity minimal
+        echo "📦 Restoring dependencies (max 5 minutes)..."
+        timeout 300s dotnet restore --verbosity minimal
 
     - name: Apply code formatting
       continue-on-error: true
+      timeout-minutes: 3
       run: |
         cd src
-        echo "🔍 Applying code formatting..."
-        dotnet format --verbosity minimal
+        echo "🔍 Applying code formatting (max 3 minutes)..."
+        timeout 180s dotnet format --verbosity minimal
         echo "✅ Code formatting applied"
 
     - name: Build solution
+      timeout-minutes: 10
       run: |
         cd src
-        echo "🔨 Building solution..."
-        dotnet build --configuration Release --no-restore --verbosity minimal
+        echo "🔨 Building solution (max 10 minutes)..."
+        timeout 600s dotnet build --configuration Release --no-restore --verbosity minimal
 
     - name: Run static analysis
       continue-on-error: true
+      timeout-minutes: 8
       run: |
         cd src
-        echo "🔍 Running static analysis..."
-        dotnet build --configuration Release --verbosity normal --property:TreatWarningsAsErrors=false --property:WarningsAsErrors="" --property:WarningsNotAsErrors=""
+        echo "🔍 Running static analysis (max 8 minutes)..."
+        timeout 480s dotnet build --configuration Release --verbosity normal --property:TreatWarningsAsErrors=false --property:WarningsAsErrors="" --property:WarningsNotAsErrors=""
 
     - name: Check for security vulnerabilities
+      timeout-minutes: 3
       run: |
         cd src
-        echo "🛡️ Checking for security vulnerabilities..."
-        dotnet list package --vulnerable --include-transitive || echo "No vulnerabilities found or command not supported"
+        echo "🛡️ Checking for security vulnerabilities (max 3 minutes)..."
+        timeout 180s dotnet list package --vulnerable --include-transitive || echo "No vulnerabilities found or command not supported"
 
     - name: Check for deprecated packages
+      timeout-minutes: 2
       run: |
         cd src
-        echo "📦 Checking for deprecated packages..."
-        dotnet list package --deprecated || echo "No deprecated packages found or command not supported"
+        echo "📦 Checking for deprecated packages (max 2 minutes)..."
+        timeout 120s dotnet list package --deprecated || echo "No deprecated packages found or command not supported"
 
     - name: Analyze code metrics
       run: |
