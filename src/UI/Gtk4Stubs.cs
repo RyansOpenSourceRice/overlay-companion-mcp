@@ -124,7 +124,7 @@ namespace GirCore.Gtk
 
     public static class Functions
     {
-        public static void Init() 
+        public static void Init()
         {
             Console.WriteLine("GTK4 stub initialized (headless mode)");
         }
@@ -135,7 +135,7 @@ namespace GirCore.Gdk
 {
     public class Surface
     {
-        public void SetInputRegion(object? region) 
+        public void SetInputRegion(object? region)
         {
             Console.WriteLine("GTK4 stub: SetInputRegion called (click-through enabled)");
         }

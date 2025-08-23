@@ -34,12 +34,12 @@ echo "⏳ Waiting for AppImage startup (HTTP server or GUI window)..."
 for i in $(seq 1 $TIMEOUT_SEC); do
   if [ -f "$READY_FILE" ]; then
     echo "✅ Startup ready signal detected at $READY_FILE"
-    
+
     # Check if HTTP server is running by looking for the listening message
     if grep -q "Now listening on.*:3000" /tmp/oc-appimage.log 2>/dev/null; then
       echo "✅ HTTP server confirmed running on port 3000"
     fi
-    
+
     # Wait for process to exit naturally (smoke test should exit on its own)
     wait $PID 2>/dev/null || true
     echo "✅ AppImage smoke test completed successfully"
@@ -51,7 +51,7 @@ for i in $(seq 1 $TIMEOUT_SEC); do
     tail -n +1 /tmp/oc-appimage.log >&2 || true
     exit 1
   fi
-  
+
   # Show progress every 5 seconds
   if [ $((i % 5)) -eq 0 ]; then
     echo "⏳ Still waiting... (${i}/${TIMEOUT_SEC}s)"

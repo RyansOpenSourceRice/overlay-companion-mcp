@@ -30,27 +30,27 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         // Create application window
         _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
-        
+
         // Configure window properties
         _window.SetTitle($"Overlay {_overlay.Id}");
         _window.SetDefaultSize((int)_overlay.Bounds.Width, (int)_overlay.Bounds.Height);
         _window.SetResizable(false);
         _window.SetDecorated(false);
-        
+
         // Position window
         // Note: GTK4 doesn't have direct positioning, but we can use surface positioning
         _window.SetModal(false);
-        
+
         // Create drawing area for custom rendering
         _drawingArea = DrawingArea.New();
         _drawingArea.SetSizeRequest((int)_overlay.Bounds.Width, (int)_overlay.Bounds.Height);
-        
+
         // Set up drawing callback
         _drawingArea.SetDrawFunc(OnDraw);
-        
+
         // Add drawing area to window
         _window.SetChild(_drawingArea);
-        
+
         // Configure transparency and click-through after window is realized
         _window.OnRealize += OnWindowRealized;
     }
@@ -65,14 +65,14 @@ public class Gtk4OverlayWindow : IOverlayWindow
         {
             // Enable transparency
             // GTK4 handles transparency automatically with proper CSS
-            
+
             // Enable click-through by setting empty input region
             if (_overlay.ClickThrough)
             {
                 surface.SetInputRegion(null!);
                 Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
             }
-            
+
             // Position the window
             // Note: GTK4 positioning is handled by the compositor
             // We may need to use layer shell protocols for precise positioning
@@ -83,25 +83,25 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         // Parse color
         var color = ParseColor(_overlay.Color);
-        
+
         // Set source color with transparency
         cr.SetSourceRgba(color.Red, color.Green, color.Blue, color.Alpha);
-        
+
         // Draw rectangle
         cr.Rectangle(0, 0, width, height);
         cr.Fill();
-        
+
         // Draw label if present
         if (!string.IsNullOrEmpty(_overlay.Label))
         {
             // Set text color (contrasting)
             cr.SetSourceRgba(1.0, 1.0, 1.0, 1.0); // White text
-            
+
             // Simple text rendering (could be enhanced with Pango)
             cr.MoveTo(10, 20);
             cr.ShowText(_overlay.Label);
         }
-        
+
         // Draw border (approximate using stroke with default width)
         cr.SetSourceRgba(color.Red, color.Green, color.Blue, 1.0);
         cr.Rectangle(0, 0, width, height);
@@ -109,7 +109,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
     }
 
     private (double Red, double Green, double Blue, double Alpha) ParseColor(string colorName)
-    
+
     {
         // Simple color parsing - could be enhanced
         return colorName.ToLowerInvariant() switch
@@ -130,7 +130,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         if (_window != null && !_disposed)
         {
             _window.SetVisible(true);
-            
+
             // Handle temporary overlays
             if (_overlay.TemporaryMs > 0)
             {
@@ -156,7 +156,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
             _overlay.Bounds = newBounds;
             _window.SetDefaultSize((int)newBounds.Width, (int)newBounds.Height);
             _drawingArea?.SetSizeRequest((int)newBounds.Width, (int)newBounds.Height);
-            
+
             // Force redraw
             _drawingArea?.QueueDraw();
         }
@@ -169,7 +169,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         {
             _overlay.Color = color;
             _overlay.Label = label;
-            
+
             // Force redraw with new appearance
             _drawingArea?.QueueDraw();
         }
@@ -181,13 +181,13 @@ public class Gtk4OverlayWindow : IOverlayWindow
         if (!_disposed)
         {
             _disposed = true;
-            
+
             if (_window != null)
             {
                 _window.Close();
                 _window = null;
             }
-            
+
             _drawingArea = null;
         }
     }

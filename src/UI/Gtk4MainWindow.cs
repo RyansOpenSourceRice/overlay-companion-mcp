@@ -19,7 +19,7 @@ public class Gtk4MainWindow : IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<Gtk4MainWindow>? _logger;
     private readonly IHostApplicationLifetime? _applicationLifetime;
-    
+
     private Gtk.ApplicationWindow? _window;
     private Gtk.Notebook? _notebook;
     private bool _disposed = false;
@@ -45,12 +45,12 @@ public class Gtk4MainWindow : IDisposable
         _serviceProvider = serviceProvider;
         _logger = logger;
         _applicationLifetime = applicationLifetime;
-        
+
         // Get services
         _screenCaptureService = _serviceProvider.GetService<IScreenCaptureService>();
         _overlayService = _serviceProvider.GetService<IOverlayService>();
         _modeManager = _serviceProvider.GetService<IModeManager>();
-        
+
         InitializeWindow();
     }
 
@@ -60,24 +60,24 @@ public class Gtk4MainWindow : IDisposable
         _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
         _window.SetTitle("Overlay Companion MCP Server");
         _window.SetDefaultSize(800, 600);
-        
+
         // Create notebook (tabbed interface)
         _notebook = Notebook.New();
         _notebook.SetScrollable(true);
-        
+
         // Create tabs
         CreateScreenshotTab();
         CreateOverlayTab();
         CreateSettingsTab();
         CreateMcpTab();
-        
+
         // Set notebook as main content
         _window.SetChild(_notebook);
-        
+
         // Handle window events
         _window.OnCloseRequest += OnCloseRequest;
         _window.OnShow += OnWindowShow;
-        
+
         _logger?.LogInformation("GTK4 main window initialized");
     }
 
@@ -88,25 +88,25 @@ public class Gtk4MainWindow : IDisposable
         vbox.SetMarginBottom(10);
         vbox.SetMarginStart(10);
         vbox.SetMarginEnd(10);
-        
+
         // Title
         var titleLabel = Label.New("Screenshot Capture");
         titleLabel.SetMarkup("<b>Screenshot Capture</b>");
         vbox.Append(titleLabel);
-        
+
         // Screenshot controls
         var screenshotButton = Button.NewWithLabel("Take Screenshot");
         screenshotButton.OnClicked += OnTakeScreenshot;
         vbox.Append(screenshotButton);
-        
+
         var regionButton = Button.NewWithLabel("Capture Region");
         regionButton.OnClicked += OnCaptureRegion;
         vbox.Append(regionButton);
-        
+
         // Status
         var statusLabel = Label.New("Ready to capture screenshots");
         vbox.Append(statusLabel);
-        
+
         // Add tab
         var tabLabel = Label.New("Screenshot");
         _notebook?.AppendPage(vbox, tabLabel);
@@ -119,26 +119,26 @@ public class Gtk4MainWindow : IDisposable
         vbox.SetMarginBottom(10);
         vbox.SetMarginStart(10);
         vbox.SetMarginEnd(10);
-        
+
         // Title
         var titleLabel = Label.New("Overlay Management");
         titleLabel.SetMarkup("<b>Overlay Management</b>");
         vbox.Append(titleLabel);
-        
+
         // Overlay controls
         var testOverlayButton = Button.NewWithLabel("Test Click-Through Overlay");
         testOverlayButton.OnClicked += OnTestOverlay;
         vbox.Append(testOverlayButton);
-        
+
         var clearOverlaysButton = Button.NewWithLabel("Clear All Overlays");
         clearOverlaysButton.OnClicked += OnClearOverlays;
         vbox.Append(clearOverlaysButton);
-        
+
         // Click-through status
         var clickThroughLabel = Label.New("✓ GTK4 provides true OS-level click-through on Wayland");
         clickThroughLabel.SetMarkup("<span color='green'>✓ GTK4 provides true OS-level click-through on Wayland</span>");
         vbox.Append(clickThroughLabel);
-        
+
         // Add tab
         var tabLabel = Label.New("Overlay");
         _notebook?.AppendPage(vbox, tabLabel);
@@ -151,24 +151,24 @@ public class Gtk4MainWindow : IDisposable
         vbox.SetMarginBottom(10);
         vbox.SetMarginStart(10);
         vbox.SetMarginEnd(10);
-        
+
         // Title
         var titleLabel = Label.New("Server Settings");
         titleLabel.SetMarkup("<b>Server Settings</b>");
         vbox.Append(titleLabel);
-        
+
         // Server controls
         var serverBox = Box.New(Orientation.Horizontal, 10);
-        
+
         _startStopButton = Button.NewWithLabel("Start Server");
         _startStopButton.OnClicked += OnStartStopServer;
         serverBox.Append(_startStopButton);
-        
+
         _serverStatusLabel = Label.New("Server Stopped");
         serverBox.Append(_serverStatusLabel);
-        
+
         vbox.Append(serverBox);
-        
+
         // Host/Port settings
         var hostBox = Box.New(Orientation.Horizontal, 10);
         hostBox.Append(Label.New("Host:"));
@@ -176,14 +176,14 @@ public class Gtk4MainWindow : IDisposable
         _hostEntry.SetText("localhost");
         hostBox.Append(_hostEntry);
         vbox.Append(hostBox);
-        
+
         var portBox = Box.New(Orientation.Horizontal, 10);
         portBox.Append(Label.New("Port:"));
         _portEntry = Entry.New();
         _portEntry.SetText("3000");
         portBox.Append(_portEntry);
         vbox.Append(portBox);
-        
+
         // Add tab
         var tabLabel = Label.New("Settings");
         _notebook?.AppendPage(vbox, tabLabel);
@@ -196,36 +196,36 @@ public class Gtk4MainWindow : IDisposable
         vbox.SetMarginBottom(10);
         vbox.SetMarginStart(10);
         vbox.SetMarginEnd(10);
-        
+
         // Title
         var titleLabel = Label.New("MCP Server Status");
         titleLabel.SetMarkup("<b>MCP Server Status</b>");
         vbox.Append(titleLabel);
-        
+
         // Tools list
         var toolsLabel = Label.New("Available MCP Tools:");
         vbox.Append(toolsLabel);
-        
+
         _toolsListBox = ListBox.New();
         var scrolledWindow = ScrolledWindow.New();
         scrolledWindow.SetChild(_toolsListBox);
         scrolledWindow.SetSizeRequest(-1, 200);
         vbox.Append(scrolledWindow);
-        
+
         // Populate tools list
         PopulateToolsList();
-        
+
         // Log area
         var logLabel = Label.New("Server Logs:");
         vbox.Append(logLabel);
-        
+
         _logTextView = TextView.New();
         _logTextView.SetEditable(false);
         var logScrolled = ScrolledWindow.New();
         logScrolled.SetChild(_logTextView);
         logScrolled.SetSizeRequest(-1, 150);
         vbox.Append(logScrolled);
-        
+
         // Add tab
         var tabLabel = Label.New("MCP");
         _notebook?.AppendPage(vbox, tabLabel);
@@ -234,7 +234,7 @@ public class Gtk4MainWindow : IDisposable
     private void PopulateToolsList()
     {
         if (_toolsListBox == null) return;
-        
+
         var tools = new[]
         {
             "take_screenshot - Capture screen or region",
@@ -250,7 +250,7 @@ public class Gtk4MainWindow : IDisposable
             "batch_overlay - Draw multiple overlays",
             "confirm_action - Request user confirmation"
         };
-        
+
         foreach (var tool in tools)
         {
             var row = ListBoxRow.New();
@@ -285,7 +285,7 @@ public class Gtk4MainWindow : IDisposable
                 {
                     var screenshot = await _screenCaptureService.CaptureScreenAsync();
                     _logger?.LogInformation($"Screenshot captured: {screenshot.Width}x{screenshot.Height}");
-                    
+
                     // Update UI on main thread
                     GLib.Functions.IdleAdd(0, () =>
                     {
@@ -348,7 +348,7 @@ public class Gtk4MainWindow : IDisposable
     private void OnStartStopServer(object sender, EventArgs e)
     {
         _serverRunning = !_serverRunning;
-        
+
         if (_startStopButton != null && _serverStatusLabel != null)
         {
             if (_serverRunning)
@@ -364,7 +364,7 @@ public class Gtk4MainWindow : IDisposable
                 _serverStatusLabel.SetMarkup("<span color='red'>Server Stopped</span>");
             }
         }
-        
+
         _logger?.LogInformation($"Server {(_serverRunning ? "started" : "stopped")}");
     }
 
@@ -383,13 +383,13 @@ public class Gtk4MainWindow : IDisposable
         if (!_disposed)
         {
             _disposed = true;
-            
+
             if (_window != null)
             {
                 _window.Close();
                 _window = null;
             }
-            
+
             _notebook = null;
             _serverStatusLabel = null;
             _startStopButton = null;

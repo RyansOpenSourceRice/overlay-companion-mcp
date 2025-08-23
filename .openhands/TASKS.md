@@ -1,15 +1,11 @@
 # Task List
 
-1. ✅ Verify Fedora GTK4 environment and install dependencies
-Build succeeds locally with GirCore; Fedora verification pending user run
-2. ✅ Replace GTK4 stub implementations with real GirCore packages
-Enabled GirCore packages, removed stubs, fixed API mismatches (SetDrawFunc, ApplicationFlags, IdleAdd). Build passes.
-3. ✅ Update project configuration for real GTK4
-csproj updated, headless mode intact, smoke-test ready file works.
-4. ✅ Build and test with real GTK4 implementation
-Release build OK. Headless smoke test passed; HTTP server starts and exits cleanly.
-5. ⏳ Test true click-through functionality on Wayland
-Requires running GUI on Fedora Wayland; validate SetInputRegion(null!).
-6. ✅ Build final GTK4 AppImage with native libraries
-AppImage built using extraction method without FUSE. Size ~41MB.
+1. ✅ Analyze GTK4 dependency loading error
+Root cause identified: GTK4 libraries not bundled in AppImage due to missing system dependencies during build
+2. ✅ Fix test error detection to catch GTK4 failures
+Updated test workflows to properly detect and fail on critical errors like missing GTK4 dependencies, removed masking || echo statements
+3. ✅ Fix GTK4 library bundling in AppImage
+Added GTK4 development packages to CI build dependencies and improved build script diagnostics
+4. ✅ Add pre-commit checks for AppImage validation
+Created validate-appimage.sh script and added comprehensive pre-commit hooks for build validation
 

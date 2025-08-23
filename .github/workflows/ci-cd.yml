@@ -70,8 +70,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: '**/package-lock.json'
 
     - name: Install markdown tools
       run: |
@@ -207,8 +205,11 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y xvfb libx11-dev libxrandr-dev wl-clipboard grim slurp wtype
+        echo "📦 Installing system dependencies for headless testing..."
+        sudo apt-get update -qq
+        # Only install basic dependencies for headless testing
+        sudo apt-get install -y -qq wl-clipboard grim slurp wtype
+        echo "✅ System dependencies installed"
 
     - name: Build application
       run: |
@@ -219,17 +220,73 @@ jobs:
       run: |
         cd src
 
-        # Test basic application startup with virtual display
+        # Test basic application startup in headless mode (no GUI in CI)
         echo "🧪 Testing application startup..."
-        timeout 10s xvfb-run -a dotnet run --configuration Release -- --help || echo "Startup test completed"
+        if ! timeout 10s dotnet run --configuration Release -- --help --no-gui > startup_test.log 2>&1; then
+          echo "📋 Startup test output:"
+          cat startup_test.log
+          
+          # In headless mode, GTK4 errors should not occur
+          if grep -q "Unable to load shared library.*Gtk" startup_test.log; then
+            echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
+            echo "💡 Check --no-gui flag is working properly"
+            exit 1
+          fi
+          
+          # Check for other critical errors
+          if grep -q "Unhandled exception" startup_test.log; then
+            echo "❌ CRITICAL: Unhandled exception occurred"
+            exit 1
+          fi
+          
+          # Check if the application started successfully (HTTP server indicates success)
+          if grep -q "Now listening on:" startup_test.log || grep -q "Application started" startup_test.log; then
+            echo "✅ Application startup successful (timeout is expected)"
+          elif grep -q "Usage:" startup_test.log || grep -q "Options:" startup_test.log; then
+            echo "✅ Help output displayed successfully"
+          else
+            echo "⚠️ Application may have failed to start properly"
+            echo "📋 Full startup test output:"
+            cat startup_test.log
+            exit 1
+          fi
+        else
+          echo "✅ Startup test completed successfully"
+        fi
 
     - name: Test MCP server mode
       run: |
         cd src
 
-        # Test MCP server initialization
+        # Test MCP server initialization in headless mode (no GUI in CI)
         echo "🧪 Testing MCP server mode..."
-        timeout 5s xvfb-run -a dotnet run --configuration Release -- --mcp --test || echo "MCP test completed"
+        if ! timeout 10s dotnet run --configuration Release -- --mcp --test --no-gui > mcp_test.log 2>&1; then
+          echo "📋 MCP test output:"
+          cat mcp_test.log
+          
+          # In headless mode, GTK4 errors should not occur
+          if grep -q "Unable to load shared library.*Gtk" mcp_test.log; then
+            echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
+            echo "💡 Check --no-gui flag is working properly"
+            exit 1
+          fi
+          
+          # Check for other critical errors
+          if grep -q "Unhandled exception" mcp_test.log; then
+            echo "❌ CRITICAL: Unhandled exception occurred"
+            exit 1
+          fi
+          
+          # If timeout occurred but no critical errors, that's acceptable for integration tests
+          if grep -q "HTTP Transport listening on" mcp_test.log; then
+            echo "✅ MCP server started successfully (timeout is expected for integration test)"
+          else
+            echo "⚠️ MCP server may have failed to start properly"
+            exit 1
+          fi
+        else
+          echo "✅ MCP test completed successfully"
+        fi
 
   # Security Scan
   security-scan:
@@ -254,46 +311,13 @@ jobs:
         sarif_file: 'trivy-results.sarif'
       continue-on-error: true
 
-  # Build AppImage
-  build-appimage:
-    runs-on: ubuntu-latest
-    needs: [quality-gates, markdown-quality, csharp-quality]
-    if: needs.quality-gates.outputs.should-deploy == 'true'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-
-    - name: Install AppImage dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget imagemagick desktop-file-utils appstream-util fuse libfuse2
-
-    - name: Build AppImage
-      run: |
-        export APP_VERSION="$(date +%Y.%m.%d)"
-        ./scripts/build-appimage.sh
-
-    - name: Upload AppImage
-      uses: actions/upload-artifact@v4
-      with:
-        name: appimage-${{ github.sha }}
-        path: build/*.AppImage
-        retention-days: 30
-
-  # Deploy
+  # Deploy (AppImage build handled by separate build-appimage.yml workflow)
   deploy:
     runs-on: ubuntu-latest
-    needs: [quality-gates, build-appimage, unit-tests, integration-tests]
+    needs: [quality-gates, unit-tests, integration-tests]
     if: |
       always() &&
       needs.quality-gates.outputs.should-deploy == 'true' &&
-      needs.build-appimage.result == 'success' &&
       (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') &&
       (needs.integration-tests.result == 'success' || needs.integration-tests.result == 'skipped')
 
@@ -303,28 +327,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download AppImage
-      uses: actions/download-artifact@v4
-      with:
-        name: appimage-${{ github.sha }}
-        path: ./deploy/
-
     - name: Deploy to environment
       run: |
         ENV="${{ github.event.inputs.deploy_environment || 'staging' }}"
         echo "🚀 Deploying to $ENV environment..."
-
-        # List available AppImages
-        ls -la deploy/
+        echo "📋 Note: AppImage builds are handled by the dedicated build-appimage.yml workflow"
 
         if [ "$ENV" == "production" ]; then
           echo "🎯 Production deployment would happen here"
-          echo "- Create GitHub release"
+          echo "- Create GitHub release (handled by build-appimage.yml)"
           echo "- Upload to distribution channels"
           echo "- Update documentation"
         else
           echo "🧪 Staging deployment completed"
-          echo "- AppImage available for testing"
+          echo "- AppImage builds available via build-appimage workflow"
           echo "- Internal distribution updated"
         fi
 
