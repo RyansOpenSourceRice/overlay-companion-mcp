@@ -333,60 +333,100 @@ jobs:
 
     - name: Test AppImage execution and extraction
       working-directory: test
+      timeout-minutes: 5
       run: |
         chmod +x ${{ needs.build-appimage.outputs.appimage-name }}
 
         # Test basic execution with virtual display (help) - capture output for analysis
-        echo "Testing AppImage help command..."
-        if ! xvfb-run -a timeout 30 ./${{ needs.build-appimage.outputs.appimage-name }} --help > appimage_help_test.log 2>&1; then
-          echo "❌ AppImage help test failed. Checking for critical errors..."
-          cat appimage_help_test.log
+        echo "🧪 Testing AppImage help command (max 60 seconds)..."
+        
+        # Use a more aggressive timeout and background process management
+        if timeout 60s xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help > appimage_help_test.log 2>&1; then
+          echo "✅ AppImage help test completed successfully"
+          echo "📋 Help output preview:"
+          head -10 appimage_help_test.log || true
+        else
+          EXIT_CODE=$?
+          echo "⚠️  AppImage help test timed out or failed (exit code: $EXIT_CODE)"
+          echo "📋 Captured output:"
+          cat appimage_help_test.log || echo "No output captured"
 
           # Check for critical dependency errors that should fail the build
-          if grep -q "Unable to load shared library.*Gtk" appimage_help_test.log; then
+          if grep -q "Unable to load shared library.*Gtk" appimage_help_test.log 2>/dev/null; then
             echo "❌ CRITICAL: GTK4 dependencies missing from AppImage"
             exit 1
-          elif grep -q "DllNotFoundException" appimage_help_test.log; then
+          elif grep -q "DllNotFoundException" appimage_help_test.log 2>/dev/null; then
             echo "❌ CRITICAL: Native library dependencies missing from AppImage"
             exit 1
-          elif grep -q "Unhandled exception" appimage_help_test.log; then
+          elif grep -q "Unhandled exception" appimage_help_test.log 2>/dev/null; then
             echo "❌ CRITICAL: Unhandled exception during AppImage startup"
             exit 1
+          elif [ $EXIT_CODE -eq 124 ]; then
+            echo "⚠️  Help command timed out - this may indicate GUI initialization issues"
+            echo "ℹ️  Continuing with extraction test as timeout doesn't indicate critical failure"
           else
             echo "⚠️  Help test failed but no critical dependency errors detected"
           fi
-        else
-          echo "✅ AppImage help test passed"
         fi
 
-        # Test AppImage extraction
-        echo "Testing AppImage extraction..."
-        ./${{ needs.build-appimage.outputs.appimage-name }} --appimage-extract
+        # Test AppImage extraction (with timeout)
+        echo "🧪 Testing AppImage extraction (max 30 seconds)..."
+        if timeout 30s ./${{ needs.build-appimage.outputs.appimage-name }} --appimage-extract; then
+          echo "✅ AppImage extraction completed successfully"
+        else
+          echo "❌ CRITICAL: AppImage extraction failed or timed out"
+          exit 1
+        fi
 
         # Verify extracted contents
-        echo "Verifying extracted contents..."
+        echo "🔍 Verifying extracted contents..."
         ls -la squashfs-root/
-        test -f squashfs-root/AppRun
-        test -f squashfs-root/usr/bin/overlay-companion-mcp
-        test -f squashfs-root/*.desktop
+        test -f squashfs-root/AppRun || { echo "❌ AppRun missing"; exit 1; }
+        test -f squashfs-root/usr/bin/overlay-companion-mcp || { echo "❌ Main executable missing"; exit 1; }
+        test -f squashfs-root/*.desktop || { echo "❌ Desktop file missing"; exit 1; }
+        echo "✅ Core AppImage structure verified"
 
         # Check for GTK4 libraries in extracted AppImage
-        echo "Checking for GTK4 libraries in AppImage..."
+        echo "🔍 Checking for GTK4 libraries in AppImage..."
         if find squashfs-root/usr/lib -name 'libgtk-4*.so*' 2>/dev/null | grep -q libgtk-4; then
           echo "✅ GTK4 libraries found in AppImage"
+          echo "📋 GTK4 library details:"
+          find squashfs-root/usr/lib -name 'libgtk-4*.so*' 2>/dev/null | head -5
         else
           echo "❌ WARNING: GTK4 libraries not found in AppImage - runtime will require system GTK4"
-          echo "Available libraries:"
-          find squashfs-root/usr/lib -name '*.so*' 2>/dev/null | head -20 || true
+          echo "📋 Available libraries (sample):"
+          find squashfs-root/usr/lib -name '*.so*' 2>/dev/null | head -10 || true
+        fi
+        
+        # Check for .NET-compatible symlinks
+        echo "🔍 Checking for .NET-compatible library symlinks..."
+        if find squashfs-root/usr/lib -name 'Gtk.so' 2>/dev/null | grep -q Gtk.so; then
+          echo "✅ .NET-compatible GTK symlinks found"
+        else
+          echo "⚠️  .NET-compatible GTK symlinks not found - may affect .NET GTK4 binding"
         fi
 
     - name: Smoke test (X11/Xvfb)
+      timeout-minutes: 3
       env:
         OC_SMOKE_TEST: "1"
         HEADLESS: "0"
       run: |
+        echo "🧪 Running AppImage smoke test (max 3 minutes)..."
         chmod +x tests/local-appimage-smoke.sh
-        xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
+        if timeout 180s xvfb-run -a bash tests/local-appimage-smoke.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}; then
+          echo "✅ Smoke test completed successfully"
+        else
+          EXIT_CODE=$?
+          echo "⚠️  Smoke test failed or timed out (exit code: $EXIT_CODE)"
+          if [ $EXIT_CODE -eq 124 ]; then
+            echo "❌ CRITICAL: Smoke test timed out - AppImage may have startup issues"
+            exit 1
+          else
+            echo "❌ CRITICAL: Smoke test failed"
+            exit 1
+          fi
+        fi
 
 
     - name: Upload smoke logs (always)
@@ -404,8 +444,22 @@ jobs:
         retention-days: 7
 
     - name: Smoke test (Wayland via weston headless + Xwayland)
+      timeout-minutes: 3
       run: |
+        echo "🧪 Running Wayland smoke test (max 3 minutes)..."
         chmod +x tests/ci/appimage-smoke-weston.sh || true
-        bash tests/ci/appimage-smoke-weston.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}
+        if timeout 180s bash tests/ci/appimage-smoke-weston.sh ./test/${{ needs.build-appimage.outputs.appimage-name }}; then
+          echo "✅ Wayland smoke test completed successfully"
+        else
+          EXIT_CODE=$?
+          echo "⚠️  Wayland smoke test failed or timed out (exit code: $EXIT_CODE)"
+          if [ $EXIT_CODE -eq 124 ]; then
+            echo "❌ CRITICAL: Wayland smoke test timed out - AppImage may have startup issues"
+            exit 1
+          else
+            echo "❌ CRITICAL: Wayland smoke test failed"
+            exit 1
+          fi
+        fi
 
-        echo "✅ AppImage tests passed"
+        echo "✅ All AppImage tests passed"
