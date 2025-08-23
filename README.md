@@ -18,6 +18,15 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 3. Run: `./overlay-companion-mcp-*.AppImage`
 
+#### Automatic Updates
+The AppImage supports automatic updates via AppImageUpdate:
+
+1. **Install AppImageUpdate**: `sudo apt install appimageupdate` or download from [AppImageUpdate releases](https://github.com/AppImage/AppImageUpdate/releases)
+2. **Check for updates**: `appimageupdate --check-for-update overlay-companion-mcp-*.AppImage`
+3. **Update automatically**: `appimageupdate overlay-companion-mcp-*.AppImage`
+
+You can also check for updates directly from the application's **Settings tab** when running as an AppImage. The app will automatically detect if it's running as an AppImage and show update controls.
+
 **Architecture**: The application runs an **HTTP server** (required for MCP protocol) with a **GUI interface**:
 - **Normal operation**: HTTP server + GUI (default)
 - **Testing only**: GUI can be disabled with `--no-gui` or `HEADLESS=1` for automated testing

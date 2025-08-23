@@ -1,13 +1,19 @@
 # Task List
 
-1. ✅ Investigate why JSON import shows STDIO instead of HTTP transport
+1. ✅ Fix MCP configuration JSON format issue
 
-2. ✅ Add HTTP endpoint to serve JSON configuration with description and tags
+2. ✅ Implement AppImage automatic updates with AppImageUpdate support
 
-3. ✅ Add simple web UI for configuration preview and copy functionality
+3. ✅ Create UpdateService for checking and managing AppImage updates
 
-4. ✅ Ensure JSON configuration format is correct for MCP clients with HTTP transport
+4. ✅ Add update checking and update buttons to GTK4 Settings tab
 
-5. ✅ Test the new configuration endpoints and UI
+5. ✅ Update build script to embed AppImageUpdate information
+
+6. ✅ Update GitHub Actions to generate zsync files for AppImageUpdate
+
+7. ✅ Update README with AppImage automatic update instructions
+
+8. ✅ Test that all changes compile successfully
 
 

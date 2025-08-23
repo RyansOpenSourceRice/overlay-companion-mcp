@@ -173,10 +173,11 @@ jobs:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./release/
 
-    - name: Generate checksums
+    - name: Generate checksums and zsync
       id: checksums
       run: |
         APPIMAGE_PATH="./release/${{ needs.build-appimage.outputs.appimage-name }}"
+        ZSYNC_PATH="./release/${{ needs.build-appimage.outputs.appimage-name }}.zsync"
 
         # Generate checksums in GearLever order (md5, sha1, sha256)
         MD5_HASH=$(md5sum "$APPIMAGE_PATH" | cut -d' ' -f1)
@@ -191,6 +192,32 @@ jobs:
         echo "md5: $MD5_HASH"
         echo "sha1: $SHA1_HASH"
         echo "sha256: $SHA256_HASH"
+
+        # Generate zsync file for AppImageUpdate support
+        if command -v zsyncmake >/dev/null 2>&1; then
+          echo "🔄 Generating zsync file for AppImageUpdate..."
+          zsyncmake -u "https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
+          if [ -f "$ZSYNC_PATH" ]; then
+            echo "✅ zsync file generated successfully"
+            echo "zsync-available=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ zsync file generation failed"
+            echo "zsync-available=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "⚠️ zsyncmake not available, installing..."
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zsync
+          echo "🔄 Generating zsync file for AppImageUpdate..."
+          zsyncmake -u "https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
+          if [ -f "$ZSYNC_PATH" ]; then
+            echo "✅ zsync file generated successfully"
+            echo "zsync-available=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ zsync file generation failed"
+            echo "zsync-available=false" >> $GITHUB_OUTPUT
+          fi
+        fi
 
     - name: Generate release notes
       id: release-notes
@@ -276,6 +303,16 @@ jobs:
         sha256: ${{ steps.checksums.outputs.sha256 }}
         \`\`\`
 
+        ### Automatic Updates
+
+        This AppImage supports automatic updates via AppImageUpdate:
+
+        1. **Install AppImageUpdate**: \`sudo apt install appimageupdate\` or download from [AppImageUpdate releases](https://github.com/AppImage/AppImageUpdate/releases)
+        2. **Check for updates**: \`appimageupdate --check-for-update ${APPIMAGE_NAME}\`
+        3. **Update automatically**: \`appimageupdate ${APPIMAGE_NAME}\`
+
+        The AppImage will automatically check for updates and can update itself without requiring manual downloads.
+
         EOF
 
         # Add custom release notes if provided
@@ -298,6 +335,7 @@ jobs:
         body_path: release_notes.md
         files: |
           release/${{ needs.build-appimage.outputs.appimage-name }}
+          release/${{ needs.build-appimage.outputs.appimage-name }}.zsync
         draft: false
         prerelease: false
         make_latest: true

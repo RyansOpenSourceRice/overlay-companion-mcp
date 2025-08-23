@@ -28,6 +28,7 @@ public class Gtk4MainWindow : IDisposable
 
     // Services
     private IScreenCaptureService? _screenCaptureService;
+    private UpdateService? _updateService;
     private IOverlayService? _overlayService;
     private IModeManager? _modeManager;
 
@@ -52,6 +53,7 @@ public class Gtk4MainWindow : IDisposable
         _screenCaptureService = _serviceProvider.GetService<IScreenCaptureService>();
         _overlayService = _serviceProvider.GetService<IOverlayService>();
         _modeManager = _serviceProvider.GetService<IModeManager>();
+        _updateService = _serviceProvider.GetService<UpdateService>();
 
         InitializeWindow();
     }
@@ -188,6 +190,34 @@ public class Gtk4MainWindow : IDisposable
         _portEntry.SetText("3000");
         portBox.Append(_portEntry);
         vbox.Append(portBox);
+
+        // Update section (only show if running as AppImage)
+        if (_updateService?.IsRunningAsAppImage() == true)
+        {
+            var separator = Separator.New(Orientation.Horizontal);
+            vbox.Append(separator);
+
+            var updateLabel = Label.New("AppImage Updates");
+            updateLabel.SetMarkup("<b>AppImage Updates</b>");
+            vbox.Append(updateLabel);
+
+            var updateBox = Box.New(Orientation.Horizontal, 10);
+            
+            var checkUpdateButton = Button.NewWithLabel("🔄 Check for Updates");
+            checkUpdateButton.OnClicked += OnCheckForUpdates;
+            updateBox.Append(checkUpdateButton);
+
+            var updateButton = Button.NewWithLabel("⬆️ Update AppImage");
+            updateButton.OnClicked += OnUpdateAppImage;
+            updateButton.SetSensitive(_updateService.IsAppImageUpdateAvailable());
+            updateBox.Append(updateButton);
+
+            vbox.Append(updateBox);
+
+            var updateStatusLabel = Label.New("Click 'Check for Updates' to see if a newer version is available");
+            updateStatusLabel.SetWrap(true);
+            vbox.Append(updateStatusLabel);
+        }
 
         // Add tab
         var tabLabel = Label.New("Settings");
@@ -490,6 +520,137 @@ public class Gtk4MainWindow : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to show configuration dialog");
+        }
+    }
+
+    private async void OnCheckForUpdates(object sender, EventArgs e)
+    {
+        try
+        {
+            if (_updateService == null)
+            {
+                _logger?.LogWarning("Update service not available");
+                return;
+            }
+
+            var button = sender as Button;
+            button?.SetLabel("🔄 Checking...");
+            button?.SetSensitive(false);
+
+            var updateInfo = await _updateService.CheckForUpdatesAsync();
+            
+            if (updateInfo == null)
+            {
+                ShowUpdateDialog("Update Check Failed", "Could not check for updates. Please check your internet connection.");
+            }
+            else if (updateInfo.UpdateAvailable)
+            {
+                ShowUpdateDialog("Update Available", 
+                    $"A new version is available!\n\n" +
+                    $"Current Version: {updateInfo.CurrentVersion}\n" +
+                    $"Latest Version: {updateInfo.LatestVersion}\n\n" +
+                    $"Click 'Update AppImage' to install the latest version.");
+            }
+            else
+            {
+                ShowUpdateDialog("Up to Date", 
+                    $"You are running the latest version ({updateInfo.CurrentVersion}).");
+            }
+
+            button?.SetLabel("🔄 Check for Updates");
+            button?.SetSensitive(true);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to check for updates");
+            ShowUpdateDialog("Error", "An error occurred while checking for updates.");
+        }
+    }
+
+    private async void OnUpdateAppImage(object sender, EventArgs e)
+    {
+        try
+        {
+            if (_updateService == null)
+            {
+                _logger?.LogWarning("Update service not available");
+                return;
+            }
+
+            var button = sender as Button;
+            button?.SetLabel("⬆️ Updating...");
+            button?.SetSensitive(false);
+
+            if (!_updateService.IsAppImageUpdateAvailable())
+            {
+                ShowUpdateDialog("AppImageUpdate Required", 
+                    "AppImageUpdate is not installed. Please install it first:\n\n" +
+                    "sudo apt install appimageupdate\n\n" +
+                    "Or download from: https://github.com/AppImage/AppImageUpdate/releases");
+                button?.SetLabel("⬆️ Update AppImage");
+                button?.SetSensitive(true);
+                return;
+            }
+
+            var success = await _updateService.UpdateAppImageAsync();
+            
+            if (success)
+            {
+                ShowUpdateDialog("Update Complete", 
+                    "AppImage updated successfully!\n\n" +
+                    "Please restart the application to use the new version.");
+            }
+            else
+            {
+                ShowUpdateDialog("Update Failed", 
+                    "Failed to update AppImage. Please check the logs for more details.");
+            }
+
+            button?.SetLabel("⬆️ Update AppImage");
+            button?.SetSensitive(true);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to update AppImage");
+            ShowUpdateDialog("Error", "An error occurred while updating the AppImage.");
+        }
+    }
+
+    private void ShowUpdateDialog(string title, string message)
+    {
+        try
+        {
+            var dialog = Dialog.New();
+            dialog.SetTitle(title);
+            dialog.SetTransientFor(_window);
+            dialog.SetModal(true);
+            dialog.SetDefaultSize(400, 200);
+
+            var vbox = Box.New(Orientation.Vertical, 10);
+            vbox.SetMarginTop(20);
+            vbox.SetMarginBottom(20);
+            vbox.SetMarginStart(20);
+            vbox.SetMarginEnd(20);
+
+            var messageLabel = Label.New(message);
+            messageLabel.SetWrap(true);
+            messageLabel.SetJustify(Justification.Left);
+            vbox.Append(messageLabel);
+
+            var buttonBox = Box.New(Orientation.Horizontal, 10);
+            buttonBox.SetHalign(Align.End);
+
+            var okButton = Button.NewWithLabel("OK");
+            okButton.OnClicked += (s, args) => dialog.Close();
+            buttonBox.Append(okButton);
+
+            vbox.Append(buttonBox);
+            dialog.SetChild(vbox);
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to show update dialog");
         }
     }
 
