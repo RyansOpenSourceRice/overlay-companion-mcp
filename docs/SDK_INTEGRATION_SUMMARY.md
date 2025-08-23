@@ -47,7 +47,7 @@ Based on the comprehensive analysis provided, we have successfully integrated th
 - `src/MCP/Tools/*.cs` - Tool implementations using SDK patterns
 
 **Key Features:**
-- ✅ **stdio transport** for Jan.ai compatibility
+- ✅ **stdio transport** for Cherry Studio compatibility
 - ✅ **Dependency injection** with Microsoft.Extensions.DI
 - ✅ **Hosted service pattern** for proper lifecycle management
 - ✅ **Tool registry** for dynamic tool discovery
@@ -81,25 +81,25 @@ builder.Services.AddHostedService<OverlayCompanionMcpService>();
 **Key Messaging:**
 - Emphasizes official SDK usage throughout
 - Highlights Microsoft/Anthropic backing
-- Shows stdio transport compatibility with Jan.ai
+- Shows stdio transport compatibility with Cherry Studio
 
 ## Architecture Comparison
 
 ### Before (Custom Implementation):
 ```
-Jan.ai → Custom JSON-RPC → Custom Tool Registry → Services
+Cherry Studio → Custom JSON-RPC → Custom Tool Registry → Services
 ```
 
 ### After (Official SDK):
 ```
-Jan.ai → ModelContextProtocol SDK → McpServerBuilder → Tool Registry → Services
+Cherry Studio → ModelContextProtocol SDK → McpServerBuilder → Tool Registry → Services
                                                     ↓
                                             Microsoft.Extensions.Hosting
 ```
 
 ## Integration Benefits
 
-### 1. **Jan.ai Compatibility**
+### 1. **Cherry Studio Compatibility**
 - ✅ **stdio transport** built into SDK
 - ✅ **Standard MCP protocol** compliance
 - ✅ **JSON-RPC 2.0** handling automatic
@@ -130,7 +130,7 @@ Jan.ai → ModelContextProtocol SDK → McpServerBuilder → Tool Registry → S
 
 ### 3. **Testing & Validation**
 - Create unit tests for all MCP tools
-- Test Jan.ai integration end-to-end
+- Test Cherry Studio integration end-to-end
 - Validate mode-based safety features
 
 ### 4. **Deployment**
@@ -143,9 +143,9 @@ Jan.ai → ModelContextProtocol SDK → McpServerBuilder → Tool Registry → S
 The integration of the **Official ModelContextProtocol C# SDK** provides:
 
 - 🏗️ **Solid foundation** - Built on Microsoft's official implementation
-- 🔌 **Jan.ai compatibility** - Direct stdio transport support
+- 🔌 **Cherry Studio compatibility** - Direct stdio transport support
 - 🛠️ **Rich ecosystem** - Full .NET tooling and patterns
 - 🔒 **Long-term support** - Backed by major technology companies
 - 📈 **Future-proof** - Aligned with MCP standard evolution
 
-This decision ensures the overlay-companion-mcp project is built on a robust, officially-supported foundation that will evolve with the MCP ecosystem while maintaining compatibility with Jan.ai and other MCP clients.
+This decision ensures the overlay-companion-mcp project is built on a robust, officially-supported foundation that will evolve with the MCP ecosystem while maintaining compatibility with Cherry Studio and other MCP clients.

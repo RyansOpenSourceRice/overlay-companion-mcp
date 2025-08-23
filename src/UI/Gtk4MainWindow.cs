@@ -207,6 +207,11 @@ public class Gtk4MainWindow : IDisposable
         titleLabel.SetMarkup("<b>MCP Server Status</b>");
         vbox.Append(titleLabel);
 
+        // Configuration button
+        var configButton = Button.NewWithLabel("📋 Copy Configuration JSON");
+        configButton.OnClicked += OnShowConfiguration;
+        vbox.Append(configButton);
+
         // Tools list
         var toolsLabel = Label.New("Available MCP Tools:");
         vbox.Append(toolsLabel);
@@ -389,6 +394,103 @@ public class Gtk4MainWindow : IDisposable
         }
 
         _logger?.LogInformation($"Server {(_serverRunning ? "started" : "stopped")}");
+    }
+
+    private void OnShowConfiguration(object sender, EventArgs e)
+    {
+        try
+        {
+            // Get the configuration JSON from Program.cs helper method
+            var configJson = OverlayCompanion.Program.GetMcpConfigurationJson();
+            
+            // Create a dialog to show the configuration
+            var dialog = new Gtk.Dialog();
+            dialog.SetTitle("MCP Configuration for Cherry Studio");
+            dialog.SetDefaultSize(600, 400);
+            dialog.SetModal(true);
+            dialog.SetTransientFor(_window);
+
+            // Create content area
+            var vbox = Box.New(Orientation.Vertical, 10);
+            vbox.SetMarginTop(10);
+            vbox.SetMarginBottom(10);
+            vbox.SetMarginStart(10);
+            vbox.SetMarginEnd(10);
+
+            // Title
+            var titleLabel = Label.New("Copy this configuration to Cherry Studio:");
+            titleLabel.SetMarkup("<b>Copy this configuration to Cherry Studio:</b>");
+            vbox.Append(titleLabel);
+
+            // Instructions
+            var instructionsLabel = Label.New("1. Copy the JSON below\n2. Open Cherry Studio\n3. Go to MCP Server settings\n4. Paste the configuration");
+            instructionsLabel.SetXalign(0.0f);
+            vbox.Append(instructionsLabel);
+
+            // JSON text view
+            var textView = TextView.New();
+            var buffer = textView.GetBuffer();
+            buffer.SetText(configJson, -1);
+            textView.SetEditable(false);
+            textView.SetMonospace(true);
+
+            var scrolled = ScrolledWindow.New();
+            scrolled.SetChild(textView);
+            scrolled.SetSizeRequest(550, 250);
+            vbox.Append(scrolled);
+
+            // Buttons
+            var buttonBox = Box.New(Orientation.Horizontal, 10);
+            buttonBox.SetHalign(Align.End);
+
+            var copyButton = Button.NewWithLabel("📋 Copy to Clipboard");
+            copyButton.OnClicked += (s, args) =>
+            {
+                try
+                {
+                    // Copy to clipboard using GDK
+                    var display = _window?.GetDisplay();
+                    if (display != null)
+                    {
+                        var clipboard = display.GetClipboard();
+                        clipboard.SetText(configJson);
+                        
+                        // Show success message
+                        copyButton.SetLabel("✅ Copied!");
+                        GLib.Functions.TimeoutAdd(0, 2000, () =>
+                        {
+                            copyButton.SetLabel("📋 Copy to Clipboard");
+                            return false;
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to copy to clipboard");
+                    copyButton.SetLabel("❌ Copy Failed");
+                    GLib.Functions.TimeoutAdd(0, 2000, () =>
+                    {
+                        copyButton.SetLabel("📋 Copy to Clipboard");
+                        return false;
+                    });
+                }
+            };
+
+            var closeButton = Button.NewWithLabel("Close");
+            closeButton.OnClicked += (s, args) => dialog.Close();
+
+            buttonBox.Append(copyButton);
+            buttonBox.Append(closeButton);
+            vbox.Append(buttonBox);
+
+            // Set the dialog content
+            dialog.SetChild(vbox);
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to show configuration dialog");
+        }
     }
 
     public void Show()

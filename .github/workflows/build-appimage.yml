@@ -108,8 +108,10 @@ jobs:
     - name: Build AppImage
       run: |
         export APP_VERSION="${{ steps.version.outputs.version }}"
+        # Ensure script is executable (GitHub Actions may not preserve file permissions)
         chmod +x ./scripts/build-appimage.sh
-        ./scripts/build-appimage.sh
+        # Run the build script
+        bash ./scripts/build-appimage.sh
 
     - name: Validate AppImage
       run: |
@@ -211,7 +213,7 @@ jobs:
         ### Features
 
         - 🖥️ **Screen Interaction**: AI-assisted screen capture and overlay drawing
-        - 🤖 **MCP Integration**: Compatible with Jan.ai and other MCP clients
+        - 🤖 **MCP Integration**: Compatible with Cherry Studio and other MCP clients
         - 🛡️ **Human-in-the-Loop**: Safety controls and user confirmation for automated actions
         - 🖱️ **Input Simulation**: Controlled mouse and keyboard automation
         - 📱 **Multi-Monitor**: Support for complex display configurations
@@ -241,9 +243,9 @@ jobs:
         ./${APPIMAGE_NAME} --http
         \`\`\`
 
-        ### Integration with Jan.ai
+        ### Integration with Cherry Studio
 
-        Add to your Jan.ai MCP configuration:
+        Add to your Cherry Studio MCP configuration:
         \`\`\`json
         {
           "mcpServers": {
