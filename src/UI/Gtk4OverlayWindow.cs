@@ -3,6 +3,7 @@ using Gdk;
 using Cairo;
 using OverlayCompanion.Models;
 using OverlayCompanion.Services;
+using System;
 using System.Threading.Tasks;
 
 namespace OverlayCompanion.UI;
@@ -28,22 +29,37 @@ public class Gtk4OverlayWindow : IOverlayWindow
 
     private void InitializeWindow()
     {
-        // Create application window
-        _window = Gtk.ApplicationWindow.New(Gtk4Application.Instance);
+        // Use the existing GTK application instance instead of creating a new one
+        Gtk.Application? app = null;
+        if (Gtk4OverlayApplication.GlobalServiceProvider != null)
+        {
+            app = (Gtk4OverlayApplication.GlobalServiceProvider.GetService(typeof(Gtk4OverlayApplication)) as Gtk4OverlayApplication)?.Application;
+        }
+        
+        if (app == null)
+        {
+            // Fallback to singleton instance
+            app = Gtk4Application.Instance;
+        }
 
-        // Configure window properties
+        // Create application window
+        _window = Gtk.ApplicationWindow.New(app);
+
+        // Configure window properties for overlay
         _window.SetTitle($"Overlay {_overlay.Id}");
-        _window.SetDefaultSize((int)_overlay.Bounds.Width, (int)_overlay.Bounds.Height);
         _window.SetResizable(false);
         _window.SetDecorated(false);
-
-        // Position window
-        // Note: GTK4 doesn't have direct positioning, but we can use surface positioning
         _window.SetModal(false);
+        
+        // Make window fullscreen to cover entire screen for proper overlay positioning
+        // We'll draw the overlay content at the correct position within the fullscreen window
+        _window.Fullscreen();
 
-        // Create drawing area for custom rendering
+        // Create drawing area for custom rendering - covers full screen
         _drawingArea = DrawingArea.New();
-        _drawingArea.SetSizeRequest((int)_overlay.Bounds.Width, (int)_overlay.Bounds.Height);
+        // Don't set size request - let it fill the fullscreen window
+        _drawingArea.SetHexpand(true);
+        _drawingArea.SetVexpand(true);
 
         // Set up drawing callback
         _drawingArea.SetDrawFunc(OnDraw);
@@ -53,42 +69,104 @@ public class Gtk4OverlayWindow : IOverlayWindow
 
         // Configure transparency and click-through after window is realized
         _window.OnRealize += OnWindowRealized;
+
+        // Apply CSS for transparency and positioning
+        ApplyOverlayStyles();
+    }
+
+    private void ApplyOverlayStyles()
+    {
+        if (_window == null) return;
+
+        // Create CSS provider for overlay styling
+        var cssProvider = Gtk.CssProvider.New();
+        var css = $@"
+            window.overlay {{
+                background-color: transparent;
+                border: none;
+            }}
+            
+            drawingarea.overlay {{
+                background-color: transparent;
+            }}
+        ";
+
+        try
+        {
+            cssProvider.LoadFromData(css, -1);
+            
+            // Apply CSS to window
+            var styleContext = _window.GetStyleContext();
+            styleContext.AddProvider(cssProvider, 800); // GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+            styleContext.AddClass("overlay");
+
+            // Apply CSS to drawing area
+            if (_drawingArea != null)
+            {
+                var drawingStyleContext = _drawingArea.GetStyleContext();
+                drawingStyleContext.AddProvider(cssProvider, 800); // GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+                drawingStyleContext.AddClass("overlay");
+            }
+
+            Console.WriteLine($"✓ CSS styles applied to overlay {_overlay.Id}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Failed to apply CSS styles to overlay {_overlay.Id}: {ex.Message}");
+        }
     }
 
     private void OnWindowRealized(object sender, EventArgs e)
     {
         if (_window == null) return;
 
-        // Get the native surface
-        var surface = _window.GetSurface();
-        if (surface != null)
+        try
         {
-            // Enable transparency
-            // GTK4 handles transparency automatically with proper CSS
-
-            // Enable click-through by setting empty input region
-            if (_overlay.ClickThrough)
+            // Get the native surface
+            var surface = _window.GetSurface();
+            if (surface != null)
             {
-                surface.SetInputRegion(null!);
-                Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
-            }
+                // Enable click-through by setting empty input region
+                if (_overlay.ClickThrough)
+                {
+                    // Set null input region for complete click-through
+                    surface.SetInputRegion(null);
+                    Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
+                }
 
-            // Position the window
-            // Note: GTK4 positioning is handled by the compositor
-            // We may need to use layer shell protocols for precise positioning
+                Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ Could not get surface for overlay {_overlay.Id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Failed to configure overlay {_overlay.Id}: {ex.Message}");
         }
     }
 
     private void OnDraw(Gtk.DrawingArea area, Cairo.Context cr, int width, int height)
     {
+        // Clear the entire drawing area with transparent background
+        cr.SetSourceRgba(0.0, 0.0, 0.0, 0.0);
+        cr.Paint();
+
         // Parse color
         var color = ParseColor(_overlay.Color);
+
+        // Draw overlay rectangle at the specified position
+        var overlayX = _overlay.Bounds.X;
+        var overlayY = _overlay.Bounds.Y;
+        var overlayWidth = _overlay.Bounds.Width;
+        var overlayHeight = _overlay.Bounds.Height;
 
         // Set source color with transparency
         cr.SetSourceRgba(color.Red, color.Green, color.Blue, color.Alpha);
 
-        // Draw rectangle
-        cr.Rectangle(0, 0, width, height);
+        // Draw rectangle at the correct position
+        cr.Rectangle(overlayX, overlayY, overlayWidth, overlayHeight);
         cr.Fill();
 
         // Draw label if present
@@ -97,14 +175,14 @@ public class Gtk4OverlayWindow : IOverlayWindow
             // Set text color (contrasting)
             cr.SetSourceRgba(1.0, 1.0, 1.0, 1.0); // White text
 
-            // Simple text rendering (could be enhanced with Pango)
-            cr.MoveTo(10, 20);
+            // Position text within the overlay rectangle
+            cr.MoveTo(overlayX + 10, overlayY + 20);
             cr.ShowText(_overlay.Label);
         }
 
-        // Draw border (approximate using stroke with default width)
+        // Draw border
         cr.SetSourceRgba(color.Red, color.Green, color.Blue, 1.0);
-        cr.Rectangle(0, 0, width, height);
+        cr.Rectangle(overlayX, overlayY, overlayWidth, overlayHeight);
         cr.Stroke();
     }
 
@@ -129,7 +207,21 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         if (_window != null && !_disposed)
         {
-            _window.SetVisible(true);
+            // Ensure we're on the main thread for GTK operations
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    _window.SetVisible(true);
+                    _window.Present();
+                    Console.WriteLine($"✓ Overlay {_overlay.Id} shown at ({_overlay.Bounds.X}, {_overlay.Bounds.Y}) size {_overlay.Bounds.Width}x{_overlay.Bounds.Height}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Failed to show overlay {_overlay.Id}: {ex.Message}");
+                }
+                return false; // Remove from idle queue
+            });
 
             // Handle temporary overlays
             if (_overlay.TemporaryMs > 0)
@@ -144,7 +236,20 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         if (_window != null && !_disposed)
         {
-            _window.SetVisible(false);
+            // Ensure we're on the main thread for GTK operations
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    _window.SetVisible(false);
+                    Console.WriteLine($"✓ Overlay {_overlay.Id} hidden");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Failed to hide overlay {_overlay.Id}: {ex.Message}");
+                }
+                return false; // Remove from idle queue
+            });
         }
         return Task.CompletedTask;
     }
@@ -153,12 +258,23 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         if (_window != null && !_disposed)
         {
-            _overlay.Bounds = newBounds;
-            _window.SetDefaultSize((int)newBounds.Width, (int)newBounds.Height);
-            _drawingArea?.SetSizeRequest((int)newBounds.Width, (int)newBounds.Height);
-
-            // Force redraw
-            _drawingArea?.QueueDraw();
+            // Ensure we're on the main thread for GTK operations
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    _overlay.Bounds = newBounds;
+                    // No need to resize window since it's fullscreen
+                    // Just force redraw to show overlay at new position
+                    _drawingArea?.QueueDraw();
+                    Console.WriteLine($"✓ Overlay {_overlay.Id} position updated to ({newBounds.X}, {newBounds.Y}) size {newBounds.Width}x{newBounds.Height}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Failed to update overlay {_overlay.Id} position: {ex.Message}");
+                }
+                return false; // Remove from idle queue
+            });
         }
         return Task.CompletedTask;
     }
@@ -167,11 +283,24 @@ public class Gtk4OverlayWindow : IOverlayWindow
     {
         if (_window != null && !_disposed)
         {
-            _overlay.Color = color;
-            _overlay.Label = label;
+            // Ensure we're on the main thread for GTK operations
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    _overlay.Color = color;
+                    _overlay.Label = label;
 
-            // Force redraw with new appearance
-            _drawingArea?.QueueDraw();
+                    // Force redraw with new appearance
+                    _drawingArea?.QueueDraw();
+                    Console.WriteLine($"✓ Overlay {_overlay.Id} appearance updated to {color}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Failed to update overlay {_overlay.Id} appearance: {ex.Message}");
+                }
+                return false; // Remove from idle queue
+            });
         }
         return Task.CompletedTask;
     }
@@ -182,13 +311,26 @@ public class Gtk4OverlayWindow : IOverlayWindow
         {
             _disposed = true;
 
-            if (_window != null)
+            // Ensure we're on the main thread for GTK operations
+            GLib.Functions.IdleAdd(0, () =>
             {
-                _window.Close();
-                _window = null;
-            }
+                try
+                {
+                    if (_window != null)
+                    {
+                        _window.Close();
+                        _window = null;
+                        Console.WriteLine($"✓ Overlay {_overlay.Id} disposed");
+                    }
 
-            _drawingArea = null;
+                    _drawingArea = null;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Failed to dispose overlay {_overlay.Id}: {ex.Message}");
+                }
+                return false; // Remove from idle queue
+            });
         }
     }
 }
