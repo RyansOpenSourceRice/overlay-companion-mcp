@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace OverlayCompanion.Services;
@@ -17,6 +18,12 @@ public class UpdateService
     {
         _logger = logger;
         _httpClient = httpClient;
+        
+        // Configure HttpClient for GitHub API
+        if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
+        {
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "OverlayCompanion-MCP/1.0");
+        }
     }
 
     /// <summary>
@@ -42,10 +49,13 @@ public class UpdateService
     {
         try
         {
+            _logger.LogInformation("Starting update check...");
+            _logger.LogInformation("APPIMAGE environment variable: {AppImage}", Environment.GetEnvironmentVariable("APPIMAGE") ?? "null");
+            
             if (!IsRunningAsAppImage())
             {
                 _logger.LogInformation("Not running as AppImage, update checking disabled");
-                return null;
+                throw new InvalidOperationException("Update checking is only available when running as AppImage. Current APPIMAGE environment variable: " + (Environment.GetEnvironmentVariable("APPIMAGE") ?? "null"));
             }
 
             _logger.LogInformation("Checking for updates...");
@@ -55,7 +65,14 @@ public class UpdateService
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15 second HTTP timeout
             
             var response = await _httpClient.GetStringAsync(GITHUB_API_URL, timeoutCts.Token);
-            var release = JsonSerializer.Deserialize<GitHubRelease>(response);
+            
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                PropertyNameCaseInsensitive = true
+            };
+            
+            var release = JsonSerializer.Deserialize<GitHubRelease>(response, options);
             
             if (release == null)
             {
@@ -91,8 +108,8 @@ public class UpdateService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to check for updates");
-            return null;
+            _logger.LogError(ex, "Failed to check for updates: {Message}", ex.Message);
+            throw new InvalidOperationException($"Update check failed: {ex.Message}", ex);
         }
     }
 
@@ -259,9 +276,18 @@ public class UpdateInfo
 /// </summary>
 internal class GitHubRelease
 {
+    [JsonPropertyName("tag_name")]
     public string? TagName { get; set; }
+    
+    [JsonPropertyName("name")]
     public string? Name { get; set; }
+    
+    [JsonPropertyName("body")]
     public string? Body { get; set; }
+    
+    [JsonPropertyName("html_url")]
     public string? HtmlUrl { get; set; }
+    
+    [JsonPropertyName("published_at")]
     public DateTime? PublishedAt { get; set; }
 }
