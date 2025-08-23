@@ -6,7 +6,7 @@
 
 ## Overview & Purpose
 
-**Overlay Companion (MCP)** is a desktop-based Model Context Protocol (MCP) server designed to facilitate context-aware, human-assisted UI interactions across arbitrary applications—not tied to any specific use case such as job applications. Its primary goal is to provide a **safe, extendable, and vendor-agnostic interface** enabling AI agents (via Jan.ai or others) to:
+**Overlay Companion (MCP)** is a desktop-based Model Context Protocol (MCP) server designed to facilitate context-aware, human-assisted UI interactions across arbitrary applications—not tied to any specific use case such as job applications. Its primary goal is to provide a **safe, extendable, and vendor-agnostic interface** enabling AI agents (via Cherry Studio or others) to:
 
 - Draw overlays (highlight, label, annotate) on the screen using an OS-level transparent window.
 - Capture screenshots in a controlled, high-performance manner.
@@ -90,7 +90,7 @@ The server implements standard MCP error responses:
 
 ## Connection Configuration
 
-### Jan.ai Configuration (HTTP Transport - Recommended)
+### Cherry Studio Configuration (HTTP Transport - Recommended)
 ```json
 {
   "mcpServers": {
@@ -106,6 +106,16 @@ The server implements standard MCP error responses:
   }
 }
 ```
+
+### Configuration Helper Endpoints
+
+When the application is running with HTTP transport, it provides helpful configuration endpoints:
+
+- **Web UI**: `http://localhost:3000/setup` - Interactive configuration interface with one-click copy
+- **JSON Config**: `http://localhost:3000/config` - Ready-to-use JSON configuration
+- **Legacy STDIO**: `http://localhost:3000/config/stdio` - STDIO transport configuration (deprecated)
+
+These endpoints include proper metadata (description, tags, provider info) for better integration with MCP clients.
 
 ### Claude Desktop Configuration (HTTP Transport - Recommended)
 ```json

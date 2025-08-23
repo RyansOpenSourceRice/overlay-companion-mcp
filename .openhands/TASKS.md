@@ -1,19 +1,13 @@
 # Task List
 
-1. ✅ Analyze all GitHub Actions workflows for timeout needs
+1. ✅ Investigate why JSON import shows STDIO instead of HTTP transport
 
-2. ✅ Add timeouts to ci-cd.yml workflow
+2. 🔄 Add HTTP endpoint to serve JSON configuration with description and tags
 
-3. ✅ Add timeouts to csharp-lint.yml workflow
+3. ⏳ Add simple web UI for configuration preview and copy functionality
 
-4. ✅ Add timeouts to markdown-lint.yml workflow
+4. ⏳ Ensure JSON configuration format is correct for MCP clients with HTTP transport
 
-5. ✅ Add timeouts to python-lint.yml workflow
-
-6. ✅ Add timeouts to merge-ready.yml workflow
-
-7. ✅ Update specifications markdown with CI/CD best practices
-
-8. ✅ Commit and push all timeout improvements
+5. ⏳ Test the new configuration endpoints and UI
 
 

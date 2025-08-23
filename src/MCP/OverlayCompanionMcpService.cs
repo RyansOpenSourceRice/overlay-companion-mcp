@@ -40,7 +40,7 @@ public class OverlayCompanionMcpService : BackgroundService
             // Create MCP server using official SDK
             var serverBuilder = new McpServerBuilder()
                 .WithServerInfo(_options.CurrentValue.ServerInfo)
-                .WithStdioTransport(); // Use stdio transport for Jan.ai compatibility
+                .WithStdioTransport(); // Use stdio transport for Cherry Studio compatibility
 
             // Register tools from our registry
             foreach (var tool in _toolRegistry.GetAllTools())

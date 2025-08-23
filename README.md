@@ -3,7 +3,7 @@
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-FF6B35?style=for-the-badge&logo=anthropic)](https://modelcontextprotocol.io/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20AppImage-FCC624?style=for-the-badge&logo=linux)](https://appimage.org/)
 [![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
-[![AI](https://img.shields.io/badge/AI-Jan.ai%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://jan.ai/)
+[![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
 [![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
 [![Status](https://img.shields.io/badge/status-development-yellow?style=for-the-badge&logo=github)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0.html)
@@ -39,7 +39,7 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 ## Usage
 
 ### MCP Integration
-Configure with Jan.ai or other MCP-compatible AI clients using HTTP transport (recommended):
+Configure with Cherry Studio or other MCP-compatible AI clients using HTTP transport (recommended):
 
 ```json
 {
@@ -72,7 +72,7 @@ For a better user experience, the application provides configuration endpoints w
 
 - **Web UI**: Visit `http://localhost:3000/setup` for an interactive configuration interface
 - **JSON Config**: Get ready-to-use configuration from `http://localhost:3000/config`
-- **Copy & Paste**: One-click copy functionality for easy setup in Jan.ai
+- **Copy & Paste**: One-click copy functionality for easy setup in Cherry Studio
 
 The configuration includes proper metadata (description, tags, provider info) for better integration with MCP clients.
 

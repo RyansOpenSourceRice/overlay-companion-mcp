@@ -325,7 +325,7 @@ public class Program
     /// <summary>
     /// Get formatted JSON string for MCP configuration
     /// </summary>
-    private static string GetMcpConfigurationJson()
+    public static string GetMcpConfigurationJson()
     {
         return JsonSerializer.Serialize(GetMcpConfiguration(), new JsonSerializerOptions 
         { 
@@ -454,7 +454,7 @@ public class Program
             <div class="config-title">🚀 HTTP Transport (Recommended)</div>
             <div class="config-description">
                 Modern HTTP-based transport with multi-client support, streaming, and web integration.
-                Use this configuration for Jan.ai and other MCP clients.
+                Use this configuration for Cherry Studio and other MCP clients.
             </div>
             <pre id="http-config"></pre>
             <button class="copy-btn" onclick="copyConfig('http')">📋 Copy HTTP Configuration</button>

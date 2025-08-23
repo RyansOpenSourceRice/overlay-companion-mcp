@@ -73,6 +73,7 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
+        # No npm cache since we don't have package.json files
 
     - name: Install markdown tools
       timeout-minutes: 3

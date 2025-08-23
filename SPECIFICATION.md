@@ -17,7 +17,7 @@ The system supports two deployment architectures to meet different security and 
 #### 1. Native HTTP Transport (Default & Recommended)
 
 ```text
-Jan.ai → HTTP → MCP Server (OverlayCompanion)
+Cherry Studio → HTTP → MCP Server (OverlayCompanion)
 ```
 
 - **Use Case**: Modern integration, multi-client support, image handling
@@ -29,7 +29,7 @@ Jan.ai → HTTP → MCP Server (OverlayCompanion)
 #### 2. Legacy STDIO Transport (Deprecated)
 
 ```text
-Jan.ai → stdio → MCP Server (OverlayCompanion)
+Cherry Studio → stdio → MCP Server (OverlayCompanion)
 ```
 
 - **Use Case**: Legacy compatibility only

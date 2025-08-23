@@ -11,7 +11,7 @@
 - **ModelContextProtocol SDK** - Official Microsoft/Anthropic MCP C# SDK
 - **Microsoft.Extensions.Hosting** - .NET hosting and dependency injection
 - **Microsoft.Extensions.DependencyInjection** - Service container
-- **Jan.ai Client** - AI model integration via MCP protocol
+- **Cherry Studio Client** - AI model integration via MCP protocol
 
 ### Linux Integration
 - **Wayland-first (X11 fallback)** - Linux window management and compositors
@@ -175,14 +175,14 @@ public class ModeManager
 }
 ```
 
-## Integration with Jan.ai
+## Integration with Cherry Studio
 
-The MCP server should be designed to work with Jan.ai:
+The MCP server should be designed to work with Cherry Studio:
 
 ```csharp
 public class McpServer
 {
-    // Jan.ai will connect to this server via JSON-RPC
+    // Cherry Studio will connect to this server via JSON-RPC
     public async Task HandleRequest(string jsonRpcRequest)
     {
         var request = JsonSerializer.Deserialize<McpRequest>(jsonRpcRequest);
@@ -224,7 +224,7 @@ public class PrivacyManager
 ## Testing Strategy
 
 - **Unit tests** for each MCP tool
-- **Integration tests** with Jan.ai
+- **Integration tests** with Cherry Studio
 - **Multi-monitor testing**
 - **DPI scaling tests**
 - **Privacy scrubbing validation**
