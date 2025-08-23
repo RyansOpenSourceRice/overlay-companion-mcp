@@ -21,6 +21,9 @@ if [ -z "$APPIMAGE_PATH" ] || [ ! -f "$APPIMAGE_PATH" ]; then
     exit 1
 fi
 
+# Convert to absolute path to avoid issues when changing directories
+APPIMAGE_PATH=$(realpath "$APPIMAGE_PATH")
+
 echo -e "${BLUE}Validating AppImage: $(basename "$APPIMAGE_PATH")${NC}"
 echo "=================================="
 

@@ -112,9 +112,15 @@ jobs:
       run: |
         APPIMAGE_PATH="build/${{ steps.version.outputs.appimage-name }}"
 
+        # Debug: List build directory contents
+        echo "📋 Build directory contents:"
+        ls -la build/ || echo "Build directory not found"
+
         # Check if AppImage was created
         if [ ! -f "$APPIMAGE_PATH" ]; then
           echo "❌ AppImage not found at $APPIMAGE_PATH"
+          echo "📋 Current directory: $(pwd)"
+          echo "📋 Looking for: $APPIMAGE_PATH"
           exit 1
         fi
 
