@@ -217,9 +217,39 @@ if ! find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4
     fi
 fi
 
-# Summary of GTK bundling
+# Summary of GTK bundling and create .NET-compatible symlinks
 if find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4; then
     echo -e "${GREEN}  ✅ GTK4 runtime bundled into AppImage AppDir${NC}"
+    
+    # Create .NET-compatible symlinks for GTK4 libraries
+    echo -e "${YELLOW}  🔗 Creating .NET-compatible library symlinks...${NC}"
+    cd "$APPDIR/usr/lib"
+    
+    # GTK4 main library symlinks
+    if [ -f "libgtk-4.so.1" ]; then
+        ln -sf libgtk-4.so.1 Gtk.so 2>/dev/null || true
+        ln -sf libgtk-4.so.1 libGtk.so 2>/dev/null || true
+        echo -e "${GREEN}    ✅ Created GTK4 symlinks${NC}"
+    fi
+    
+    # Additional common GTK4 library symlinks that .NET might need
+    if [ -f "libgobject-2.0.so.0" ]; then
+        ln -sf libgobject-2.0.so.0 GObject.so 2>/dev/null || true
+        ln -sf libgobject-2.0.so.0 libGObject.so 2>/dev/null || true
+    fi
+    
+    if [ -f "libglib-2.0.so.0" ]; then
+        ln -sf libglib-2.0.so.0 GLib.so 2>/dev/null || true
+        ln -sf libglib-2.0.so.0 libGLib.so 2>/dev/null || true
+    fi
+    
+    if [ -f "libgio-2.0.so.0" ]; then
+        ln -sf libgio-2.0.so.0 Gio.so 2>/dev/null || true
+        ln -sf libgio-2.0.so.0 libGio.so 2>/dev/null || true
+    fi
+    
+    cd - > /dev/null
+    echo -e "${GREEN}  ✅ .NET GTK4 library symlinks created${NC}"
 else
     echo -e "${YELLOW}  ⚠️  GTK4 runtime not bundled (will require system GTK4 at runtime)${NC}"
     echo -e "${YELLOW}  📋 Available libraries in AppDir:${NC}"
@@ -376,13 +406,23 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 export PATH="${HERE}/usr/bin:${PATH}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
 
-# Change to a writable directory for configuration files
+# .NET native library search paths
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+export DOTNET_SYSTEM_NET_HTTP_USESOCKETSHTTPHANDLER=0
 
-# Prefer Wayland by default for GTK
+# GTK4 and GLib environment setup
 export GDK_BACKEND="${GDK_BACKEND:-wayland,x11}"
 export GSETTINGS_SCHEMA_DIR="${HERE}/usr/share/glib-2.0/schemas"
 export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"
 export GI_TYPELIB_PATH="${HERE}/usr/lib/girepository-1.0:${GI_TYPELIB_PATH}"
+
+# Additional GTK4 paths
+export GTK_PATH="${HERE}/usr/lib/gtk-4.0"
+export GDK_PIXBUF_MODULE_FILE="${HERE}/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
+export GDK_PIXBUF_MODULEDIR="${HERE}/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+
+# Ensure .NET can find native libraries in the AppImage
+export NATIVE_DLL_SEARCH_DIRECTORIES="${HERE}/usr/lib"
 
 cd "${HOME}"
 
