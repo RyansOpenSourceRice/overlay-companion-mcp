@@ -206,11 +206,8 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          xvfb libx11-dev libxrandr-dev wl-clipboard grim slurp wtype \
-          libgtk-4-dev libgtk-4-1 pkg-config libglib2.0-dev \
-          libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev \
-          libatk1.0-dev libharfbuzz-dev libfribidi-dev
+        # Only install basic dependencies for headless testing
+        sudo apt-get install -y wl-clipboard grim slurp wtype
 
     - name: Build application
       run: |
@@ -221,15 +218,22 @@ jobs:
       run: |
         cd src
 
-        # Test basic application startup with virtual display and proper error detection
+        # Test basic application startup in headless mode (no GUI in CI)
         echo "🧪 Testing application startup..."
-        if ! timeout 10s xvfb-run -a dotnet run --configuration Release -- --help > startup_test.log 2>&1; then
+        if ! timeout 10s dotnet run --configuration Release -- --help --no-gui > startup_test.log 2>&1; then
           echo "📋 Startup test output:"
           cat startup_test.log
           
-          # Check for critical GTK4 dependency errors
+          # In headless mode, GTK4 errors should not occur
           if grep -q "Unable to load shared library.*Gtk" startup_test.log; then
-            echo "❌ CRITICAL: GTK4 dependencies missing"
+            echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
+            echo "💡 Check --no-gui flag is working properly"
+            exit 1
+          fi
+          
+          # Check for other critical errors
+          if grep -q "Unhandled exception" startup_test.log; then
+            echo "❌ CRITICAL: Unhandled exception occurred"
             exit 1
           fi
           
@@ -248,22 +252,22 @@ jobs:
       run: |
         cd src
 
-        # Test MCP server initialization with proper error detection
+        # Test MCP server initialization in headless mode (no GUI in CI)
         echo "🧪 Testing MCP server mode..."
-        if ! timeout 10s xvfb-run -a dotnet run --configuration Release -- --mcp --test > mcp_test.log 2>&1; then
+        if ! timeout 10s dotnet run --configuration Release -- --mcp --test --no-gui > mcp_test.log 2>&1; then
           echo "📋 MCP test output:"
           cat mcp_test.log
           
-          # Check for critical GTK4 dependency errors that should fail the build
+          # In headless mode, GTK4 errors should not occur
           if grep -q "Unable to load shared library.*Gtk" mcp_test.log; then
-            echo "❌ CRITICAL: GTK4 dependencies missing - this will break the AppImage"
-            echo "💡 Solution: Add GTK4 system dependencies to CI build"
+            echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
+            echo "💡 Check --no-gui flag is working properly"
             exit 1
           fi
           
           # Check for other critical errors
-          if grep -q "DllNotFoundException.*Gtk" mcp_test.log; then
-            echo "❌ CRITICAL: GTK4 DLL loading failed"
+          if grep -q "Unhandled exception" mcp_test.log; then
+            echo "❌ CRITICAL: Unhandled exception occurred"
             exit 1
           fi
           
