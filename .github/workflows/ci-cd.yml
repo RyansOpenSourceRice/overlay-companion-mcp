@@ -31,6 +31,7 @@ jobs:
   # Quality Gates
   quality-gates:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       should-deploy: ${{ steps.deployment-check.outputs.should-deploy }}
 
@@ -42,6 +43,7 @@ jobs:
 
     - name: Check deployment conditions
       id: deployment-check
+      timeout-minutes: 2
       run: |
         SHOULD_DEPLOY="false"
 
@@ -61,6 +63,7 @@ jobs:
   # Markdown Quality
   markdown-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -72,18 +75,23 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
 
     - name: Install markdown tools
+      timeout-minutes: 3
       run: |
+        echo "📦 Installing markdown tools (max 3 minutes)..."
         npm install -g markdownlint-cli cspell markdown-toc
 
     - name: Run markdown linting
       continue-on-error: true
+      timeout-minutes: 5
       run: |
+        echo "🔍 Running markdown linting (max 5 minutes)..."
         echo "🔍 Running markdown quality checks..."
         ./scripts/lint-markdown.sh
 
   # C# Quality and Build
   csharp-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     outputs:
       build-success: ${{ steps.build-check.outputs.success }}
@@ -119,11 +127,13 @@ jobs:
 
     - name: Build and analyze
       id: build-check
+      timeout-minutes: 10
       run: |
         cd src
+        echo "🔨 Building application (max 10 minutes)..."
 
         # Build with warnings as errors for quality
-        if dotnet build --configuration Release --no-restore; then
+        if timeout 600s dotnet build --configuration Release --no-restore; then
           echo "success=true" >> $GITHUB_OUTPUT
           echo "✅ Build successful"
         else
@@ -148,6 +158,7 @@ jobs:
   # Unit Tests (when implemented)
   unit-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: csharp-quality
     if: needs.csharp-quality.outputs.build-success == 'true' && !github.event.inputs.skip_tests
 
@@ -166,13 +177,15 @@ jobs:
         dotnet restore
 
     - name: Run unit tests
+      timeout-minutes: 8
       run: |
         cd src
+        echo "🧪 Running unit tests (max 8 minutes)..."
 
         # Check if test projects exist
         if find . -name "*.Tests.csproj" -o -name "*Test*.csproj" | grep -q .; then
           echo "🧪 Running unit tests..."
-          dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+          timeout 480s dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
         else
           echo "ℹ️ No test projects found - skipping unit tests"
           echo "Consider adding test projects for better code quality"
@@ -191,6 +204,7 @@ jobs:
   # Integration Tests
   integration-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: csharp-quality
     if: needs.csharp-quality.outputs.build-success == 'true' && !github.event.inputs.skip_tests
 
@@ -291,6 +305,7 @@ jobs:
   # Security Scan
   security-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -314,6 +329,7 @@ jobs:
   # Deploy (AppImage build handled by separate build-appimage.yml workflow)
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: [quality-gates, unit-tests, integration-tests]
     if: |
       always() &&
@@ -358,6 +374,7 @@ jobs:
   # Notification
   notify:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [deploy, quality-gates]
     if: always() && needs.quality-gates.outputs.should-deploy == 'true'
 

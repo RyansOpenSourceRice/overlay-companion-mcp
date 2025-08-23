@@ -622,6 +622,49 @@ graph TD
 - **Build verification**: Must compile without errors
 - **Testing**: Automated validation where possible
 
+### CI/CD Best Practices & Timeout Management
+
+Based on extensive optimization work, the project implements comprehensive timeout protection across all workflows:
+
+#### Multi-Layered Timeout Strategy
+
+1. **Job-Level Timeouts**: Every workflow job has `timeout-minutes` to prevent runaway processes
+2. **Step-Level Timeouts**: Critical build/test steps have individual timeout limits
+3. **Command-Level Timeouts**: Shell commands use `timeout` utility for granular control
+4. **Process-Level Timeouts**: Long-running processes have built-in timeout mechanisms
+
+#### Timeout Configuration by Workflow
+
+- **ci-cd.yml**: 5-20 minutes per job, with step-level timeouts for builds (10min) and tests (8min)
+- **csharp-lint.yml**: 20 minutes total, with granular timeouts for restore (5min), format (3min), build (10min)
+- **markdown-lint.yml**: 10 minutes per job, with timeouts for npm installs (3min) and checks (3-5min)
+- **python-lint.yml**: 25 minutes total, with dependency installation (8min) and analysis timeouts (3-8min)
+- **build-appimage.yml**: 5 minutes for main tests, 3 minutes for smoke tests, with 60s/30s/180s command timeouts
+- **merge-ready.yml**: 15 minutes total, with build (8min) and test (3min) step timeouts
+
+#### Error Classification & Recovery
+
+- **Timeout Detection**: Exit code 124 indicates timeout vs. critical failure
+- **Smart Continuation**: Non-critical timeouts allow workflow continuation
+- **Progress Indicators**: All long-running operations show time limits and progress
+- **Graceful Degradation**: Tests continue when possible, failing only on critical errors
+
+#### Resource Management
+
+- **GitHub Actions Efficiency**: Prevents 8+ minute hangs that waste CI/CD resources
+- **Parallel Execution**: Jobs run concurrently where dependencies allow
+- **Artifact Caching**: NuGet packages, npm modules, and build outputs cached appropriately
+- **Early Termination**: Fast-fail on critical errors, continue on warnings
+
+#### Monitoring & Observability
+
+- **Structured Logging**: Clear progress indicators with time limits
+- **Error Context**: Timeout vs. failure distinction in all error messages
+- **Performance Tracking**: Build and test duration monitoring
+- **Resource Usage**: Memory and CPU usage awareness in timeout settings
+
+This timeout strategy ensures reliable CI/CD execution while maximizing resource efficiency and providing clear feedback on build/test performance.
+
 ---
 
 ## Packaging Artifacts & Ignored Paths

@@ -13,6 +13,7 @@ on:
 jobs:
   markdown-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -26,10 +27,15 @@ jobs:
       continue-on-error: true
 
     - name: Install markdownlint-cli
-      run: npm install -g markdownlint-cli
+      timeout-minutes: 3
+      run: |
+        echo "📦 Installing markdownlint-cli (max 3 minutes)..."
+        timeout 180s npm install -g markdownlint-cli
 
     - name: Check markdownlint config exists
+      timeout-minutes: 2
       run: |
+        echo "🔧 Setting up markdownlint config (max 2 minutes)..."
         if [ ! -f .markdownlint.json ]; then
           echo "Creating default markdownlint config..."
           cat > .markdownlint.json << 'EOF'
@@ -55,10 +61,14 @@ jobs:
 
     - name: Run markdownlint
       continue-on-error: true
-      run: markdownlint "**/*.md" --ignore node_modules
+      timeout-minutes: 3
+      run: |
+        echo "🔍 Running markdownlint (max 3 minutes)..."
+        timeout 180s markdownlint "**/*.md" --ignore node_modules
 
     - name: Run markdown link check
       continue-on-error: true
+      timeout-minutes: 5
       uses: gaurav-nelson/github-action-markdown-link-check@v1
       with:
         use-quiet-mode: 'yes'
@@ -67,6 +77,7 @@ jobs:
 
   markdown-toc-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
 
     steps:
     - name: Checkout code
@@ -80,10 +91,15 @@ jobs:
       continue-on-error: true
 
     - name: Install markdown-toc
-      run: npm install -g markdown-toc
+      timeout-minutes: 3
+      run: |
+        echo "📦 Installing markdown-toc (max 3 minutes)..."
+        timeout 180s npm install -g markdown-toc
 
     - name: Check Table of Contents
+      timeout-minutes: 3
       run: |
+        echo "🔍 Checking Table of Contents (max 3 minutes)..."
         # Check if TOC needs updating in specification files
         for file in SPECIFICATION.md MCP_SPECIFICATION.md; do
           if [ -f "$file" ]; then
@@ -107,6 +123,7 @@ jobs:
 
   spelling-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -120,10 +137,15 @@ jobs:
       continue-on-error: true
 
     - name: Install cspell
-      run: npm install -g cspell
+      timeout-minutes: 3
+      run: |
+        echo "📦 Installing cspell (max 3 minutes)..."
+        timeout 180s npm install -g cspell
 
     - name: Check cspell config exists
+      timeout-minutes: 2
       run: |
+        echo "🔧 Setting up cspell config (max 2 minutes)..."
         if [ ! -f .cspell.json ]; then
           echo "Creating default cspell config..."
           cat > .cspell.json << 'EOF'
@@ -211,4 +233,7 @@ jobs:
         fi
 
     - name: Run spell check
-      run: cspell "**/*.md" --no-progress
+      timeout-minutes: 5
+      run: |
+        echo "🔍 Running spell check (max 5 minutes)..."
+        timeout 300s cspell "**/*.md" --no-progress

@@ -30,6 +30,7 @@ env:
 jobs:
   python-quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
     - name: Checkout code
@@ -39,67 +40,66 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-
-    - name: Cache Python packages
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
 
     - name: Install linting dependencies
+      timeout-minutes: 8
       run: |
-        python -m pip install --upgrade pip
-        pip install black flake8 mypy bandit safety isort pylint
+        echo "📦 Installing Python linting dependencies (max 8 minutes)..."
+        timeout 480s python -m pip install --upgrade pip
+        timeout 480s pip install black flake8 mypy bandit safety isort pylint
 
         # Install project dependencies if they exist
         if [ -f "tests/ai-gui/requirements.txt" ]; then
-          pip install -r tests/ai-gui/requirements.txt
+          echo "Installing from tests/ai-gui/requirements.txt"
+          timeout 300s pip install -r tests/ai-gui/requirements.txt
         fi
 
         # Install any other requirements files found
         find . -name "requirements*.txt" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | while read req_file; do
           echo "Installing from $req_file"
-          pip install -r "$req_file" || echo "Failed to install from $req_file"
+          timeout 300s pip install -r "$req_file" || echo "Failed to install from $req_file"
         done
 
     - name: Code formatting check (Black)
       continue-on-error: true
+      timeout-minutes: 3
       run: |
-        echo "🔍 Checking Python code formatting with Black..."
-        black --check --diff --color . || echo "❌ Black formatting issues found"
+        echo "🔍 Checking Python code formatting with Black (max 3 minutes)..."
+        timeout 180s black --check --diff --color . || echo "❌ Black formatting issues found"
 
     - name: Import sorting check (isort)
       continue-on-error: true
+      timeout-minutes: 3
       run: |
-        echo "🔍 Checking import sorting with isort..."
-        isort --check-only --diff --color . || echo "❌ Import sorting issues found"
+        echo "🔍 Checking import sorting with isort (max 3 minutes)..."
+        timeout 180s isort --check-only --diff --color . || echo "❌ Import sorting issues found"
 
     - name: Code style check (flake8)
       continue-on-error: true
+      timeout-minutes: 5
       run: |
-        echo "🔍 Running flake8 style checks..."
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        echo "🔍 Running flake8 style checks (max 5 minutes)..."
+        timeout 300s flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        timeout 300s flake8 . --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
 
     - name: Type checking (mypy)
       continue-on-error: true
+      timeout-minutes: 5
       run: |
-        echo "🔍 Running mypy type checking..."
+        echo "🔍 Running mypy type checking (max 5 minutes)..."
 
         # Find Python files and run mypy on them
         find . -name "*.py" -not -path "./.venv/*" -not -path "./tests/ai-gui/.venv/*" | while read py_file; do
           echo "Type checking: $py_file"
-          mypy "$py_file" --ignore-missing-imports --no-strict-optional || echo "Type check issues in $py_file"
+          timeout 30s mypy "$py_file" --ignore-missing-imports --no-strict-optional || echo "Type check issues in $py_file"
         done
 
     - name: Security scan (bandit)
       continue-on-error: true
+      timeout-minutes: 3
       run: |
-        echo "🛡️ Running security scan with bandit..."
-        bandit -r . -f json -o bandit-report.json || echo "Security issues found"
+        echo "🛡️ Running security scan with bandit (max 3 minutes)..."
+        timeout 180s bandit -r . -f json -o bandit-report.json || echo "Security issues found"
 
         # Show summary
         if [ -f "bandit-report.json" ]; then
@@ -121,9 +121,10 @@ jobs:
 
     - name: Dependency security check (safety)
       continue-on-error: true
+      timeout-minutes: 3
       run: |
-        echo "🛡️ Checking for known security vulnerabilities in dependencies..."
-        safety check --json --output safety-report.json || echo "Dependency security issues found"
+        echo "🛡️ Checking for known security vulnerabilities in dependencies (max 3 minutes)..."
+        timeout 180s safety check --json --output safety-report.json || echo "Dependency security issues found"
 
         # Show summary
         if [ -f "safety-report.json" ]; then
