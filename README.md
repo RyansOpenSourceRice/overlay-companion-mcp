@@ -66,6 +66,16 @@ Configure with Jan.ai or other MCP-compatible AI clients using HTTP transport (r
 }
 ```
 
+### Easy Configuration Setup
+
+For a better user experience, the application provides configuration endpoints when running:
+
+- **Web UI**: Visit `http://localhost:3000/setup` for an interactive configuration interface
+- **JSON Config**: Get ready-to-use configuration from `http://localhost:3000/config`
+- **Copy & Paste**: One-click copy functionality for easy setup in Jan.ai
+
+The configuration includes proper metadata (description, tags, provider info) for better integration with MCP clients.
+
 ### Available Tools
 - Screen capture, overlays, multi-monitor info
 - Input simulation and clipboard tools
