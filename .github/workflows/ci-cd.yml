@@ -206,7 +206,11 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libx11-dev libxrandr-dev wl-clipboard grim slurp wtype
+        sudo apt-get install -y \
+          xvfb libx11-dev libxrandr-dev wl-clipboard grim slurp wtype \
+          libgtk-4-dev libgtk-4-1 pkg-config libglib2.0-dev \
+          libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev \
+          libatk1.0-dev libharfbuzz-dev libfribidi-dev
 
     - name: Build application
       run: |
@@ -217,17 +221,62 @@ jobs:
       run: |
         cd src
 
-        # Test basic application startup with virtual display
+        # Test basic application startup with virtual display and proper error detection
         echo "🧪 Testing application startup..."
-        timeout 10s xvfb-run -a dotnet run --configuration Release -- --help || echo "Startup test completed"
+        if ! timeout 10s xvfb-run -a dotnet run --configuration Release -- --help > startup_test.log 2>&1; then
+          echo "📋 Startup test output:"
+          cat startup_test.log
+          
+          # Check for critical GTK4 dependency errors
+          if grep -q "Unable to load shared library.*Gtk" startup_test.log; then
+            echo "❌ CRITICAL: GTK4 dependencies missing"
+            exit 1
+          fi
+          
+          # If timeout occurred but help was displayed, that's acceptable
+          if grep -q "Usage:" startup_test.log || grep -q "Options:" startup_test.log; then
+            echo "✅ Application startup successful (timeout is expected)"
+          else
+            echo "⚠️ Application may have failed to start properly"
+            exit 1
+          fi
+        else
+          echo "✅ Startup test completed successfully"
+        fi
 
     - name: Test MCP server mode
       run: |
         cd src
 
-        # Test MCP server initialization
+        # Test MCP server initialization with proper error detection
         echo "🧪 Testing MCP server mode..."
-        timeout 5s xvfb-run -a dotnet run --configuration Release -- --mcp --test || echo "MCP test completed"
+        if ! timeout 10s xvfb-run -a dotnet run --configuration Release -- --mcp --test > mcp_test.log 2>&1; then
+          echo "📋 MCP test output:"
+          cat mcp_test.log
+          
+          # Check for critical GTK4 dependency errors that should fail the build
+          if grep -q "Unable to load shared library.*Gtk" mcp_test.log; then
+            echo "❌ CRITICAL: GTK4 dependencies missing - this will break the AppImage"
+            echo "💡 Solution: Add GTK4 system dependencies to CI build"
+            exit 1
+          fi
+          
+          # Check for other critical errors
+          if grep -q "DllNotFoundException.*Gtk" mcp_test.log; then
+            echo "❌ CRITICAL: GTK4 DLL loading failed"
+            exit 1
+          fi
+          
+          # If timeout occurred but no critical errors, that's acceptable for integration tests
+          if grep -q "HTTP Transport listening on" mcp_test.log; then
+            echo "✅ MCP server started successfully (timeout is expected for integration test)"
+          else
+            echo "⚠️ MCP server may have failed to start properly"
+            exit 1
+          fi
+        else
+          echo "✅ MCP test completed successfully"
+        fi
 
   # Security Scan
   security-scan:
