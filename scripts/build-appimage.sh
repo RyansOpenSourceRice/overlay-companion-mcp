@@ -163,13 +163,18 @@ export PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/usr/lib64/pkgconfig:/usr/lib/x86_64-
 
 PLUGIN_OK=true
 export DEPLOY_GTK_VERSION="${DEPLOY_GTK_VERSION:-4}"
+echo -e "${BLUE}  🔧 Running linuxdeploy with GTK4 plugin (this may take a moment)...${NC}"
 if ! APPDIR="$APPDIR" "$LINUXDEPLOY" --appdir "$APPDIR" \
     -e "$APPDIR/usr/bin/$APP_NAME" \
     -d "$APPDIR/usr/share/applications/$APP_NAME.desktop" \
     -i "$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png" \
-    --plugin gtk 2>/tmp/linuxdeploy_gtk.log; then
+    --plugin gtk > /tmp/linuxdeploy_gtk.log 2>&1; then
     echo -e "${YELLOW}  ⚠️  linuxdeploy GTK plugin run had issues (continuing)${NC}"
+    echo -e "${YELLOW}  📋 Last 10 lines of GTK plugin output:${NC}"
+    tail -10 /tmp/linuxdeploy_gtk.log
     PLUGIN_OK=false
+else
+    echo -e "${GREEN}  ✅ GTK4 plugin completed successfully${NC}"
 fi
 
 # If libgtk-4 is still missing, directly deploy GTK libs via linuxdeploy --library
@@ -202,7 +207,11 @@ if ! find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4
 
     if [ ${#LINUXDEPLOY_CMD[@]} -gt 5 ]; then
         echo -e "${YELLOW}  📦 Deploying GTK4 and related libraries via linuxdeploy --library...${NC}"
-        APPDIR="$APPDIR" "${LINUXDEPLOY_CMD[@]}" || echo -e "${YELLOW}  ⚠️  linuxdeploy --library run had issues (continuing)${NC}"
+        APPDIR="$APPDIR" "${LINUXDEPLOY_CMD[@]}" > /tmp/linuxdeploy_libs.log 2>&1 || {
+            echo -e "${YELLOW}  ⚠️  linuxdeploy --library run had issues (continuing)${NC}"
+            echo -e "${YELLOW}  📋 Last 5 lines of library deployment output:${NC}"
+            tail -5 /tmp/linuxdeploy_libs.log
+        }
     else
         echo -e "${YELLOW}  ⚠️  Could not locate GTK4 libraries on this build system. Skipping direct deployment.${NC}"
     fi
@@ -410,8 +419,8 @@ export VERSION="$APP_VERSION"
 BUILD_SUCCESS=false
 
 # First attempt: normal build
-echo -e "${YELLOW}🔨 Running appimagetool...${NC}"
-"$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build.log
+echo -e "${YELLOW}🔨 Running appimagetool (this may take a moment)...${NC}"
+"$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" > /tmp/appimage_build.log 2>&1
 BUILD_EXIT_CODE=$?
 
 # Check if AppImage was created regardless of exit code
@@ -431,13 +440,15 @@ if [ -f "$APPIMAGE_OUTPUT" ]; then
     fi
 else
     echo -e "${RED}❌ AppImage file was not created${NC}"
+    echo -e "${YELLOW}📋 Last 10 lines of build output:${NC}"
+    tail -10 /tmp/appimage_build.log
 
     # Check if it's a FUSE issue and try alternative methods
     if grep -q "FUSE" /tmp/appimage_build.log || grep -q "libfuse" /tmp/appimage_build.log; then
         echo -e "${YELLOW}🔄 FUSE not available, attempting extraction-based build...${NC}"
 
         # Try extraction method
-        "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" 2>&1 | tee /tmp/appimage_build_extract.log
+        "$APPIMAGETOOL" --appimage-extract-and-run "$APPDIR" "$APPIMAGE_OUTPUT" > /tmp/appimage_build_extract.log 2>&1
         EXTRACT_EXIT_CODE=$?
 
         if [ -f "$APPIMAGE_OUTPUT" ]; then
@@ -449,6 +460,9 @@ else
                 BUILD_SUCCESS=true
                 echo -e "${YELLOW}⚠️  AppImage built with warnings using extraction method${NC}"
             fi
+        else
+            echo -e "${YELLOW}📋 Last 5 lines of extraction build output:${NC}"
+            tail -5 /tmp/appimage_build_extract.log
         fi
     fi
 
@@ -459,11 +473,14 @@ else
         # Set environment variables that might help
         export APPIMAGE_EXTRACT_AND_RUN=1
 
-        "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" --no-appstream 2>&1 | tee /tmp/appimage_build_ci.log || true
+        "$APPIMAGETOOL" "$APPDIR" "$APPIMAGE_OUTPUT" --no-appstream > /tmp/appimage_build_ci.log 2>&1 || true
 
         if [ -f "$APPIMAGE_OUTPUT" ]; then
             BUILD_SUCCESS=true
             echo -e "${GREEN}✅ AppImage built using CI-specific method${NC}"
+        else
+            echo -e "${YELLOW}📋 Last 5 lines of CI build output:${NC}"
+            tail -5 /tmp/appimage_build_ci.log
         fi
     fi
 fi
