@@ -205,9 +205,11 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        sudo apt-get update
+        echo "📦 Installing system dependencies for headless testing..."
+        sudo apt-get update -qq
         # Only install basic dependencies for headless testing
-        sudo apt-get install -y wl-clipboard grim slurp wtype
+        sudo apt-get install -y -qq wl-clipboard grim slurp wtype
+        echo "✅ System dependencies installed"
 
     - name: Build application
       run: |

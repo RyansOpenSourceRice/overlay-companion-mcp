@@ -80,8 +80,9 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
+        echo "📦 Installing system dependencies..."
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq \
           wget \
           imagemagick \
           desktop-file-utils \
@@ -97,6 +98,7 @@ jobs:
           libgdk-pixbuf2.0-dev \
           libgraphene-1.0-dev \
           libepoxy-dev
+        echo "✅ System dependencies installed"
 
     - name: Restore .NET dependencies
       run: |
@@ -324,8 +326,10 @@ jobs:
 
     - name: Install test dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y fuse libfuse2 xvfb weston xwayland dbus-x11 libgl1 libegl1
+        echo "🧪 Installing test dependencies..."
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq fuse libfuse2 xvfb weston xwayland dbus-x11 libgl1 libegl1
+        echo "✅ Test dependencies installed"
 
     - name: Test AppImage execution and extraction
       working-directory: test
