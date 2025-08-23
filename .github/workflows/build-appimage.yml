@@ -198,8 +198,6 @@ jobs:
 
         # Create release notes
         cat > release_notes.md << EOF
-        # Overlay Companion MCP v${VERSION}
-
         ## 📦 AppImage Release
 
         **Download:** \`${APPIMAGE_NAME}\`
