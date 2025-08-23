@@ -38,7 +38,7 @@ public class UpdateService
     /// <summary>
     /// Check for available updates
     /// </summary>
-    public async Task<UpdateInfo?> CheckForUpdatesAsync()
+    public async Task<UpdateInfo?> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -50,7 +50,11 @@ public class UpdateService
 
             _logger.LogInformation("Checking for updates...");
             
-            var response = await _httpClient.GetStringAsync(GITHUB_API_URL);
+            // Add timeout to HTTP request
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15 second HTTP timeout
+            
+            var response = await _httpClient.GetStringAsync(GITHUB_API_URL, timeoutCts.Token);
             var release = JsonSerializer.Deserialize<GitHubRelease>(response);
             
             if (release == null)
@@ -80,6 +84,11 @@ public class UpdateService
                 PublishedAt = release.PublishedAt
             };
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Update check was cancelled");
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to check for updates");
@@ -90,7 +99,7 @@ public class UpdateService
     /// <summary>
     /// Update the AppImage using AppImageUpdate
     /// </summary>
-    public async Task<bool> UpdateAppImageAsync()
+    public async Task<bool> UpdateAppImageAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -110,7 +119,7 @@ public class UpdateService
             // Check if AppImageUpdate is available
             if (!IsAppImageUpdateAvailable())
             {
-                _logger.LogError("AppImageUpdate is not installed. Please install it first: sudo apt install appimageupdate");
+                _logger.LogError("AppImageUpdate is not installed. Please install it first");
                 return false;
             }
 
@@ -131,10 +140,16 @@ public class UpdateService
 
             process.Start();
             
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var error = await process.StandardError.ReadToEndAsync();
+            // Create tasks for reading output and waiting for exit
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            var waitTask = process.WaitForExitAsync(cancellationToken);
             
-            await process.WaitForExitAsync();
+            // Wait for all tasks to complete or cancellation
+            await Task.WhenAll(outputTask, errorTask, waitTask);
+            
+            var output = await outputTask;
+            var error = await errorTask;
             
             if (process.ExitCode == 0)
             {
@@ -148,6 +163,11 @@ public class UpdateService
                 _logger.LogError("Update error: {Error}", error);
                 return false;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("AppImage update was cancelled");
+            throw;
         }
         catch (Exception ex)
         {

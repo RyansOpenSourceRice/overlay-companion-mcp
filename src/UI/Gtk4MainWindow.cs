@@ -29,6 +29,10 @@ public class Gtk4MainWindow : IDisposable
     // Services
     private IScreenCaptureService? _screenCaptureService;
     private UpdateService? _updateService;
+    
+    // Threading and cancellation
+    private CancellationTokenSource? _updateCancellationTokenSource;
+    private bool _updateInProgress = false;
     private IOverlayService? _overlayService;
     private IModeManager? _modeManager;
 
@@ -525,94 +529,244 @@ public class Gtk4MainWindow : IDisposable
 
     private async void OnCheckForUpdates(object sender, EventArgs e)
     {
+        // Prevent multiple concurrent update checks
+        if (_updateInProgress)
+        {
+            _logger?.LogInformation("Update check already in progress, ignoring request");
+            return;
+        }
+
+        var button = sender as Button;
+        
         try
         {
             if (_updateService == null)
             {
                 _logger?.LogWarning("Update service not available");
+                ShowUpdateDialog("Error", "Update service is not available.");
                 return;
             }
 
-            var button = sender as Button;
-            button?.SetLabel("🔄 Checking...");
-            button?.SetSensitive(false);
+            // Set up cancellation and UI state
+            _updateInProgress = true;
+            _updateCancellationTokenSource?.Cancel();
+            _updateCancellationTokenSource = new CancellationTokenSource(TimeSpan.FromSeconds(30)); // 30 second timeout
 
-            var updateInfo = await _updateService.CheckForUpdatesAsync();
-            
-            if (updateInfo == null)
+            // Update UI on main thread
+            GLib.Functions.IdleAdd(0, () =>
             {
-                ShowUpdateDialog("Update Check Failed", "Could not check for updates. Please check your internet connection.");
-            }
-            else if (updateInfo.UpdateAvailable)
+                button?.SetLabel("🔄 Checking...");
+                button?.SetSensitive(false);
+                return false; // Don't repeat
+            });
+
+            _logger?.LogInformation("Starting update check...");
+
+            // Perform update check on background thread
+            var updateInfo = await Task.Run(async () =>
             {
-                ShowUpdateDialog("Update Available", 
-                    $"A new version is available!\n\n" +
-                    $"Current Version: {updateInfo.CurrentVersion}\n" +
-                    $"Latest Version: {updateInfo.LatestVersion}\n\n" +
-                    $"Click 'Update AppImage' to install the latest version.");
-            }
-            else
+                try
+                {
+                    return await _updateService.CheckForUpdatesAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger?.LogWarning("Update check was cancelled due to timeout");
+                    return null;
+                }
+            }, _updateCancellationTokenSource.Token).ConfigureAwait(false);
+
+            // Check if operation was cancelled
+            if (_updateCancellationTokenSource.Token.IsCancellationRequested)
             {
-                ShowUpdateDialog("Up to Date", 
-                    $"You are running the latest version ({updateInfo.CurrentVersion}).");
+                _logger?.LogWarning("Update check was cancelled");
+                return;
             }
 
-            button?.SetLabel("🔄 Check for Updates");
-            button?.SetSensitive(true);
+            // Update UI on main thread
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    if (updateInfo == null)
+                    {
+                        ShowUpdateDialog("Update Check Failed", "Could not check for updates. Please check your internet connection or try again later.");
+                    }
+                    else if (updateInfo.UpdateAvailable)
+                    {
+                        ShowUpdateDialog("Update Available", 
+                            $"A new version is available!\n\n" +
+                            $"Current Version: {updateInfo.CurrentVersion}\n" +
+                            $"Latest Version: {updateInfo.LatestVersion}\n\n" +
+                            $"Click 'Update AppImage' to install the latest version.");
+                    }
+                    else
+                    {
+                        ShowUpdateDialog("Up to Date", 
+                            $"You are running the latest version ({updateInfo.CurrentVersion}).");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to show update dialog");
+                }
+                return false; // Don't repeat
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            _logger?.LogInformation("Update check was cancelled");
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                ShowUpdateDialog("Cancelled", "Update check was cancelled due to timeout.");
+                return false;
+            });
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to check for updates");
-            ShowUpdateDialog("Error", "An error occurred while checking for updates.");
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                ShowUpdateDialog("Error", $"An error occurred while checking for updates: {ex.Message}");
+                return false;
+            });
+        }
+        finally
+        {
+            // Always restore UI state on main thread
+            _updateInProgress = false;
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                button?.SetLabel("🔄 Check for Updates");
+                button?.SetSensitive(true);
+                return false; // Don't repeat
+            });
         }
     }
 
     private async void OnUpdateAppImage(object sender, EventArgs e)
     {
+        // Prevent multiple concurrent updates
+        if (_updateInProgress)
+        {
+            _logger?.LogInformation("Update already in progress, ignoring request");
+            return;
+        }
+
+        var button = sender as Button;
+        
         try
         {
             if (_updateService == null)
             {
                 _logger?.LogWarning("Update service not available");
+                ShowUpdateDialog("Error", "Update service is not available.");
                 return;
             }
 
-            var button = sender as Button;
-            button?.SetLabel("⬆️ Updating...");
-            button?.SetSensitive(false);
+            // Set up cancellation and UI state
+            _updateInProgress = true;
+            _updateCancellationTokenSource?.Cancel();
+            _updateCancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMinutes(10)); // 10 minute timeout for updates
 
+            // Update UI on main thread
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                button?.SetLabel("⬆️ Updating...");
+                button?.SetSensitive(false);
+                return false;
+            });
+
+            _logger?.LogInformation("Starting AppImage update...");
+
+            // Check AppImageUpdate availability first
             if (!_updateService.IsAppImageUpdateAvailable())
             {
-                ShowUpdateDialog("AppImageUpdate Required", 
-                    "AppImageUpdate is not installed. Please install it first:\n\n" +
-                    "sudo apt install appimageupdate\n\n" +
-                    "Or download from: https://github.com/AppImage/AppImageUpdate/releases");
-                button?.SetLabel("⬆️ Update AppImage");
-                button?.SetSensitive(true);
+                GLib.Functions.IdleAdd(0, () =>
+                {
+                    ShowUpdateDialog("AppImageUpdate Required", 
+                        "AppImageUpdate is not installed. Please install it first:\n\n" +
+                        "For Fedora: Download from https://github.com/AppImage/AppImageUpdate/releases\n" +
+                        "For Ubuntu/Debian: sudo apt install appimageupdate\n\n" +
+                        "Or use the built-in update checker instead.");
+                    return false;
+                });
                 return;
             }
 
-            var success = await _updateService.UpdateAppImageAsync();
-            
-            if (success)
+            // Perform update on background thread
+            var success = await Task.Run(async () =>
             {
-                ShowUpdateDialog("Update Complete", 
-                    "AppImage updated successfully!\n\n" +
-                    "Please restart the application to use the new version.");
-            }
-            else
+                try
+                {
+                    return await _updateService.UpdateAppImageAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger?.LogWarning("AppImage update was cancelled due to timeout");
+                    return false;
+                }
+            }, _updateCancellationTokenSource.Token).ConfigureAwait(false);
+
+            // Check if operation was cancelled
+            if (_updateCancellationTokenSource.Token.IsCancellationRequested)
             {
-                ShowUpdateDialog("Update Failed", 
-                    "Failed to update AppImage. Please check the logs for more details.");
+                _logger?.LogWarning("AppImage update was cancelled");
+                return;
             }
 
-            button?.SetLabel("⬆️ Update AppImage");
-            button?.SetSensitive(true);
+            // Update UI on main thread
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                try
+                {
+                    if (success)
+                    {
+                        ShowUpdateDialog("Update Complete", 
+                            "AppImage updated successfully!\n\n" +
+                            "Please restart the application to use the new version.");
+                    }
+                    else
+                    {
+                        ShowUpdateDialog("Update Failed", 
+                            "Failed to update AppImage. Please check the logs for more details or try updating manually.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to show update result dialog");
+                }
+                return false;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            _logger?.LogInformation("AppImage update was cancelled");
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                ShowUpdateDialog("Cancelled", "AppImage update was cancelled due to timeout.");
+                return false;
+            });
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to update AppImage");
-            ShowUpdateDialog("Error", "An error occurred while updating the AppImage.");
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                ShowUpdateDialog("Error", $"An error occurred while updating the AppImage: {ex.Message}");
+                return false;
+            });
+        }
+        finally
+        {
+            // Always restore UI state on main thread
+            _updateInProgress = false;
+            GLib.Functions.IdleAdd(0, () =>
+            {
+                button?.SetLabel("⬆️ Update AppImage");
+                button?.SetSensitive(true);
+                return false;
+            });
         }
     }
 
@@ -669,6 +823,11 @@ public class Gtk4MainWindow : IDisposable
         if (!_disposed)
         {
             _disposed = true;
+
+            // Cancel any ongoing update operations
+            _updateCancellationTokenSource?.Cancel();
+            _updateCancellationTokenSource?.Dispose();
+            _updateCancellationTokenSource = null;
 
             if (_window != null)
             {
