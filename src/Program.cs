@@ -285,16 +285,12 @@ public class Program
     /// </summary>
     private static object GetMcpConfiguration()
     {
-        var executablePath = Environment.ProcessPath ?? "/path/to/overlay-companion-mcp";
         return new
         {
             mcpServers = new
             {
                 overlay_companion = new
                 {
-                    command = executablePath,
-                    args = new string[0],
-                    transport = "http",
                     url = "http://localhost:3000/mcp",
                     description = "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
                     tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux" },

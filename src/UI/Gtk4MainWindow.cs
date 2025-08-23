@@ -563,16 +563,24 @@ public class Gtk4MainWindow : IDisposable
             _logger?.LogInformation("Starting update check...");
 
             // Perform update check on background thread
-            var updateInfo = await Task.Run(async () =>
+            UpdateInfo? updateInfo = null;
+            string? errorMessage = null;
+            
+            await Task.Run(async () =>
             {
                 try
                 {
-                    return await _updateService.CheckForUpdatesAsync().ConfigureAwait(false);
+                    updateInfo = await _updateService.CheckForUpdatesAsync(_updateCancellationTokenSource.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
                     _logger?.LogWarning("Update check was cancelled due to timeout");
-                    return null;
+                    errorMessage = "Update check timed out. Please try again.";
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Update check failed with exception");
+                    errorMessage = $"Update check failed: {ex.Message}";
                 }
             }, _updateCancellationTokenSource.Token).ConfigureAwait(false);
 
@@ -588,7 +596,11 @@ public class Gtk4MainWindow : IDisposable
             {
                 try
                 {
-                    if (updateInfo == null)
+                    if (errorMessage != null)
+                    {
+                        ShowUpdateDialog("Update Check Failed", errorMessage);
+                    }
+                    else if (updateInfo == null)
                     {
                         ShowUpdateDialog("Update Check Failed", "Could not check for updates. Please check your internet connection or try again later.");
                     }

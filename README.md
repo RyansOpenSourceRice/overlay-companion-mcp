@@ -53,11 +53,12 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
 ```json
 {
   "mcpServers": {
-    "overlay-companion": {
-      "command": "/path/to/overlay-companion-mcp",
-      "args": [],
-      "transport": "http",
-      "url": "http://localhost:3000/mcp"
+    "overlay_companion": {
+      "url": "http://localhost:3000/mcp",
+      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "provider": "Overlay Companion",
+      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
   }
 }
