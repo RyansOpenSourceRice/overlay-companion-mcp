@@ -313,22 +313,40 @@ public class Gtk4MainWindow : IDisposable
 
     private void OnTestOverlay(object sender, EventArgs e)
     {
-        _ = Task.Run(async () =>
+        try
         {
-            try
+            if (_overlayService != null)
             {
-                if (_overlayService != null)
+                // Create overlay on main thread since GTK operations need to be on main thread
+                var bounds = new Models.ScreenRegion(100, 100, 200, 100);
+                
+                // Run overlay creation asynchronously but don't block the UI
+                _ = Task.Run(async () =>
                 {
-                    var bounds = new Models.ScreenRegion(100, 100, 200, 100);
-                    var overlayId = await _overlayService.DrawOverlayAsync(bounds, "Red", "GTK4 Click-Through Test", 5000, true);
-                    _logger?.LogInformation($"Test overlay created: {overlayId}");
-                }
+                    try
+                    {
+                        var overlayId = await _overlayService.DrawOverlayAsync(bounds, "Red", "GTK4 Click-Through Test", 5000, true);
+                        _logger?.LogInformation($"Test overlay created: {overlayId}");
+                        Console.WriteLine($"✓ Test overlay requested: {overlayId} at ({bounds.X}, {bounds.Y}) size {bounds.Width}x{bounds.Height}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to create test overlay");
+                        Console.WriteLine($"❌ Failed to create test overlay: {ex.Message}");
+                    }
+                });
             }
-            catch (Exception ex)
+            else
             {
-                _logger?.LogError(ex, "Failed to create test overlay");
+                _logger?.LogWarning("Overlay service not available");
+                Console.WriteLine("⚠️ Overlay service not available");
             }
-        });
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to initiate test overlay");
+            Console.WriteLine($"❌ Failed to initiate test overlay: {ex.Message}");
+        }
     }
 
     private void OnClearOverlays(object sender, EventArgs e)
