@@ -268,8 +268,10 @@ fi
 echo -e "${YELLOW}🖥️  Creating desktop entry...${NC}"
 cat > "$APPDIR/usr/share/applications/$APP_NAME.desktop" << EOF
 [Desktop Entry]
+Version=1.0
 Type=Application
 Name=$APP_DISPLAY_NAME
+GenericName=MCP Server
 Comment=$APP_DESCRIPTION
 Exec=$APP_NAME
 Icon=$APP_NAME
@@ -278,6 +280,7 @@ Terminal=false
 StartupNotify=true
 MimeType=application/x-mcp-server
 Keywords=AI;MCP;Overlay;Screen;Automation;Assistant
+StartupWMClass=$APP_NAME
 EOF
 
 # Create AppStream metadata
@@ -371,6 +374,27 @@ ICON_DEST="$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png"
 if [ -f "$ICON_SOURCE" ]; then
     cp "$ICON_SOURCE" "$ICON_DEST"
     echo -e "${GREEN}✅ Using existing icon from assets/icon.png${NC}"
+    
+    # Generate multiple icon sizes for better desktop integration
+    if command -v convert &> /dev/null; then
+        echo -e "${YELLOW}  🔄 Generating multiple icon sizes for better desktop integration...${NC}"
+        for size in 16 22 24 32 48 64 128; do
+            mkdir -p "$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps"
+            ICON_SIZE_DEST="$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps/$APP_NAME.png"
+            convert "$ICON_SOURCE" -resize "${size}x${size}" "$ICON_SIZE_DEST" 2>/dev/null || {
+                echo -e "${YELLOW}    ⚠️  Could not generate ${size}x${size} icon${NC}"
+            }
+        done
+        echo -e "${GREEN}  ✅ Generated multiple icon sizes for better desktop integration${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  ImageMagick not available, copying main icon to common sizes${NC}"
+        # Copy the main icon to other common sizes as fallback
+        for size in 48 64 128; do
+            mkdir -p "$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps"
+            ICON_SIZE_DEST="$APPDIR/usr/share/icons/hicolor/${size}x${size}/apps/$APP_NAME.png"
+            cp "$ICON_SOURCE" "$ICON_SIZE_DEST" 2>/dev/null || true
+        done
+    fi
 else
     # Create a simple placeholder icon using ImageMagick if available
     if command -v convert &> /dev/null; then
@@ -556,7 +580,14 @@ if [ "$BUILD_SUCCESS" = true ] && [ -f "$APPIMAGE_OUTPUT" ]; then
     echo "To integrate with desktop:"
     echo "  ./$(basename "$APPIMAGE_OUTPUT") --appimage-extract"
     echo "  cp squashfs-root/*.desktop ~/.local/share/applications/"
-    echo "  cp squashfs-root/*.png ~/.local/share/icons/"
+    echo "  mkdir -p ~/.local/share/icons/hicolor/{16x16,22x22,24x24,32x32,48x48,64x64,128x128,256x256}/apps"
+    echo "  cp -r squashfs-root/usr/share/icons/hicolor/*/apps/*.png ~/.local/share/icons/hicolor/"
+    echo "  update-desktop-database ~/.local/share/applications/ 2>/dev/null || true"
+    echo "  gtk-update-icon-cache ~/.local/share/icons/hicolor/ 2>/dev/null || true"
+    echo ""
+    echo "For better icon integration, you may also run:"
+    echo "  sudo update-desktop-database"
+    echo "  sudo gtk-update-icon-cache /usr/share/icons/hicolor/"
 
     # Exit successfully even with warnings
     exit 0
