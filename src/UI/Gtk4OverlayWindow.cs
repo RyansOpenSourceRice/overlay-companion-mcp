@@ -221,22 +221,12 @@ public class Gtk4OverlayWindow : IOverlayWindow
             {
                 try
                 {
-                    // Preferred: create an empty Cairo region (true pass-through)
-                    var emptyRegion = Cairo.Region.Create();
-                    surface.SetInputRegion(emptyRegion);
+                    // On GTK4/GDK, passing null clears the input region which disables hit-testing for this surface on many backends.
+                    // This provides click-through behavior under Wayland compositors implementing input regions.
+                    surface.SetInputRegion(null);
                 }
-                catch
-                {
-                    try
-                    {
-                        // Fallback: 0x0 rectangle region
-                        var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
-                        var emptyRectRegion = Cairo.Region.CreateRectangle(rect);
-                        surface.SetInputRegion(emptyRectRegion);
-                    }
-                    catch { /* ignore if not available in runtime */ }
-                }
-                Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
+                catch { }
+                Console.WriteLine($"✓ Click-through enabled (null input region) for overlay {_overlay.Id}");
             }
         }
         catch (Exception rex)
