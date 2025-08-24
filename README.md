@@ -1,64 +1,68 @@
-# overlay-companion-mcp
+# Overlay Companion MCP (Web‑first)
 
-[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-FF6B35?style=for-the-badge&logo=anthropic)](https://modelcontextprotocol.io/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20AppImage-FCC624?style=for-the-badge&logo=linux)](https://appimage.org/)
-[![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
-[![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
-[![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
-[![Status](https://img.shields.io/badge/status-development-yellow?style=for-the-badge&logo=github)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Docs](https://img.shields.io/badge/docs-specification-green?style=for-the-badge&logo=markdown)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/blob/main/SPECIFICATION.md)
+A browser‑first, human‑in‑the‑loop screen interaction system. The MCP server (C#/.NET) broadcasts overlay events over WebSockets, and a browser client renders them in a guaranteed click‑through layer (CSS pointer‑events: none). Native GTK4 overlays remain as an optional local path; the default UX is web.
 
-A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
+- Protocol: Model Context Protocol (MCP) over HTTP
+- Server: ASP.NET Core with /mcp (MCP), /ws/overlays (WebSocket), and a static viewer at /
+- Viewer: Static HTML/JS overlay layer; planned integration with Apache Guacamole for remote desktop
+- Infra preference: Podman (rootless), OpenTofu; target desktop VM: Fedora Silverblue with xrdp; OSS stack (Caddy, Guacamole, Postgres)
 
-## Installation
+## Why the pivot to web‑first
+- Guaranteed click‑through using CSS instead of compositor‑specific tricks
+- Multi‑monitor with no native windowing hacks: open multiple browser windows cropped to viewports
+- Works the same locally and over remote desktop (Guacamole)
 
-### Download AppImage (Recommended)
-1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases)
-2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
-3. Run: `./overlay-companion-mcp-*.AppImage`
+## Architecture
+Components
+- MCP Server (C#/.NET)
+  - /mcp: HTTP transport for MCP
+  - /ws/overlays: WebSocket fan‑out of overlay events
+  - /: Static viewer (stub) that draws overlays
+- OverlayEventBroadcaster
+  - In‑memory registry of WS clients; broadcasts create/remove/clear events
+- Browser Viewer (stub)
+  - Absolutely positioned overlay layer with pointer‑events: none
+  - Viewport cropping via URL params: vx, vy, vw, vh, scale
+  - Draws boxes from WS messages; clicks go to the canvas behind (or Guacamole in future)
+- Remote Desktop (planned)
+  - Apache Guacamole embeds a FreeRDP canvas; overlay sits above it in the DOM
 
-#### Automatic Updates
-The AppImage supports automatic updates via AppImageUpdate:
+Data flow
+1) An MCP tool (e.g., draw_overlay) is invoked
+2) Server updates internal state and broadcasts overlay events over /ws/overlays
+3) Browser viewer renders the boxes in a click‑through overlay layer
 
-1. **Install AppImageUpdate**: `sudo apt install appimageupdate` or download from [AppImageUpdate releases](https://github.com/AppImage/AppImageUpdate/releases)
-2. **Check for updates**: `appimageupdate --check-for-update overlay-companion-mcp-*.AppImage`
-3. **Update automatically**: `appimageupdate overlay-companion-mcp-*.AppImage`
+Notes on native overlays
+- GTK4 overlay windows are still supported for local sessions. On Wayland we attempt gtk‑layer‑shell; we clear the input region for pass‑through. The web path is the primary experience going forward.
 
-You can also check for updates directly from the application's **Settings tab** when running as an AppImage. The app will automatically detect if it's running as an AppImage and show update controls.
+## Quick start
+Prereqs: .NET 8 SDK to build from source; any modern browser for the viewer.
 
-**Architecture**: The application runs an **HTTP server** (required for MCP protocol) with a **GUI interface**:
-- **Normal operation**: HTTP server + GUI (default)
-- **Testing only**: GUI can be disabled with `--no-gui` or `HEADLESS=1` for automated testing
+- Run the server (dev):
+  - dotnet run from src/ (or run the published binary/AppImage)
+- Open the viewer:
+  - http://localhost:3000/
+- Create a test overlay:
+  - From the GTK UI: Overlay tab -> Test Click‑Through Overlay
+  - Or via tools from your MCP client (draw_overlay)
+- Multi‑monitor demo:
+  - Open two browser windows full‑screen on two physical monitors
+  - Use viewport params, e.g. /?vx=0&vy=0&vw=1920&vh=1080 and /?vx=1920&vy=0&vw=1920&vh=1080
 
-> **Note**: AppImages from v2025.08.22.4+ included fixes specific to the previous Avalonia-based UI. The project now uses GTK4 for native Wayland support and true click-through overlays. Older AppImages may still reference Avalonia-related fixes, but current builds ship with GTK4 and Wayland-first behavior.
+Endpoints
+- /mcp: MCP HTTP transport
+- /ws/overlays: WebSocket stream of overlay events
+- /: Static overlay viewer (stub)
+- /setup and /config: Convenience configuration endpoints
 
-### System Requirements
-- **Target Platform**: Fedora Linux with Wayland (GNOME)
-- **Current GUI Framework**: GTK4 (Wayland-first; optional gtk-layer-shell when available)
-- **Click-Through**: True compositor-level click-through on Wayland by clearing the input region on the Gdk surface. Falls back to a fullscreen toplevel when layer-shell is unavailable.
-- **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
-- **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
-
-### Notes on Web‑First Architecture
-- Preferred path is a self-hosted web app: browser renders overlays above a remote desktop viewer (Apache Guacamole) with CSS pointer-events: none, guaranteeing click‑through on all platforms.
-- Initial multi-monitor experience uses two Firefox tabs/windows, each fullscreen on a physical monitor and cropped to its viewport of a single large RDP desktop.
-- MCP server remains in C# over HTTP and broadcasts overlay commands to the browser via WebSocket.
-- Podman (rootless) is preferred for all OCI containers; OpenTofu modules provision infra, VMs (Fedora Silverblue with xrdp), and TLS/DNS.
-- We favor open‑source components (Caddy, Guacamole, Postgres, Fedora).
-
-## Usage
-
-### MCP Integration
-Configure with Cherry Studio or other MCP-compatible AI clients using HTTP transport (recommended):
-
+## MCP configuration example (HTTP transport)
 ```json
 {
   "mcpServers": {
     "overlay_companion": {
       "url": "http://localhost:3000/mcp",
-      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "description": "Web‑first click‑through overlays with multi‑monitor via browser viewports",
+      "tags": ["overlay", "click-through", "browser", "multi-monitor", "websocket"],
       "provider": "Overlay Companion",
       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
@@ -66,115 +70,23 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
 }
 ```
 
-**Legacy STDIO transport** (deprecated, use only if HTTP is not supported):
-```json
-{
-  "mcpServers": {
-    "overlay-companion": {
-      "command": "/path/to/overlay-companion-mcp",
-      "args": ["--stdio"]
-    }
-  }
-}
-```
+Legacy stdio is available with --stdio, but HTTP is the default and recommended.
 
-### Easy Configuration Setup
-
-For a better user experience, the application provides configuration endpoints when running:
-
-- **Web UI**: Visit `http://localhost:3000/setup` for an interactive configuration interface
-- **JSON Config**: Get ready-to-use configuration from `http://localhost:3000/config`
-- **Copy & Paste**: One-click copy functionality for easy setup in Cherry Studio
-
-The configuration includes proper metadata (description, tags, provider info) for better integration with MCP clients.
-
-### Available Tools
-- Screen capture, overlays, multi-monitor info
-- Input simulation and clipboard tools
-- Human-in-the-loop confirmations
-
-Note: Wayland is preferred with X11 fallback. See SPECIFICATION.md for platform integration details.
-
-For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md).
+## System notes
+- Viewer runs anywhere a browser runs; overlays are click‑through by design
+- Server currently targets Linux; Fedora Silverblue Wayland is the reference environment
+- AppImage builds are supported; in‑app update controls appear when running as AppImage (details moved to docs)
 
 ## Development
+- Server: C#/.NET, ASP.NET Core
+- Web client: static HTML/JS (no build step); replace with Guacamole integration in future
+- Run server on port 3000; open the viewer at /
 
-**Contributors and AI agents:** See [DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md) for development environment setup.
+## Roadmap (short)
+- Replace stub viewer with Guacamole RDP canvas
+- Initial WS sync for late‑joining viewers
+- Playwright E2E for overlay draw, click‑through, and multi‑window sync
+- Infra modules (Podman/OpenTofu) and Web UI for user‑facing configuration
 
-## Troubleshooting
-
-### AppImage Issues
-
-#### "Setup was already called on one of AppBuilder instances" Error
-
-**Fixed in v2025.08.22.2+**: This Avalonia double initialization error has been resolved with proper lifetime management.
-
-**Symptoms:**
-- HTTP server starts successfully on port 3000
-- Error occurs during GUI initialization
-- Application crashes with Avalonia setup error
-
-**Solution:**
-- **Update to latest AppImage** (v2025.08.22.4 or newer)
-- For older versions, temporary workaround: `HEADLESS=1 ./overlay-companion-mcp.AppImage` (testing mode only)
-
-#### GUI Not Starting
-
-**Desktop Environment:**
-- Ensure you're running in a desktop environment (GNOME, KDE, XFCE, etc.)
-- Check that `$DISPLAY` is set (X11) or Wayland compositor is running
-- Try: `./overlay-companion-mcp.AppImage --gui` to force GUI mode
-
-**Headless Environment:**
-- Use `HEADLESS=1` environment variable or `--no-gui` flag
-- HTTP transport will work without GUI: `http://localhost:3000/mcp`
-
-#### Native Library Issues
-
-**libSkiaSharp/libHarfBuzzSharp errors:**
-- Update to AppImage v2025.08.22.4+ (includes all native dependencies and fixes)
-- For manual builds, ensure native libraries are in LD_LIBRARY_PATH
-
-### Transport Issues
-
-#### HTTP Transport (Recommended)
-- Default port: 3000
-- Check firewall settings if connection fails
-- Use `netstat -tlnp | grep 3000` to verify server is listening
-
-#### STDIO Transport (Deprecated)
-- Use `--stdio` flag for legacy compatibility
-- Ensure MCP client supports STDIO transport
-- Consider migrating to HTTP transport for better features
-
-## Documentation Quality
-
-This repository maintains high documentation standards with automated quality checks:
-
-### Markdown Linting
-
-All markdown files are automatically checked for:
-- **Style consistency** using markdownlint
-- **Spelling accuracy** using cspell
-- **Link validity** using markdown-link-check
-- **Table of contents** synchronization
-
-### Running Checks Locally
-
-```bash
-# Run all markdown quality checks
-./scripts/lint-markdown.sh
-
-# Or run individual tools
-markdownlint "**/*.md"
-cspell "**/*.md"
-```
-
-### GitHub Actions
-
-Quality checks run automatically on:
-- All pull requests
-- Pushes to main/develop branches
-- Changes to markdown files
-
-See `.github/workflows/` for complete automation setup.
+## License
+GPL‑3.0
