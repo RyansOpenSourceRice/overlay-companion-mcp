@@ -10,23 +10,22 @@ The Overlay Companion MCP server is built using the **official ModelContextProto
 Microsoft/Anthropic, providing a robust foundation for MCP compliance and integration with the .NET
 ecosystem.
 
-### Deployment Architectures
+### Deployment Architecture (Web‑First)
 
-The system supports two deployment architectures to meet different security and operational requirements:
+The reference deployment is a self‑hosted web application with remote desktop viewing and browser‑rendered overlays. All user‑visible configuration is performed in a Web UI; OpenTofu and Podman provision and orchestrate services and VMs under the hood.
 
-#### 1. Native HTTP Transport (Default & Recommended)
-
-```text
-Cherry Studio → HTTP → MCP Server (OverlayCompanion)
+```
+AI Client (Cherry Studio) → HTTP → MCP Server (C#) ⇄ WebSocket → Browser Overlay App
+                                              ↘ Reverse Proxy (Caddy) → Apache Guacamole → guacd → RDP → Fedora Silverblue VM (xrdp)
 ```
 
-- **Use Case**: Modern integration, multi-client support, image handling
-- **Security**: Network-level isolation, CORS support
-- **Features**: Server-Sent Events streaming, concurrent clients, web integration
-- **Architecture**: HTTP server + GUI interface (GUI can be disabled for testing with `--no-gui`)
-- **Command**: `dotnet run` (default) or `./overlay-companion-mcp.AppImage`
+- **Use Case**: Fast iteration, deterministic click‑through, multi‑monitor
+- **Security**: TLS at the proxy; OIDC or local auth for Guacamole; per‑session JWTs for overlay channels
+- **Features**: Playwright‑testable in headless runners; web‑based multi‑window
+- **Orchestration**: Podman (rootless) for all OCI containers; OpenTofu modules for infra/VMs/DNS/TLS
+- **Preference**: Open‑source components wherever possible (Caddy, Guacamole, Postgres, Fedora Silverblue)
 
-#### 2. Legacy STDIO Transport (Deprecated)
+#### Legacy STDIO Transport (Deprecated)
 
 ```text
 Cherry Studio → stdio → MCP Server (OverlayCompanion)
@@ -35,7 +34,7 @@ Cherry Studio → stdio → MCP Server (OverlayCompanion)
 - **Use Case**: Legacy compatibility only
 - **Limitations**: No image support, single client, deprecated
 - **Security**: Process-level isolation
-- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp.AppImage --stdio`
+- **Command**: `dotnet run --stdio` (not recommended)
 
 ### HTTP Transport Benefits
 
@@ -477,12 +476,17 @@ All tools return standard MCP error responses for:
 
 ### Platform Integration
 
-#### Linux: Wayland-first with X11 fallback
+#### Web‑First (Preferred)
+- Remote desktop: Apache Guacamole (web app) + guacd + RDP via FreeRDP
+- Target OS: Fedora Silverblue VM (xrdp) with virtio‑gpu; single large desktop spanning 2 monitors initially
+- Browser overlays: HTML canvas/SVG above viewer with CSS pointer-events: none (guaranteed click‑through)
+- Multi‑monitor: two Firefox tabs/windows, each fullscreen on a monitor, cropping to its viewport; coordinate translation handled in JS
+
+#### Linux (Native) – Secondary path
 - Clipboard: wl-clipboard (wl-copy/wl-paste) preferred; fallback: xclip
-- Typing/input: wtype preferred; fallback: xdotool
-- Screenshots: grim (+ slurp for region) or gnome-screenshot/spectacle; fallback: scrot/maim/ImageMagick import
+- Screenshots: grim (+ slurp) or gnome-screenshot/spectacle; fallback: scrot/maim
 - Display/monitors: swaymsg, hyprctl; fallback: xrandr, xdpyinfo
-- Cursor/position queries: compositor-native where available; fallback via xdotool
+- Note: Native OS overlays remain limited by compositor policy; web route avoids this entirely
 
 #### General
 - Respects system accessibility settings

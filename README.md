@@ -40,11 +40,12 @@ You can also check for updates directly from the application's **Settings tab** 
 - **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
 - **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
 
-### Notes on Wayland Support
-- Overlays use GTK4 and attempt gtk-layer-shell for robust z-ordering and per-monitor placement.
-- When layer-shell is active, the overlay is anchored to all edges on the selected monitor with no exclusive zone and no keyboard focus.
-- Pointer events are passed through by disabling the surface input region, enabling click-through on supported compositors (GNOME, KDE, wlroots-based).
-- Coordinate semantics: under layer-shell, drawing is monitor-relative; tools pre-adjust coordinates accordingly.
+### Notes on Web‑First Architecture
+- Preferred path is a self-hosted web app: browser renders overlays above a remote desktop viewer (Apache Guacamole) with CSS pointer-events: none, guaranteeing click‑through on all platforms.
+- Initial multi-monitor experience uses two Firefox tabs/windows, each fullscreen on a physical monitor and cropped to its viewport of a single large RDP desktop.
+- MCP server remains in C# over HTTP and broadcasts overlay commands to the browser via WebSocket.
+- Podman (rootless) is preferred for all OCI containers; OpenTofu modules provision infra, VMs (Fedora Silverblue with xrdp), and TLS/DNS.
+- We favor open‑source components (Caddy, Guacamole, Postgres, Fedora).
 
 ## Usage
 

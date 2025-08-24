@@ -25,27 +25,19 @@
 
 ## 🚀 **HIGH PRIORITY - Missing Core Features**
 
-### 1. **Multi-Monitor Support** 🖥️🖥️
-**Status**: Planned but not implemented  
-**Impact**: Critical for professional/enterprise use  
-**Current Limitation**: All operations assume single monitor (index 0)
+### 1. **Multi-Monitor (Web) – Two Firefox Tabs** 🖥️🖥️
+**Status**: Implement as web feature  
+**Impact**: Critical  
+**Initial Behavior**: One RDP desktop spanning two monitors; two Firefox tabs/windows opened by the launcher, each fullscreen on a physical monitor and cropped to its viewport.
 
 **Implementation Needed**:
-- **`get_display_info` tool**: Return monitor count, resolutions, positions, primary monitor
-- **Enhanced `CaptureMonitorAsync`**: Proper multi-monitor screenshot capture
-- **Monitor-aware overlays**: Coordinate mapping across multiple displays
-- **Display detection**: Runtime discovery of monitor configuration changes
-
-**Technical Details**:
-```csharp
-// Current TODO in ScreenCaptureService.cs:
-MonitorIndex = 0, // TODO: Implement multi-monitor detection
-// TODO: Implement proper multi-monitor support
-```
+- **Viewport model**: per-window rect {vx,vy,w,h}, devicePixelRatio, scale
+- **Coordinate translation**: render at (x - vx, y - vy) * scale; only draw if intersects
+- **Sync overlays**: BroadcastChannel/shared worker to synchronize overlays across windows
+- **Guacamole token bootstrap**: one RDP session shared by both tabs
 
 **Use Cases**:
 - Developers with multiple monitors
-- Trading/financial applications
 - Design/creative workflows
 - Enterprise environments
 
@@ -59,30 +51,21 @@ MonitorIndex = 0, // TODO: Implement multi-monitor detection
 
 **Current**: 13/15 documented tools implemented
 
-### 3. **HTTP Transport Enhancement** 🌐
-**Status**: Bridge implementation exists, needs proper HTTP transport  
-**Impact**: Future-proofing and web integration
+### 3. **HTTP Transport Enhancement (Native)** 🌐
+**Status**: Ensure native HTTP transport (ModelContextProtocol.AspNetCore)  
+**Impact**: Web integration, Playwright testing
 
-**Current Implementation**: HTTP-to-STDIO bridge (functional but not optimal)
-**Needed**: Native HTTP transport using `ModelContextProtocol.AspNetCore`
-
-**Benefits of HTTP Transport**:
-- **Multi-client support**: Multiple MCP clients can connect simultaneously
-- **Web integration**: Browser-based MCP clients can connect directly
-- **Session management**: Persistent connections and state
-- **Streaming responses**: Large image data can be streamed efficiently
-- **Authentication**: Built-in auth support for secure deployments
-- **CORS support**: Cross-origin requests for web applications
+**Benefits**:
+- Multi-client support, streaming, CORS, session management
+- Direct compatibility with web overlay client via WebSocket bridge
 
 **Implementation Plan**:
 ```csharp
-// Use ModelContextProtocol.AspNetCore for native HTTP
 builder.Services
     .AddMcpServer()
-    .WithHttpTransport()  // Native HTTP, not bridge
+    .WithHttpTransport()
     .WithToolsFromAssembly();
-
-app.MapMcp();  // Registers /mcp endpoint with streaming support
+app.MapMcp();
 ```
 
 ---

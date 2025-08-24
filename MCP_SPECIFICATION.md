@@ -8,7 +8,7 @@
 
 **Overlay Companion (MCP)** is a desktop-based Model Context Protocol (MCP) server designed to facilitate context-aware, human-assisted UI interactions across arbitrary applications—not tied to any specific use case such as job applications. Its primary goal is to provide a **safe, extendable, and vendor-agnostic interface** enabling AI agents (via Cherry Studio or others) to:
 
-- Draw overlays (highlight, label, annotate) on the screen using an OS-level transparent window.
+- Draw overlays (highlight, label, annotate) in the browser above a remote desktop viewer with guaranteed click-through (CSS pointer-events: none).
 - Capture screenshots in a controlled, high-performance manner.
 - Emulate user input (clicks and typing) under safely defined policies.
 - Operate in distinct modes ("passive", "assist", "autopilot", "composing") for flexible control over automation and human consent.
@@ -161,7 +161,7 @@ The server operates in different modes that control automation behavior:
 **Title:** Draw overlay box  
 **Mode:** async
 
-Draws a visual overlay (highlight, label, annotation) on the screen using an OS-level transparent window.
+Draws a visual overlay (highlight, label, annotation) in the browser above the remote desktop canvas. Overlays are always click‑through (CSS pointer-events: none) so user input reaches the viewer.
 
 **Parameters:**
 - `x` (number, required): X coordinate for the overlay
