@@ -292,7 +292,8 @@ public class Gtk4MainWindow : IDisposable
             "get_display_info - Get monitor information",
             "set_mode - Change operation mode",
             "batch_overlay - Draw multiple overlays",
-            "confirm_action - Request user confirmation"
+            "confirm_action - Request user confirmation",
+            "get_overlay_capabilities - Discover overlay features"
         };
 
         foreach (var tool in tools)
@@ -357,14 +358,47 @@ public class Gtk4MainWindow : IDisposable
             if (_overlayService != null)
             {
                 // Create overlay on main thread since GTK operations need to be on main thread
-                var bounds = new Models.ScreenRegion(100, 100, 200, 100);
+                // Center the demo overlay on the primary monitor and make it larger for easier testing
+                var tempMs = 5000;
+                var demoColor = "#AA0000"; // red-ish; opacity handled separately
+                var overlayW = 640;
+                var overlayH = 360;
+
+                // Hide the control window while demonstrating click-through, then restore
+                GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(false); return false; });
                 
                 // Run overlay creation asynchronously but don't block the UI
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var overlayId = await _overlayService.DrawOverlayAsync(bounds, "Red", "GTK4 Click-Through Test", 5000, true);
+                        int x = 100, y = 100;
+                        try
+                        {
+                            var mon = await _screenCaptureService!.GetMonitorInfoAsync(0) ;
+                            if (mon != null)
+                            {
+                                // Fill the entire primary monitor for a clear demo of click-through
+                                x = mon.X;
+                                y = mon.Y;
+                                overlayW = mon.Width;
+                                overlayH = mon.Height;
+                            }
+                        }
+                        catch { }
+
+                        var bounds = new Models.ScreenRegion(x, y, overlayW, overlayH);
+
+                        var overlay = new Models.OverlayElement
+                        {
+                            Bounds = bounds,
+                            Color = demoColor,
+                            Label = "GTK4 Click-Through Test",
+                            TemporaryMs = tempMs,
+                            ClickThrough = true,
+                            Opacity = 0.5
+                        };
+                        var overlayId = await _overlayService!.DrawOverlayAsync(overlay);
                         _logger?.LogInformation($"Test overlay created: {overlayId}");
                         Console.WriteLine($"✓ Test overlay requested: {overlayId} at ({bounds.X}, {bounds.Y}) size {bounds.Width}x{bounds.Height}");
                     }
@@ -372,6 +406,15 @@ public class Gtk4MainWindow : IDisposable
                     {
                         _logger?.LogError(ex, "Failed to create test overlay");
                         Console.WriteLine($"❌ Failed to create test overlay: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            await Task.Delay(tempMs + 250);
+                            GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(true); return false; });
+                        }
+                        catch { }
                     }
                 });
             }

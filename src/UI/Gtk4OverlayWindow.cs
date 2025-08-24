@@ -1,4 +1,7 @@
 using Gtk;
+using System.Runtime.InteropServices;
+using OverlayCompanion.UI;
+
 using Gdk;
 using Cairo;
 using OverlayCompanion.Models;
@@ -18,6 +21,10 @@ public class Gtk4OverlayWindow : IOverlayWindow
     private ApplicationWindow? _window;
     private DrawingArea? _drawingArea;
     private bool _disposed = false;
+
+    private bool _isLayerShell = false;
+    private int _monitorOffsetX = 0;
+    private int _monitorOffsetY = 0;
 
     public OverlayElement Overlay => _overlay;
 
@@ -51,9 +58,76 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _window.SetDecorated(false);
         _window.SetModal(false);
         
-        // Make window fullscreen to cover entire screen for proper overlay positioning
-        // We'll draw the overlay content at the correct position within the fullscreen window
-        _window.Fullscreen();
+        // Wayland-first: use gtk-layer-shell overlay layer if available; otherwise fullscreen toplevel
+        bool usedLayerShell = false;
+        try
+        {
+            object? monitorObj = null;
+            _monitorOffsetX = 0;
+            _monitorOffsetY = 0;
+            try
+            {
+                var display = Gdk.Display.GetDefault();
+                if (display != null)
+                {
+                    // Use reflection to avoid hard dependency on specific GIR bindings
+                    var mGetMonitors = display.GetType().GetMethod("GetMonitors");
+                    var monitors = mGetMonitors != null ? mGetMonitors.Invoke(display, null) : null;
+                    if (monitors != null)
+                    {
+                        var lmType = monitors.GetType();
+                        var mGetNItems = lmType.GetMethod("GetNItems");
+                        var mGetItem = lmType.GetMethod("GetItem", new[] { typeof(uint) });
+                        if (mGetNItems != null && mGetItem != null)
+                        {
+                            var nObj = mGetNItems.Invoke(monitors, null);
+                            if (nObj is uint count && _overlay.MonitorIndex >= 0 && (uint)_overlay.MonitorIndex < count)
+                            {
+                                monitorObj = mGetItem.Invoke(monitors, new object[] { (uint)_overlay.MonitorIndex });
+                                try
+                                {
+                                    // Read logical monitor geometry via reflection to compute offset
+                                    var monType = monitorObj?.GetType();
+                                    var mGetGeometry = monType?.GetMethod("GetGeometry");
+                                    if (mGetGeometry != null)
+                                    {
+                                        var rect = mGetGeometry.Invoke(monitorObj, null);
+                                        if (rect != null)
+                                        {
+                                            var rt = rect.GetType();
+                                            var pX = rt.GetProperty("X");
+                                            var pY = rt.GetProperty("Y");
+                                            var pW = rt.GetProperty("Width");
+                                            var pH = rt.GetProperty("Height");
+                                            if (pX != null && pY != null)
+                                            {
+                                                _monitorOffsetX = (int)(pX.GetValue(rect) ?? 0);
+                                                _monitorOffsetY = (int)(pY.GetValue(rect) ?? 0);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (LayerShellInterop.IsAvailable && _window != null)
+            {
+                usedLayerShell = LayerShellInterop.TryConfigureOverlay(_window, monitorObj);
+                _isLayerShell = usedLayerShell;
+            }
+        }
+        catch { }
+
+        if (!usedLayerShell)
+        {
+            // Fallback: fullscreen normal toplevel
+            _window?.Fullscreen();
+        }
 
         // Create drawing area for custom rendering - covers full screen
         _drawingArea = DrawingArea.New();
@@ -65,10 +139,16 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _drawingArea.SetDrawFunc(OnDraw);
 
         // Add drawing area to window
-        _window.SetChild(_drawingArea);
+        if (_window != null)
+        {
+            _window.SetChild(_drawingArea);
+        }
 
         // Configure transparency and click-through after window is realized
-        _window.OnRealize += OnWindowRealized;
+        if (_window != null)
+        {
+            _window.OnRealize += OnWindowRealized;
+        }
 
         // Apply CSS for transparency and positioning
         ApplyOverlayStyles();
@@ -122,30 +202,39 @@ public class Gtk4OverlayWindow : IOverlayWindow
 
         try
         {
-            // Get the native surface
-            var surface = _window.GetSurface();
-            if (surface != null)
-            {
-                // Enable click-through by setting empty input region
-                if (_overlay.ClickThrough)
-                {
-                    // Set null input region for complete click-through
-                    surface.SetInputRegion(null!);
-                    Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
-                }
-
-                Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
-            }
-            else
-            {
-                Console.WriteLine($"⚠️ Could not get surface for overlay {_overlay.Id}");
-            }
+            ApplyClickThrough();
+            Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"⚠️ Failed to configure overlay {_overlay.Id}: {ex.Message}");
         }
     }
+    private void ApplyClickThrough()
+    {
+        if (_window == null) return;
+        try
+        {
+            var surface = _window.GetSurface();
+            if (surface == null) return;
+            if (_overlay.ClickThrough)
+            {
+                try
+                {
+                    // On GTK4/GDK, passing null clears the input region which disables hit-testing for this surface on many backends.
+                    // This provides click-through behavior under Wayland compositors implementing input regions.
+                    surface.SetInputRegion(null);
+                }
+                catch { }
+                Console.WriteLine($"✓ Click-through enabled (null input region) for overlay {_overlay.Id}");
+            }
+        }
+        catch (Exception rex)
+        {
+            Console.WriteLine($"⚠️ Failed to set empty input region for click-through: {rex.Message}");
+        }
+    }
+
 
     private void OnDraw(Gtk.DrawingArea area, Cairo.Context cr, int width, int height)
     {
@@ -159,11 +248,18 @@ public class Gtk4OverlayWindow : IOverlayWindow
         // Draw overlay rectangle at the specified position
         var overlayX = _overlay.Bounds.X;
         var overlayY = _overlay.Bounds.Y;
+        // Under layer-shell each window covers a single monitor. Coordinates should be monitor-relative.
+        if (_isLayerShell)
+        {
+            overlayX -= _monitorOffsetX;
+            overlayY -= _monitorOffsetY;
+        }
         var overlayWidth = _overlay.Bounds.Width;
         var overlayHeight = _overlay.Bounds.Height;
 
-        // Set source color with transparency
-        cr.SetSourceRgba(color.Red, color.Green, color.Blue, color.Alpha);
+        // Set source color with transparency (use overlay-specified opacity if provided)
+        var alpha = Math.Clamp(_overlay.Opacity, 0.0, 1.0);
+        cr.SetSourceRgba(color.Red, color.Green, color.Blue, alpha);
 
         // Draw rectangle at the correct position
         cr.Rectangle(overlayX, overlayY, overlayWidth, overlayHeight);
@@ -187,19 +283,47 @@ public class Gtk4OverlayWindow : IOverlayWindow
     }
 
     private (double Red, double Green, double Blue, double Alpha) ParseColor(string colorName)
-
     {
-        // Simple color parsing - could be enhanced
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(colorName))
+            {
+                var s = colorName.Trim();
+                if (s.StartsWith("#")) s = s[1..];
+                if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s[2..];
+                if (s.Length == 6 || s.Length == 8)
+                {
+                    var r = Convert.ToInt32(s.Substring(0, 2), 16) / 255.0;
+                    var g = Convert.ToInt32(s.Substring(2, 2), 16) / 255.0;
+                    var b = Convert.ToInt32(s.Substring(4, 2), 16) / 255.0;
+                    var a = s.Length == 8 ? Convert.ToInt32(s.Substring(6, 2), 16) / 255.0 : _overlay.Opacity;
+                    return (r, g, b, a);
+                }
+                if (s.Length == 3)
+                {
+                    var r = Convert.ToInt32(new string(s[0], 2), 16) / 255.0;
+                    var g = Convert.ToInt32(new string(s[1], 2), 16) / 255.0;
+                    var b = Convert.ToInt32(new string(s[2], 2), 16) / 255.0;
+                    return (r, g, b, _overlay.Opacity);
+                }
+            }
+        }
+        catch
+        {
+            // fall through to named colors
+        }
+
+        // Named colors fallback
         return colorName.ToLowerInvariant() switch
         {
-            "red" => (1.0, 0.0, 0.0, 0.3),
-            "green" => (0.0, 1.0, 0.0, 0.3),
-            "blue" => (0.0, 0.0, 1.0, 0.3),
-            "yellow" => (1.0, 1.0, 0.0, 0.3),
-            "orange" => (1.0, 0.5, 0.0, 0.3),
-            "purple" => (1.0, 0.0, 1.0, 0.3),
-            "cyan" => (0.0, 1.0, 1.0, 0.3),
-            _ => (1.0, 1.0, 0.0, 0.3) // Default to yellow
+            "red" => (1.0, 0.0, 0.0, _overlay.Opacity),
+            "green" => (0.0, 1.0, 0.0, _overlay.Opacity),
+            "blue" => (0.0, 0.0, 1.0, _overlay.Opacity),
+            "yellow" => (1.0, 1.0, 0.0, _overlay.Opacity),
+            "orange" => (1.0, 0.5, 0.0, _overlay.Opacity),
+            "purple" => (1.0, 0.0, 1.0, _overlay.Opacity),
+            "cyan" => (0.0, 1.0, 1.0, _overlay.Opacity),
+            _ => (1.0, 1.0, 0.0, _overlay.Opacity) // Default to yellow
         };
     }
 

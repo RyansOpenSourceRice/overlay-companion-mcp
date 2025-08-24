@@ -3,6 +3,7 @@ using OverlayCompanion.UI;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace OverlayCompanion.Services;
 
@@ -70,7 +71,23 @@ public class OverlayService : IOverlayService
 
     public async Task<string> DrawOverlayAsync(OverlayElement overlay)
     {
-        return await DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs);
+        // Use the provided overlay object directly to preserve all properties (id, click-through, opacity, etc.)
+        var window = CreateOverlayWindow(overlay);
+        await window.ShowAsync();
+
+        _activeOverlays[overlay.Id] = overlay;
+        _overlayWindows[overlay.Id] = window;
+
+        if (overlay.TemporaryMs > 0)
+        {
+            _ = Task.Delay(overlay.TemporaryMs).ContinueWith(async _ =>
+            {
+                await RemoveOverlayAsync(overlay.Id);
+            });
+        }
+
+        OverlayCreated?.Invoke(this, overlay);
+        return overlay.Id;
     }
 
     public async Task<bool> RemoveOverlayAsync(string overlayId)
@@ -97,7 +114,7 @@ public class OverlayService : IOverlayService
             // Show overlays sequentially with delay
             foreach (var overlay in overlays)
             {
-                var id = await DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs);
+                var id = await DrawOverlayAsync(overlay);
                 overlayIds.Add(id);
 
                 // Small delay between overlays
@@ -107,8 +124,7 @@ public class OverlayService : IOverlayService
         else
         {
             // Show all overlays simultaneously
-            var tasks = overlays.Select(overlay =>
-                DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs));
+            var tasks = overlays.Select(overlay => DrawOverlayAsync(overlay));
 
             var ids = await Task.WhenAll(tasks);
             overlayIds.AddRange(ids);
