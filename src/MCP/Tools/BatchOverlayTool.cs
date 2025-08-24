@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
 using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -19,6 +20,8 @@ public static class BatchOverlayTool
     public static async Task<string> BatchOverlay(
         IOverlayService overlayService,
         IModeManager modeManager,
+            IScreenCaptureService screenCaptureService,
+
         [Description("JSON array of overlay definitions with x, y, width, height, color, opacity (0..1), label, temporary_ms, click_through, monitor_index")] string overlays,
         [Description("Draw overlays one at a time with delays")] bool oneAtATime = false)
     {
@@ -66,6 +69,18 @@ public static class BatchOverlayTool
                 var clickThrough = overlayData.TryGetProperty("click_through", out var pct) ? pct.GetBoolean() : true;
                 var opacity = overlayData.TryGetProperty("opacity", out var po) ? po.GetDouble() : 0.5;
                 var monitorIndex = overlayData.TryGetProperty("monitor_index", out var pmi) ? pmi.GetInt32() : 0;
+
+                // If we're not using layer-shell (unknown at tool layer), pre-adjust to absolute coords
+                try
+                {
+                    var mi = await screenCaptureService.GetMonitorInfoAsync(monitorIndex);
+                    if (mi != null)
+                    {
+                        x += mi.X;
+                        y += mi.Y;
+                    }
+                }
+                catch { }
 
                 var overlay = new OverlayElement
                 {

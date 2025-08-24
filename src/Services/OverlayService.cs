@@ -3,6 +3,7 @@ using OverlayCompanion.UI;
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace OverlayCompanion.Services;
 

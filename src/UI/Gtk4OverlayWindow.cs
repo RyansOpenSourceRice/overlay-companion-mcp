@@ -22,6 +22,10 @@ public class Gtk4OverlayWindow : IOverlayWindow
     private DrawingArea? _drawingArea;
     private bool _disposed = false;
 
+    private bool _isLayerShell = false;
+    private int _monitorOffsetX = 0;
+    private int _monitorOffsetY = 0;
+
     public OverlayElement Overlay => _overlay;
 
     public Gtk4OverlayWindow(OverlayElement overlay)
@@ -59,6 +63,8 @@ public class Gtk4OverlayWindow : IOverlayWindow
         try
         {
             object? monitorObj = null;
+            _monitorOffsetX = 0;
+            _monitorOffsetY = 0;
             try
             {
                 var display = Gdk.Display.GetDefault();
@@ -78,6 +84,30 @@ public class Gtk4OverlayWindow : IOverlayWindow
                             if (nObj is uint count && _overlay.MonitorIndex >= 0 && (uint)_overlay.MonitorIndex < count)
                             {
                                 monitorObj = mGetItem.Invoke(monitors, new object[] { (uint)_overlay.MonitorIndex });
+                                try
+                                {
+                                    // Read logical monitor geometry via reflection to compute offset
+                                    var monType = monitorObj?.GetType();
+                                    var mGetGeometry = monType?.GetMethod("GetGeometry");
+                                    if (mGetGeometry != null)
+                                    {
+                                        var rect = mGetGeometry.Invoke(monitorObj, null);
+                                        if (rect != null)
+                                        {
+                                            var rt = rect.GetType();
+                                            var pX = rt.GetProperty("X");
+                                            var pY = rt.GetProperty("Y");
+                                            var pW = rt.GetProperty("Width");
+                                            var pH = rt.GetProperty("Height");
+                                            if (pX != null && pY != null)
+                                            {
+                                                _monitorOffsetX = (int)(pX.GetValue(rect) ?? 0);
+                                                _monitorOffsetY = (int)(pY.GetValue(rect) ?? 0);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
                             }
                         }
                     }
@@ -88,6 +118,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
             if (LayerShellInterop.IsAvailable && _window != null)
             {
                 usedLayerShell = LayerShellInterop.TryConfigureOverlay(_window, monitorObj);
+                _isLayerShell = usedLayerShell;
             }
         }
         catch { }
@@ -221,6 +252,12 @@ public class Gtk4OverlayWindow : IOverlayWindow
         // Draw overlay rectangle at the specified position
         var overlayX = _overlay.Bounds.X;
         var overlayY = _overlay.Bounds.Y;
+        // Under layer-shell each window covers a single monitor. Coordinates should be monitor-relative.
+        if (_isLayerShell)
+        {
+            overlayX -= _monitorOffsetX;
+            overlayY -= _monitorOffsetY;
+        }
         var overlayWidth = _overlay.Bounds.Width;
         var overlayHeight = _overlay.Bounds.Height;
 
