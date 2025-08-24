@@ -40,6 +40,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Web/**/*.cs" />
+    <Content Include="wwwroot/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

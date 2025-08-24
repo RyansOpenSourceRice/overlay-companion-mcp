@@ -11,6 +11,7 @@ using OverlayCompanion.UI;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.IO;
+using OverlayCompanion.Web;
 
 namespace OverlayCompanion;
 
@@ -124,6 +125,7 @@ public class Program
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
         builder.Services.AddSingleton<UpdateService>();
+        builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();
 
         // Add MCP server with native HTTP transport using official SDK
@@ -158,6 +160,16 @@ public class Program
 
         // Enable CORS
         app.UseCors();
+
+        // WebSocket for overlay events
+        app.MapOverlayWebSockets();
+
+        // Serve static web client
+        app.MapGet("/", async context =>
+        {
+            context.Response.ContentType = "text/html";
+            await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
+        });
 
         // Map MCP endpoints (native HTTP transport with streaming support)
         app.MapMcp();  // This registers the /mcp endpoint with full MCP protocol support
