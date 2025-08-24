@@ -9,8 +9,10 @@
     #container { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
     #viewer { position: absolute; inset: 0; background: #222; color: #eee; display: flex; align-items: center; justify-content: center; font-family: system-ui, sans-serif; }
     #overlay { position: absolute; inset: 0; pointer-events: none; }
-    .box { position: absolute; border: 2px solid red; background: rgba(255,0,0,0.2); box-sizing: border-box; }
+    .box { position: absolute; border: 2px solid red; background: rgba(255,0,0,0.2); box-sizing: border-box; border-radius: 4px; }
     #hud { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.5); color: #fff; padding: 6px 10px; border-radius: 6px; font-family: system-ui, sans-serif; font-size: 12px; }
+    /* ensure overlay canvas never steals input; explicit for clarity */
+    #overlay, .box { pointer-events: none; }
   </style>
 </head>
 <body>
