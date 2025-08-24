@@ -358,6 +358,10 @@ public class Gtk4MainWindow : IDisposable
             {
                 // Create overlay on main thread since GTK operations need to be on main thread
                 var bounds = new Models.ScreenRegion(100, 100, 400, 200);
+                var tempMs = 5000;
+
+                // Hide the control window while demonstrating click-through, then restore
+                GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(false); return false; });
                 
                 // Run overlay creation asynchronously but don't block the UI
                 _ = Task.Run(async () =>
@@ -369,7 +373,7 @@ public class Gtk4MainWindow : IDisposable
                             Bounds = bounds,
                             Color = "Red",
                             Label = "GTK4 Click-Through Test",
-                            TemporaryMs = 5000,
+                            TemporaryMs = tempMs,
                             ClickThrough = true,
                             Opacity = 0.5
                         };
@@ -381,6 +385,15 @@ public class Gtk4MainWindow : IDisposable
                     {
                         _logger?.LogError(ex, "Failed to create test overlay");
                         Console.WriteLine($"❌ Failed to create test overlay: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            await Task.Delay(tempMs + 250);
+                            GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(true); return false; });
+                        }
+                        catch { }
                     }
                 });
             }
