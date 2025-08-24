@@ -98,6 +98,10 @@
           if (msg.type === 'overlay_created') drawBox(msg.overlay);
           else if (msg.type === 'overlay_removed') removeBox(msg.overlay_id);
           else if (msg.type === 'clear_overlays') clearAll();
+          else if (msg.type === 'sync_state' && Array.isArray(msg.overlays)) {
+            clearAll();
+            for (const o of msg.overlays) drawBox(o);
+          }
         } catch (e) {
           console.error('WS parse error', e);
         }
