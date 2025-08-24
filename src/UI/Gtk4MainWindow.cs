@@ -378,8 +378,11 @@ public class Gtk4MainWindow : IDisposable
                             var mon = await _screenCaptureService!.GetMonitorInfoAsync(0) ;
                             if (mon != null)
                             {
-                                x = mon.X + Math.Max(0, (mon.Width - overlayW) / 2);
-                                y = mon.Y + Math.Max(0, (mon.Height - overlayH) / 2);
+                                // Fill the entire primary monitor for a clear demo of click-through
+                                x = mon.X;
+                                y = mon.Y;
+                                overlayW = mon.Width;
+                                overlayH = mon.Height;
                             }
                         }
                         catch { }
