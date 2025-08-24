@@ -51,6 +51,43 @@ The native HTTP transport provides critical advantages for modern MCP deployment
 
 ---
 
+---
+
+## Browser Overlay Protocol (WebSocket) and Viewer Params
+
+The server broadcasts overlay events to connected browsers via `/ws/overlays`.
+
+Message types
+- overlay_created
+- overlay_removed
+- clear_overlays
+- request_sync (planned)
+- sync_state (planned)
+
+Example payloads
+```json
+{ "type": "overlay_created", "overlay": {
+  "id": "d3f1...",
+  "x": 100, "y": 200, "width": 300, "height": 120,
+  "color": "#ffcc00", "opacity": 0.5,
+  "monitor_index": 0, "created_at": "2025-08-24T08:10:00Z"
+}}
+```
+```json
+{ "type": "overlay_removed", "overlay_id": "d3f1..." }
+```
+```json
+{ "type": "clear_overlays" }
+```
+
+Viewer URL parameters (cropping for multi‑monitor)
+- vx, vy: viewport origin (global desktop coordinates)
+- vw, vh: viewport size
+- scale: client‑side scaling factor
+
+The viewer renders an absolutely positioned overlay layer with `pointer-events: none` so all clicks go through to the underlying canvas (Guacamole in future) or page content.
+
+
 ## MCP Tool Specification (JSON Format)
 
 ```json
