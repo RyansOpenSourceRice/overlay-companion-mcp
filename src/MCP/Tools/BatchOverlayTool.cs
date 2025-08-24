@@ -19,7 +19,7 @@ public static class BatchOverlayTool
     public static async Task<string> BatchOverlay(
         IOverlayService overlayService,
         IModeManager modeManager,
-        [Description("JSON array of overlay definitions with x, y, width, height, color, label, temporary_ms")] string overlays,
+        [Description("JSON array of overlay definitions with x, y, width, height, color, opacity (0..1), label, temporary_ms, click_through, monitor_index")] string overlays,
         [Description("Draw overlays one at a time with delays")] bool oneAtATime = false)
     {
         // Check if action is allowed in current mode
@@ -56,17 +56,26 @@ public static class BatchOverlayTool
         {
             if (overlayData.ValueKind == JsonValueKind.Object)
             {
+                var x = overlayData.TryGetProperty("x", out var px) ? px.GetInt32() : 0;
+                var y = overlayData.TryGetProperty("y", out var py) ? py.GetInt32() : 0;
+                var width = overlayData.TryGetProperty("width", out var pw) ? pw.GetInt32() : 50;
+                var height = overlayData.TryGetProperty("height", out var ph) ? ph.GetInt32() : 50;
+                var color = overlayData.TryGetProperty("color", out var pc) ? (pc.GetString() ?? "#FFFF00") : "#FFFF00";
+                var label = overlayData.TryGetProperty("label", out var pl) ? pl.GetString() : null;
+                var tempMs = overlayData.TryGetProperty("temporary_ms", out var pt) ? pt.GetInt32() : 0;
+                var clickThrough = overlayData.TryGetProperty("click_through", out var pct) ? pct.GetBoolean() : true;
+                var opacity = overlayData.TryGetProperty("opacity", out var po) ? po.GetDouble() : 0.5;
+                var monitorIndex = overlayData.TryGetProperty("monitor_index", out var pmi) ? pmi.GetInt32() : 0;
+
                 var overlay = new OverlayElement
                 {
-                    Bounds = new ScreenRegion(
-                        overlayData.TryGetProperty("x", out var x) ? x.GetInt32() : 0,
-                        overlayData.TryGetProperty("y", out var y) ? y.GetInt32() : 0,
-                        overlayData.TryGetProperty("width", out var w) ? w.GetInt32() : 50,
-                        overlayData.TryGetProperty("height", out var h) ? h.GetInt32() : 50
-                    ),
-                    Color = overlayData.TryGetProperty("color", out var color) ? color.GetString() ?? "Yellow" : "Yellow",
-                    Label = overlayData.TryGetProperty("label", out var label) ? label.GetString() : null,
-                    TemporaryMs = overlayData.TryGetProperty("temporary_ms", out var temp) ? temp.GetInt32() : 0
+                    Bounds = new ScreenRegion(x, y, width, height),
+                    Color = color,
+                    Label = label,
+                    TemporaryMs = tempMs,
+                    ClickThrough = clickThrough,
+                    Opacity = Math.Clamp(opacity, 0.0, 1.0),
+                    MonitorIndex = monitorIndex
                 };
 
                 overlayElements.Add(overlay);

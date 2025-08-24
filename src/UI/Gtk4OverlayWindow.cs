@@ -1,4 +1,6 @@
 using Gtk;
+using System.Runtime.InteropServices;
+
 using Gdk;
 using Cairo;
 using OverlayCompanion.Models;

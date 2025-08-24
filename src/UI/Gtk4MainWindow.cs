@@ -371,7 +371,7 @@ public class Gtk4MainWindow : IDisposable
                             Label = "GTK4 Click-Through Test",
                             TemporaryMs = 5000,
                             ClickThrough = true,
-                            Opacity = 0.35
+                            Opacity = 0.5
                         };
                         var overlayId = await _overlayService.DrawOverlayAsync(overlay);
                         _logger?.LogInformation($"Test overlay created: {overlayId}");
