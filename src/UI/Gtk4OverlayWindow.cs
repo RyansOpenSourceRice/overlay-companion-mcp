@@ -126,7 +126,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         if (!usedLayerShell)
         {
             // Fallback: fullscreen normal toplevel
-            _window.Fullscreen();
+            _window?.Fullscreen();
         }
 
         // Create drawing area for custom rendering - covers full screen
@@ -139,7 +139,10 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _drawingArea.SetDrawFunc(OnDraw);
 
         // Add drawing area to window
-        _window.SetChild(_drawingArea);
+        if (_window != null)
+        {
+            _window.SetChild(_drawingArea);
+        }
 
         // Configure transparency and click-through after window is realized
         _window.OnRealize += OnWindowRealized;
@@ -215,14 +218,20 @@ public class Gtk4OverlayWindow : IOverlayWindow
             {
                 try
                 {
-                    var emptyRegion = new Cairo.Region();
+                    // Preferred: create an empty Cairo region (true pass-through)
+                    var emptyRegion = Cairo.Region.Create();
                     surface.SetInputRegion(emptyRegion);
                 }
                 catch
                 {
-                    var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
-                    var emptyRectRegion = new Cairo.Region(rect);
-                    surface.SetInputRegion(emptyRectRegion);
+                    try
+                    {
+                        // Fallback: 0x0 rectangle region
+                        var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
+                        var emptyRectRegion = Cairo.Region.CreateRectangle(rect);
+                        surface.SetInputRegion(emptyRectRegion);
+                    }
+                    catch { /* ignore if not available in runtime */ }
                 }
                 Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
             }
