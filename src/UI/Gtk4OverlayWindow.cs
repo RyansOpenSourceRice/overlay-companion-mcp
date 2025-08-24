@@ -196,49 +196,43 @@ public class Gtk4OverlayWindow : IOverlayWindow
 
         try
         {
-            // Get the native surface
-            var surface = _window.GetSurface();
-            if (surface != null)
-            {
-                // Enable click-through by setting empty input region
-                if (_overlay.ClickThrough)
-                {
-                    // Use an empty input region for true click-through
-                    // On Wayland, passing an empty Cairo region makes the surface ignore all input
-                    try
-                    {
-                        try
-                        {
-                            var emptyRegion = new Cairo.Region();
-                            surface.SetInputRegion(emptyRegion);
-                        }
-                        catch
-                        {
-                            // Fallback: zero-sized rectangle region
-                            var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
-                            var emptyRectRegion = new Cairo.Region(rect);
-                            surface.SetInputRegion(emptyRectRegion);
-                        }
-                        Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
-                    }
-                    catch (Exception rex)
-                    {
-                        Console.WriteLine($"⚠️ Failed to set empty input region for click-through: {rex.Message}");
-                    }
-                }
-
-                Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
-            }
-            else
-            {
-                Console.WriteLine($"⚠️ Could not get surface for overlay {_overlay.Id}");
-            }
+            ApplyClickThrough();
+            Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"⚠️ Failed to configure overlay {_overlay.Id}: {ex.Message}");
         }
     }
+    private void ApplyClickThrough()
+    {
+        if (_window == null) return;
+        try
+        {
+            var surface = _window.GetSurface();
+            if (surface == null) return;
+            if (_overlay.ClickThrough)
+            {
+                try
+                {
+                    var emptyRegion = new Cairo.Region();
+                    surface.SetInputRegion(emptyRegion);
+                }
+                catch
+                {
+                    var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
+                    var emptyRectRegion = new Cairo.Region(rect);
+                    surface.SetInputRegion(emptyRectRegion);
+                }
+                Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
+            }
+        }
+        catch (Exception rex)
+        {
+            Console.WriteLine($"⚠️ Failed to set empty input region for click-through: {rex.Message}");
+        }
+    }
+
 
     private void OnDraw(Gtk.DrawingArea area, Cairo.Context cr, int width, int height)
     {

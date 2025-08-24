@@ -358,8 +358,11 @@ public class Gtk4MainWindow : IDisposable
             if (_overlayService != null)
             {
                 // Create overlay on main thread since GTK operations need to be on main thread
-                var bounds = new Models.ScreenRegion(100, 100, 400, 200);
+                // Center the demo overlay on the primary monitor and make it larger for easier testing
                 var tempMs = 5000;
+                var demoColor = "#AA0000"; // red-ish; opacity handled separately
+                var overlayW = 640;
+                var overlayH = 360;
 
                 // Hide the control window while demonstrating click-through, then restore
                 GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(false); return false; });
@@ -369,16 +372,30 @@ public class Gtk4MainWindow : IDisposable
                 {
                     try
                     {
+                        int x = 100, y = 100;
+                        try
+                        {
+                            var mon = await _screenCaptureService!.GetMonitorInfoAsync(0) ;
+                            if (mon != null)
+                            {
+                                x = mon.X + Math.Max(0, (mon.Width - overlayW) / 2);
+                                y = mon.Y + Math.Max(0, (mon.Height - overlayH) / 2);
+                            }
+                        }
+                        catch { }
+
+                        var bounds = new Models.ScreenRegion(x, y, overlayW, overlayH);
+
                         var overlay = new Models.OverlayElement
                         {
                             Bounds = bounds,
-                            Color = "Red",
+                            Color = demoColor,
                             Label = "GTK4 Click-Through Test",
                             TemporaryMs = tempMs,
                             ClickThrough = true,
                             Opacity = 0.5
                         };
-                        var overlayId = await _overlayService.DrawOverlayAsync(overlay);
+                        var overlayId = await _overlayService!.DrawOverlayAsync(overlay);
                         _logger?.LogInformation($"Test overlay created: {overlayId}");
                         Console.WriteLine($"✓ Test overlay requested: {overlayId} at ({bounds.X}, {bounds.Y}) size {bounds.Width}x{bounds.Height}");
                     }
