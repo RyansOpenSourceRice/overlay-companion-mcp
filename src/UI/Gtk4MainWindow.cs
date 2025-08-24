@@ -292,7 +292,8 @@ public class Gtk4MainWindow : IDisposable
             "get_display_info - Get monitor information",
             "set_mode - Change operation mode",
             "batch_overlay - Draw multiple overlays",
-            "confirm_action - Request user confirmation"
+            "confirm_action - Request user confirmation",
+            "get_overlay_capabilities - Discover overlay features"
         };
 
         foreach (var tool in tools)
