@@ -21,7 +21,7 @@ public static class GetOverlayCapabilitiesTool
             supports_opacity = true,
             opacity_range = new { min = 0.0, max = 1.0, default_value = 0.5 },
             color_formats = new[] { "#RRGGBB", "#RRGGBBAA", "#RGB", "0xRRGGBB", "named (fallback)" },
-            layering = new { uses_layer_shell = false, notes = "planned optional integration for robust z-order" }
+            layering = new { uses_layer_shell = OverlayCompanion.UI.LayerShellInterop.IsAvailable, notes = "overlay layer with anchors and keyboard=NONE when available; fallback to fullscreen toplevel" }
         };
 
         return System.Text.Json.JsonSerializer.Serialize(payload);
