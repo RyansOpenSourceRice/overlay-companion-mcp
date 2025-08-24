@@ -145,7 +145,10 @@ public class Gtk4OverlayWindow : IOverlayWindow
         }
 
         // Configure transparency and click-through after window is realized
-        _window.OnRealize += OnWindowRealized;
+        if (_window != null)
+        {
+            _window.OnRealize += OnWindowRealized;
+        }
 
         // Apply CSS for transparency and positioning
         ApplyOverlayStyles();
