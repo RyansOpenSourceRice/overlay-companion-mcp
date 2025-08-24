@@ -129,9 +129,18 @@ public class Gtk4OverlayWindow : IOverlayWindow
                 // Enable click-through by setting empty input region
                 if (_overlay.ClickThrough)
                 {
-                    // Set null input region for complete click-through
-                    surface.SetInputRegion(null!);
-                    Console.WriteLine($"✓ Click-through enabled for overlay {_overlay.Id}");
+                    // Use an empty input region for true click-through
+                    // On Wayland, passing an empty Cairo region makes the surface ignore all input
+                    try
+                    {
+                        var emptyRegion = new Cairo.Region();
+                        surface.SetInputRegion(emptyRegion);
+                        Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
+                    }
+                    catch (Exception rex)
+                    {
+                        Console.WriteLine($"⚠️ Failed to set empty input region for click-through: {rex.Message}");
+                    }
                 }
 
                 Console.WriteLine($"✓ Overlay window {_overlay.Id} realized and configured");
@@ -162,8 +171,9 @@ public class Gtk4OverlayWindow : IOverlayWindow
         var overlayWidth = _overlay.Bounds.Width;
         var overlayHeight = _overlay.Bounds.Height;
 
-        // Set source color with transparency
-        cr.SetSourceRgba(color.Red, color.Green, color.Blue, color.Alpha);
+        // Set source color with transparency (use overlay-specified opacity if provided)
+        var alpha = Math.Clamp(_overlay.Opacity, 0.0, 1.0);
+        cr.SetSourceRgba(color.Red, color.Green, color.Blue, alpha);
 
         // Draw rectangle at the correct position
         cr.Rectangle(overlayX, overlayY, overlayWidth, overlayHeight);

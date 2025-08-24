@@ -357,14 +357,23 @@ public class Gtk4MainWindow : IDisposable
             if (_overlayService != null)
             {
                 // Create overlay on main thread since GTK operations need to be on main thread
-                var bounds = new Models.ScreenRegion(100, 100, 200, 100);
+                var bounds = new Models.ScreenRegion(100, 100, 400, 200);
                 
                 // Run overlay creation asynchronously but don't block the UI
                 _ = Task.Run(async () =>
                 {
                     try
                     {
-                        var overlayId = await _overlayService.DrawOverlayAsync(bounds, "Red", "GTK4 Click-Through Test", 5000, true);
+                        var overlay = new Models.OverlayElement
+                        {
+                            Bounds = bounds,
+                            Color = "Red",
+                            Label = "GTK4 Click-Through Test",
+                            TemporaryMs = 5000,
+                            ClickThrough = true,
+                            Opacity = 0.35
+                        };
+                        var overlayId = await _overlayService.DrawOverlayAsync(overlay);
                         _logger?.LogInformation($"Test overlay created: {overlayId}");
                         Console.WriteLine($"✓ Test overlay requested: {overlayId} at ({bounds.X}, {bounds.Y}) size {bounds.Width}x{bounds.Height}");
                     }

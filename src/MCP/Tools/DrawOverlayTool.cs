@@ -51,9 +51,18 @@ public static class DrawOverlayTool
         // Generate overlay ID if not provided
         var overlayId = id ?? Guid.NewGuid().ToString();
 
-        // Draw overlay (convert opacity to temporary duration for now)
-        var temporaryMs = opacity < 1.0 ? 5000 : 0; // Temporary overlay if not fully opaque
-        var actualOverlayId = await overlayService.DrawOverlayAsync(bounds, color, overlayId, temporaryMs);
+        // Create overlay element with requested opacity, id and click-through
+        var overlayElement = new OverlayElement
+        {
+            Id = overlayId,
+            Bounds = bounds,
+            Color = color,
+            Label = id, // keep minimal metadata
+            TemporaryMs = opacity < 1.0 ? 5000 : 0,
+            ClickThrough = true,
+            Opacity = Math.Clamp(opacity, 0.0, 1.0)
+        };
+        var actualOverlayId = await overlayService.DrawOverlayAsync(overlayElement);
 
         // Return JSON string response
         var response = new

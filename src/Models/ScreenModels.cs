@@ -47,6 +47,7 @@ public class OverlayElement
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public int MonitorIndex { get; set; } = 0;
     public bool ClickThrough { get; set; } = true; // Enable click-through by default
+    public double Opacity { get; set; } = 0.3; // 0.0 transparent, 1.0 opaque
 }
 
 /// <summary>

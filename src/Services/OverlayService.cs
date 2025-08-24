@@ -70,7 +70,23 @@ public class OverlayService : IOverlayService
 
     public async Task<string> DrawOverlayAsync(OverlayElement overlay)
     {
-        return await DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs);
+        // Use the provided overlay object directly to preserve all properties (id, click-through, opacity, etc.)
+        var window = CreateOverlayWindow(overlay);
+        await window.ShowAsync();
+
+        _activeOverlays[overlay.Id] = overlay;
+        _overlayWindows[overlay.Id] = window;
+
+        if (overlay.TemporaryMs > 0)
+        {
+            _ = Task.Delay(overlay.TemporaryMs).ContinueWith(async _ =>
+            {
+                await RemoveOverlayAsync(overlay.Id);
+            });
+        }
+
+        OverlayCreated?.Invoke(this, overlay);
+        return overlay.Id;
     }
 
     public async Task<bool> RemoveOverlayAsync(string overlayId)
