@@ -113,7 +113,7 @@ public class OverlayService : IOverlayService
             // Show overlays sequentially with delay
             foreach (var overlay in overlays)
             {
-                var id = await DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs);
+                var id = await DrawOverlayAsync(overlay);
                 overlayIds.Add(id);
 
                 // Small delay between overlays
@@ -123,8 +123,7 @@ public class OverlayService : IOverlayService
         else
         {
             // Show all overlays simultaneously
-            var tasks = overlays.Select(overlay =>
-                DrawOverlayAsync(overlay.Bounds, overlay.Color, overlay.Label, overlay.TemporaryMs));
+            var tasks = overlays.Select(overlay => DrawOverlayAsync(overlay));
 
             var ids = await Task.WhenAll(tasks);
             overlayIds.AddRange(ids);
