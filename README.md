@@ -31,19 +31,20 @@ You can also check for updates directly from the application's **Settings tab** 
 - **Normal operation**: HTTP server + GUI (default)
 - **Testing only**: GUI can be disabled with `--no-gui` or `HEADLESS=1` for automated testing
 
-> **Note**: AppImages from v2025.08.22.4+ include the Avalonia double initialization fix, smoke test timeout fix, and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues or CI test timeouts.
+> **Note**: AppImages from v2025.08.22.4+ included fixes specific to the previous Avalonia-based UI. The project now uses GTK4 for native Wayland support and true click-through overlays. Older AppImages may still reference Avalonia-related fixes, but current builds ship with GTK4 and Wayland-first behavior.
 
 ### System Requirements
 - **Target Platform**: Fedora Linux with Wayland (GNOME)
-- **Current GUI Framework**: Avalonia UI (cross-platform)
-- **Click-Through Limitation**: Overlays are transparent but not fully click-through on native Wayland
+- **Current GUI Framework**: GTK4 (Wayland-first; optional gtk-layer-shell when available)
+- **Click-Through**: True compositor-level click-through on Wayland by clearing the input region on the Gdk surface. Falls back to a fullscreen toplevel when layer-shell is unavailable.
 - **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
 - **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
 
-### Known Limitations
-- **Overlay Click-Through**: Current Avalonia implementation provides visual transparency but limited click-through on Wayland
-- **Workaround**: Run under XWayland for better click-through support
-- **Future**: Migration to GTK4 planned for native Wayland click-through support
+### Notes on Wayland Support
+- Overlays use GTK4 and attempt gtk-layer-shell for robust z-ordering and per-monitor placement.
+- When layer-shell is active, the overlay is anchored to all edges on the selected monitor with no exclusive zone and no keyboard focus.
+- Pointer events are passed through by disabling the surface input region, enabling click-through on supported compositors (GNOME, KDE, wlroots-based).
+- Coordinate semantics: under layer-shell, drawing is monitor-relative; tools pre-adjust coordinates accordingly.
 
 ## Usage
 
