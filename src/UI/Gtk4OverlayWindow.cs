@@ -133,8 +133,18 @@ public class Gtk4OverlayWindow : IOverlayWindow
                     // On Wayland, passing an empty Cairo region makes the surface ignore all input
                     try
                     {
-                        var emptyRegion = new Cairo.Region();
-                        surface.SetInputRegion(emptyRegion);
+                        try
+                        {
+                            var emptyRegion = new Cairo.Region();
+                            surface.SetInputRegion(emptyRegion);
+                        }
+                        catch
+                        {
+                            // Fallback: zero-sized rectangle region
+                            var rect = new Cairo.RectangleInt { X = 0, Y = 0, Width = 0, Height = 0 };
+                            var emptyRectRegion = new Cairo.Region(rect);
+                            surface.SetInputRegion(emptyRectRegion);
+                        }
                         Console.WriteLine($"✓ Click-through enabled (empty input region) for overlay {_overlay.Id}");
                     }
                     catch (Exception rex)
