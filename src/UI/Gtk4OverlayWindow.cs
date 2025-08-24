@@ -64,13 +64,21 @@ public class Gtk4OverlayWindow : IOverlayWindow
                 var display = Gdk.Display.GetDefault();
                 if (display != null)
                 {
-                    var monitors = display.GetMonitors();
+                    // Use reflection to avoid hard dependency on specific GIR bindings
+                    var mGetMonitors = display.GetType().GetMethod("GetMonitors");
+                    var monitors = mGetMonitors != null ? mGetMonitors.Invoke(display, null) : null;
                     if (monitors != null)
                     {
-                        uint count = monitors.GetNItems();
-                        if (_overlay.MonitorIndex >= 0 && (uint)_overlay.MonitorIndex < count)
+                        var lmType = monitors.GetType();
+                        var mGetNItems = lmType.GetMethod("GetNItems");
+                        var mGetItem = lmType.GetMethod("GetItem", new[] { typeof(uint) });
+                        if (mGetNItems != null && mGetItem != null)
                         {
-                            monitorObj = monitors.GetItem((uint)_overlay.MonitorIndex);
+                            var nObj = mGetNItems.Invoke(monitors, null);
+                            if (nObj is uint count && _overlay.MonitorIndex >= 0 && (uint)_overlay.MonitorIndex < count)
+                            {
+                                monitorObj = mGetItem.Invoke(monitors, new object[] { (uint)_overlay.MonitorIndex });
+                            }
                         }
                     }
                 }
