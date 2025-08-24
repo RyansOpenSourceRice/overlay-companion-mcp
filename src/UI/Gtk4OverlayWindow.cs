@@ -197,19 +197,47 @@ public class Gtk4OverlayWindow : IOverlayWindow
     }
 
     private (double Red, double Green, double Blue, double Alpha) ParseColor(string colorName)
-
     {
-        // Simple color parsing - could be enhanced
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(colorName))
+            {
+                var s = colorName.Trim();
+                if (s.StartsWith("#")) s = s[1..];
+                if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s[2..];
+                if (s.Length == 6 || s.Length == 8)
+                {
+                    var r = Convert.ToInt32(s.Substring(0, 2), 16) / 255.0;
+                    var g = Convert.ToInt32(s.Substring(2, 2), 16) / 255.0;
+                    var b = Convert.ToInt32(s.Substring(4, 2), 16) / 255.0;
+                    var a = s.Length == 8 ? Convert.ToInt32(s.Substring(6, 2), 16) / 255.0 : _overlay.Opacity;
+                    return (r, g, b, a);
+                }
+                if (s.Length == 3)
+                {
+                    var r = Convert.ToInt32(new string(s[0], 2), 16) / 255.0;
+                    var g = Convert.ToInt32(new string(s[1], 2), 16) / 255.0;
+                    var b = Convert.ToInt32(new string(s[2], 2), 16) / 255.0;
+                    return (r, g, b, _overlay.Opacity);
+                }
+            }
+        }
+        catch
+        {
+            // fall through to named colors
+        }
+
+        // Named colors fallback
         return colorName.ToLowerInvariant() switch
         {
-            "red" => (1.0, 0.0, 0.0, 0.3),
-            "green" => (0.0, 1.0, 0.0, 0.3),
-            "blue" => (0.0, 0.0, 1.0, 0.3),
-            "yellow" => (1.0, 1.0, 0.0, 0.3),
-            "orange" => (1.0, 0.5, 0.0, 0.3),
-            "purple" => (1.0, 0.0, 1.0, 0.3),
-            "cyan" => (0.0, 1.0, 1.0, 0.3),
-            _ => (1.0, 1.0, 0.0, 0.3) // Default to yellow
+            "red" => (1.0, 0.0, 0.0, _overlay.Opacity),
+            "green" => (0.0, 1.0, 0.0, _overlay.Opacity),
+            "blue" => (0.0, 0.0, 1.0, _overlay.Opacity),
+            "yellow" => (1.0, 1.0, 0.0, _overlay.Opacity),
+            "orange" => (1.0, 0.5, 0.0, _overlay.Opacity),
+            "purple" => (1.0, 0.0, 1.0, _overlay.Opacity),
+            "cyan" => (0.0, 1.0, 1.0, _overlay.Opacity),
+            _ => (1.0, 1.0, 0.0, _overlay.Opacity) // Default to yellow
         };
     }
 
