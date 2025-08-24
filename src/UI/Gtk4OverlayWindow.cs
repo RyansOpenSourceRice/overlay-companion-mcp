@@ -1,5 +1,6 @@
 using Gtk;
 using System.Runtime.InteropServices;
+using OverlayCompanion.UI;
 
 using Gdk;
 using Cairo;
@@ -53,9 +54,41 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _window.SetDecorated(false);
         _window.SetModal(false);
         
-        // Make window fullscreen to cover entire screen for proper overlay positioning
-        // We'll draw the overlay content at the correct position within the fullscreen window
-        _window.Fullscreen();
+        // Wayland-first: use gtk-layer-shell overlay layer if available; otherwise fullscreen toplevel
+        bool usedLayerShell = false;
+        try
+        {
+            object? monitorObj = null;
+            try
+            {
+                var display = Gdk.Display.GetDefault();
+                if (display != null)
+                {
+                    var monitors = display.GetMonitors();
+                    if (monitors != null)
+                    {
+                        uint count = monitors.GetNItems();
+                        if (_overlay.MonitorIndex >= 0 && (uint)_overlay.MonitorIndex < count)
+                        {
+                            monitorObj = monitors.GetItem((uint)_overlay.MonitorIndex);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            if (LayerShellInterop.IsAvailable && _window != null)
+            {
+                usedLayerShell = LayerShellInterop.TryConfigureOverlay(_window, monitorObj);
+            }
+        }
+        catch { }
+
+        if (!usedLayerShell)
+        {
+            // Fallback: fullscreen normal toplevel
+            _window.Fullscreen();
+        }
 
         // Create drawing area for custom rendering - covers full screen
         _drawingArea = DrawingArea.New();
