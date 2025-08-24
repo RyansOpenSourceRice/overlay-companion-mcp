@@ -70,6 +70,7 @@ The native HTTP transport provides critical advantages for modern MCP deployment
         "width": { "type": "number" },
         "height": { "type": "number" },
         "color": { "type": "string", "optional": true },
+        "opacity": { "type": "number", "optional": true, "description": "0.0 to 1.0 (default 0.5)" },
         "label": { "type": "string", "optional": true },
         "temporary_ms": { "type": "number", "optional": true }
       },
@@ -206,8 +207,11 @@ The native HTTP transport provides critical advantages for modern MCP deployment
               "width": { "type": "number" },
               "height": { "type": "number" },
               "color": { "type": "string", "optional": true },
+              "opacity": { "type": "number", "optional": true, "description": "0.0 to 1.0 (default 0.5)" },
               "label": { "type": "string", "optional": true },
-              "temporary_ms": { "type": "number", "optional": true }
+              "temporary_ms": { "type": "number", "optional": true },
+              "click_through": { "type": "boolean", "optional": true },
+              "monitor_index": { "type": "number", "optional": true }
             }
           }
         },
