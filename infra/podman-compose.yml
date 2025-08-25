@@ -1,0 +1,59 @@
+version: "3.8"
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: guacpass
+      POSTGRES_DB: guacamole_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  guacd:
+    image: docker.io/guacamole/guacd:1.5.5
+    restart: unless-stopped
+
+  guacamole:
+    image: docker.io/guacamole/guacamole:1.5.5
+    depends_on:
+      - postgres
+      - guacd
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRES_HOSTNAME: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: guacamole_db
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: guacpass
+      # Initial admin user/password
+      MYSQL_AUTO_CREATE_ACCOUNTS: "true"
+    ports:
+      - "8081:8080" # Expose Guacamole web (Tomcat) on 8081 locally
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.mcp
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - guacamole
+    restart: unless-stopped
+
+  caddy:
+    image: docker.io/library/caddy:2.8.4
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - mcp
+      - guacamole
+    restart: unless-stopped
+
+volumes:
+  pgdata:
