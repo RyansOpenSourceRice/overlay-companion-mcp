@@ -184,7 +184,9 @@
     function connect() {
       if (ws && ws.readyState === WebSocket.OPEN) return;
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      ws = new WebSocket(proto + '://' + location.host + '/ws/overlays');
+      const tokenParam = new URLSearchParams(location.search).get('token');
+      const tokenQ = tokenParam ? ('?token=' + encodeURIComponent(tokenParam)) : '';
+      ws = new WebSocket(proto + '://' + location.host + '/ws/overlays' + tokenQ);
       ws.onopen = () => setStatus('Connected', true);
       ws.onclose = () => setStatus('Disconnected', false);
       ws.onerror = () => setStatus('Error', false);
