@@ -34,6 +34,14 @@ public class OverlayService : IOverlayService
     private readonly ConcurrentDictionary<string, OverlayElement> _activeOverlays = new();
     private readonly ConcurrentDictionary<string, IOverlayWindow> _overlayWindows = new();
 
+
+    private readonly OverlayCompanion.Web.IOverlayEventBroadcaster? _broadcaster;
+
+    public OverlayService(OverlayCompanion.Web.IOverlayEventBroadcaster? broadcaster = null)
+    {
+        _broadcaster = broadcaster;
+    }
+
     public event EventHandler<OverlayElement>? OverlayCreated;
     public event EventHandler<string>? OverlayRemoved;
 
@@ -66,6 +74,7 @@ public class OverlayService : IOverlayService
         }
 
         OverlayCreated?.Invoke(this, overlay);
+        if (_broadcaster != null) await _broadcaster.BroadcastOverlayCreatedAsync(overlay);
         return overlay.Id;
     }
 
@@ -87,6 +96,7 @@ public class OverlayService : IOverlayService
         }
 
         OverlayCreated?.Invoke(this, overlay);
+        if (_broadcaster != null) await _broadcaster.BroadcastOverlayCreatedAsync(overlay);
         return overlay.Id;
     }
 
@@ -100,6 +110,8 @@ public class OverlayService : IOverlayService
             await window.HideAsync();
             window.Dispose();
         }
+
+        if (_broadcaster != null) await _broadcaster.BroadcastOverlayRemovedAsync(overlayId);
 
         OverlayRemoved?.Invoke(this, overlayId);
         return true;
@@ -138,6 +150,8 @@ public class OverlayService : IOverlayService
         var overlayIds = _activeOverlays.Keys.ToArray();
 
         var tasks = overlayIds.Select(RemoveOverlayAsync);
+        if (_broadcaster != null) await _broadcaster.BroadcastClearAsync();
+
         await Task.WhenAll(tasks);
     }
 

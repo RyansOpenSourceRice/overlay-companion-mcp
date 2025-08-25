@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Overlay Companion - Viewer</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #111; }
+    #container { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #viewer { position: absolute; inset: 0; background: #222; color: #eee; display: flex; align-items: center; justify-content: center; font-family: system-ui, sans-serif; }
+    #overlay { position: absolute; inset: 0; pointer-events: none; }
+    .box { position: absolute; border: 2px solid red; background: rgba(255,0,0,0.2); box-sizing: border-box; border-radius: 4px; }
+    #hud { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.5); color: #fff; padding: 6px 10px; border-radius: 6px; font-family: system-ui, sans-serif; font-size: 12px; }
+    /* ensure overlay canvas never steals input; explicit for clarity */
+    #overlay, .box { pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="viewer">Stub Viewer (CI-safe). Real setup uses Guacamole here.</div>
+    <div id="overlay"></div>
+    <div id="hud">Click-through overlays enabled. Pointer events go to the viewer behind.</div>
+  </div>
+  <script>
+  // Basic client that draws click-through overlays from the MCP server
+  (function() {
+    const overlayEl = document.getElementById('overlay');
+    const params = new URLSearchParams(location.search);
+    // Viewport crop for multi-window mode
+    const vx = parseInt(params.get('vx')||'0', 10);
+    const vy = parseInt(params.get('vy')||'0', 10);
+    const vw = parseInt(params.get('vw')||window.innerWidth, 10);
+    const vh = parseInt(params.get('vh')||window.innerHeight, 10);
+    const scale = parseFloat(params.get('scale')||'1');
+
+    function intersects(x, y, w, h) {
+      return !(x + w <= vx || y + h <= vy || x >= vx + vw || y >= vy + vh);
+    }
+
+    function toLocalRect(x, y, w, h) {
+      return {
+        left: (x - vx) * scale,
+        top: (y - vy) * scale,
+        width: w * scale,
+        height: h * scale,
+      };
+    }
+
+    function drawBox(data) {
+      const { x, y, width, height, color, opacity } = data;
+      if (!intersects(x, y, width, height)) return;
+      const rect = toLocalRect(x, y, width, height);
+      const el = document.createElement('div');
+      el.className = 'box';
+      el.style.left = rect.left + 'px';
+      el.style.top = rect.top + 'px';
+      el.style.width = rect.width + 'px';
+      el.style.height = rect.height + 'px';
+      el.style.borderColor = color || 'red';
+      el.style.backgroundColor = color ? hexOrNameToRgba(color, opacity ?? 0.25) : 'rgba(255,0,0,0.25)';
+      el.dataset.id = data.id;
+      overlayEl.appendChild(el);
+    }
+
+    function removeBox(id) {
+      const el = overlayEl.querySelector(`.box[data-id="${id}"]`);
+      if (el) el.remove();
+    }
+
+    function clearAll() { overlayEl.innerHTML = ''; }
+
+    function hexOrNameToRgba(color, opacity) {
+      const ctx = document.createElement('canvas').getContext('2d');
+      if (!ctx) return `rgba(255,0,0,${opacity})`;
+      ctx.fillStyle = color;
+      const computed = ctx.fillStyle; // normalized
+      // If rgb(a), just inject opacity
+      if (computed.startsWith('rgb')) {
+        const nums = computed.match(/\d+\.?\d*/g) || [];
+        const [r,g,b] = nums.map(Number);
+        return `rgba(${r},${g},${b},${opacity})`;
+      }
+      // Simplistic hex parse fallback
+      const hex = computed.replace('#','');
+      const bigint = parseInt(hex, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${opacity})`;
+    }
+
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${proto}://${location.host}/ws/overlays`);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'overlay_created') drawBox(msg.overlay);
+          else if (msg.type === 'overlay_removed') removeBox(msg.overlay_id);
+          else if (msg.type === 'clear_overlays') clearAll();
+          else if (msg.type === 'sync_state' && Array.isArray(msg.overlays)) {
+            clearAll();
+            for (const o of msg.overlays) drawBox(o);
+          }
+        } catch (e) {
+          console.error('WS parse error', e);
+        }
+      };
+      ws.onclose = () => setTimeout(connect, 1000);
+    }
+
+    connect();
+    window.addEventListener('resize', () => {
+      // In real app, we’d broadcast viewport changes; stub keeps it simple.
+    });
+  })();
+  </script>
+</body>
+</html>
