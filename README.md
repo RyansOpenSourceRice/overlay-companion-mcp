@@ -88,37 +88,11 @@ For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md
 
 ## Troubleshooting
 
-### AppImage Issues
-
-#### "Setup was already called on one of AppBuilder instances" Error
-
-**Fixed in v2025.08.22.2+**: This Avalonia double initialization error has been resolved with proper lifetime management.
-
-**Symptoms:**
-- HTTP server starts successfully on port 3000
-- Error occurs during GUI initialization
-- Application crashes with Avalonia setup error
-
-**Solution:**
-- **Update to latest AppImage** (v2025.08.22.4 or newer)
-- For older versions, temporary workaround: `HEADLESS=1 ./overlay-companion-mcp.AppImage` (testing mode only)
-
-#### GUI Not Starting
-
-**Desktop Environment:**
-- Ensure you're running in a desktop environment (GNOME, KDE, XFCE, etc.)
-- Check that `$DISPLAY` is set (X11) or Wayland compositor is running
-- Try: `./overlay-companion-mcp.AppImage --gui` to force GUI mode
-
-**Headless Environment:**
-- Use `HEADLESS=1` environment variable or `--no-gui` flag
-- HTTP transport works headless: `http://localhost:3000/` (POST with Accept: application/json, text/event-stream)
-
-#### Native Library Issues
-
-**libSkiaSharp/libHarfBuzzSharp errors:**
-- Update to AppImage v2025.08.22.4+ (includes all native dependencies and fixes)
-- For manual builds, ensure native libraries are in LD_LIBRARY_PATH
+### HTTP Usage
+- Default port: 3000
+- MCP endpoint: POST to `http://localhost:3000/` with `Accept: application/json, text/event-stream`
+- Setup page: `http://localhost:3000/setup`
+- Config JSON: `http://localhost:3000/config`
 
 ### Transport Issues
 
