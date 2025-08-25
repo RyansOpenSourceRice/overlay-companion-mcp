@@ -16,8 +16,9 @@
     reverse_proxy mcp:3000
   }
 
-  # Guacamole web app (Tomcat)
+  # Guacamole web app (Tomcat); rewrite /guac/* -> /guacamole/*
   handle_path /guac/* {
+    rewrite * /guacamole{path}
     reverse_proxy guacamole:8080
   }
 
