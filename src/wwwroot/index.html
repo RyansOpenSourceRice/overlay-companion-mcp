@@ -33,32 +33,37 @@
   <iframe id="guac-iframe" src="/guac" style="position:absolute; inset:0; border:0; z-index:1;"></iframe>
 
 
+    <script src="/guac/js/guacamole-common.min.js"></script>
     <script>
-      // If guacamole-common-js is present, initialize it directly instead of iframe
       (function initGuac() {
-        if (!window.Guacamole) return; // keep iframe fallback
+        if (!window.Guacamole) return;
         const iframe = document.getElementById('guac-iframe');
-        if (iframe) iframe.remove();
         const container = document.getElementById('guac-container');
         const display = new Guacamole.Display();
         container.appendChild(display.getElement());
-        // Tunnel via HTTP to /guac/ (Caddy proxies to Tomcat Guacamole)
         const tunnel = new Guacamole.HTTPTunnel('/guac/tunnel');
         const client = new Guacamole.Client(tunnel);
         client.onstatechange = function(state) {
           // 0=idle,1=connecting,2=waiting,3=connected,4=disconnecting,5=disconnected
           console.log('Guac state:', state);
+          if (state === 3 && iframe) iframe.remove();
         };
         client.onerror = function(e) { console.error('Guac error', e); };
         client.onchat = function(msg) { console.log('Guac chat:', msg); };
         client.onclipboard = function(stream, mimetype) { stream.sendEnd(); };
         client.onname = function(name) { console.log('Guac name:', name); };
         client.onfile = function(stream, mimetype, filename) { stream.sendEnd(); };
-        window.addEventListener('resize', function() {
+        function resizeGuac() {
           const w = window.innerWidth, h = window.innerHeight;
           client.sendSize(w, h);
-          display.scale(Math.min(w / virtual.width, h / virtual.height));
-        });
+          if (container) { container.style.width = w + 'px'; container.style.height = h + 'px'; }
+          if (typeof virtual === 'object' && virtual) {
+            const s = Math.min(w / (virtual.width || w), h / (virtual.height || h));
+            display.scale(s);
+          }
+        }
+        window.addEventListener('resize', resizeGuac);
+        resizeGuac();
         // Mouse/keyboard passthrough (optional)
         const mouse = new Guacamole.Mouse(display.getElement());
         const keyboard = new Guacamole.Keyboard(document);
@@ -72,7 +77,6 @@
         window.addEventListener('unload', function() { client.disconnect(); });
       })();
     </script>
-    <script src="/guac/js/guacamole-common.min.js" async></script>
 
 
   <script>
