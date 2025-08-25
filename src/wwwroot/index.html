@@ -57,10 +57,17 @@
           const w = window.innerWidth, h = window.innerHeight;
           client.sendSize(w, h);
           if (container) { container.style.width = w + 'px'; container.style.height = h + 'px'; }
+          // Browser drives VM size: update virtual screen to match viewport
           if (typeof virtual === 'object' && virtual) {
-            const s = Math.min(w / (virtual.width || w), h / (virtual.height || h));
-            display.scale(s);
+            virtual.min_x = 0; virtual.min_y = 0; virtual.width = w; virtual.height = h;
+          } else {
+            virtual = { min_x: 0, min_y: 0, width: w, height: h };
           }
+          // Recompute overlay transforms
+          if (typeof layoutLayers === 'function') layoutLayers();
+          // Scale Guacamole canvas to fit current virtual screen
+          const s = Math.min(w / (virtual.width || w), h / (virtual.height || h));
+          display.scale(s);
         }
         window.addEventListener('resize', resizeGuac);
         resizeGuac();
