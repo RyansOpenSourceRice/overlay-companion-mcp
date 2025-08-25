@@ -33,7 +33,9 @@ public class Program
 
         // HTTP transport is now the primary and default transport
         // STDIO transport is deprecated and only available for legacy compatibility
-        bool useStdioTransport = args.Contains("--stdio") || args.Contains("--legacy");
+        bool useStdioTransport = args.Contains("--stdio") || args.Contains("--legacy")
+            || string.Equals(Environment.GetEnvironmentVariable("MCP_TRANSPORT"), "stdio", StringComparison.OrdinalIgnoreCase)
+            || Console.IsInputRedirected;
 
         if (useStdioTransport)
         {
