@@ -10,6 +10,6 @@ Appears not needed; build succeeded with current csproj and packages.
 Server responds on /setup and SSE JSON-RPC works at root (/) and MCP endpoint at /mcp responds to POST.
 5. ✅ If build errors, fix compile issues minimally
 No build errors; added small improvement to transport selection.
-6. ⏳ Commit changes with descriptive message
-Pending commit of Program.cs change.
+6. ✅ Commit changes with descriptive message
+Committed Program.cs update and added Temp trajectory (auto).
 

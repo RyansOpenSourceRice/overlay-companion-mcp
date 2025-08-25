@@ -145,10 +145,14 @@ public class Program
             });
         });
 
-        // Configure web server
+        // Configure web server (allow overriding port via environment)
+        var port = 3000;
+        var portEnv = Environment.GetEnvironmentVariable("PORT") ?? Environment.GetEnvironmentVariable("OC_PORT");
+        if (int.TryParse(portEnv, out var p) && p > 0) port = p;
+
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(3000);
+            options.ListenAnyIP(port);
         });
 
         var app = builder.Build();
