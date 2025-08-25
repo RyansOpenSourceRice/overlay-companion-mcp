@@ -1,15 +1,13 @@
 # Task List
 
-1. ✅ Install .NET SDK 8.0 and prerequisites on the runner
-Installed dotnet-sdk-8.0 via packages-microsoft-prod.deb
-2. ✅ Adjust project to compile ASP.NET Core Minimal API
-Appears not needed; build succeeded with current csproj and packages.
-3. ✅ Build the project in Release to build/publish
+1. ✅ Update README to be HTTP-first, deprecate STDIO, set endpoint to '/' and adjust limitations
 
-4. ✅ Run the binary in headless mode to verify HTTP endpoints respond
-Server responds on /setup and SSE JSON-RPC works at root (/) and MCP endpoint at /mcp responds to POST.
-5. ✅ If build errors, fix compile issues minimally
-No build errors; added small improvement to transport selection.
-6. ✅ Commit changes with descriptive message
-Committed Program.cs update and added Temp trajectory (auto).
+2. ✅ Update SPECIFICATION.md privacy/networking and roadmap bullets away from Avalonia; keep STDIO as legacy
+
+3. ✅ Update MCP_SPECIFICATION.md to HTTP root endpoint '/', tags, and security model note
+
+4. 🔄 Minor code alignment: update Program.cs configuration JSON, setup UI, and log message to reflect '/' and dynamic port; add /mcp alias, web root static page, WS overlays
+Program.cs changed: MapMcp("/" and "/mcp"), GetMcpConfiguration url now root, setup HTML reflects Post '/', logs show dynamic port, UseWebSockets added; added OverlayWebSocketHub and wwwroot/index.html; created WS endpoint and static root handler.
+5. ⏳ Optional: Update ROADMAP and SDK_INTEGRATION_SUMMARY to reflect HTTP-first and legacy STDIO
+
 

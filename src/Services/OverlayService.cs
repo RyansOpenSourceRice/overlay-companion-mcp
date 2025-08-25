@@ -22,6 +22,7 @@ public interface IOverlayService
     Task<bool> UpdateOverlayPositionAsync(string overlayId, ScreenRegion newBounds);
     event EventHandler<OverlayElement>? OverlayCreated;
     event EventHandler<string>? OverlayRemoved;
+    event EventHandler<OverlayElement>? OverlayUpdated;
 }
 
 /// <summary>
@@ -36,6 +37,7 @@ public class OverlayService : IOverlayService
 
     public event EventHandler<OverlayElement>? OverlayCreated;
     public event EventHandler<string>? OverlayRemoved;
+    public event EventHandler<OverlayElement>? OverlayUpdated;
 
     public async Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0, bool clickThrough = true)
     {
@@ -162,6 +164,7 @@ public class OverlayService : IOverlayService
             await window.UpdatePositionAsync(newBounds);
         }
 
+        OverlayUpdated?.Invoke(this, overlay);
         return true;
     }
 

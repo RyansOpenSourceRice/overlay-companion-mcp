@@ -27,23 +27,19 @@ The AppImage supports automatic updates via AppImageUpdate:
 
 You can also check for updates directly from the application's **Settings tab** when running as an AppImage. The app will automatically detect if it's running as an AppImage and show update controls.
 
-**Architecture**: The application runs an **HTTP server** (required for MCP protocol) with a **GUI interface**:
-- **Normal operation**: HTTP server + GUI (default)
-- **Testing only**: GUI can be disabled with `--no-gui` or `HEADLESS=1` for automated testing
-
-> **Note**: AppImages from v2025.08.22.4+ include the Avalonia double initialization fix, smoke test timeout fix, and all necessary native dependencies (libSkiaSharp, libHarfBuzzSharp) for proper GUI functionality. Earlier versions may experience GUI initialization issues or CI test timeouts.
+**Architecture**: Full HTTP MCP server with optional native GUI. For web deployments, overlays render in the browser and the server runs headless by default.
+- **Default operation**: HTTP server only (HEADLESS=1)
+- **Optional native GUI**: Can be enabled locally; not required for web
 
 ### System Requirements
-- **Target Platform**: Fedora Linux with Wayland (GNOME)
-- **Current GUI Framework**: Avalonia UI (cross-platform)
-- **Click-Through Limitation**: Overlays are transparent but not fully click-through on native Wayland
+- **Runtime**: .NET 8, Linux
+- **Web-first**: Browser overlay layer renders above a viewer (stub or Guacamole)
 - **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
 - **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
 
-### Known Limitations
-- **Overlay Click-Through**: Current Avalonia implementation provides visual transparency but limited click-through on Wayland
-- **Workaround**: Run under XWayland for better click-through support
-- **Future**: Migration to GTK4 planned for native Wayland click-through support
+### Current Notes
+- **Transport**: HTTP is the primary transport. STDIO is deprecated and only retained for legacy testing.
+- **GUI**: GTK/Avalonia code exists but is not required for the web path.
 
 ## Usage
 
@@ -54,7 +50,7 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
 {
   "mcpServers": {
     "overlay_companion": {
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
       "provider": "Overlay Companion",
@@ -64,17 +60,7 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
 }
 ```
 
-**Legacy STDIO transport** (deprecated, use only if HTTP is not supported):
-```json
-{
-  "mcpServers": {
-    "overlay-companion": {
-      "command": "/path/to/overlay-companion-mcp",
-      "args": ["--stdio"]
-    }
-  }
-}
-```
+> Note: STDIO transport is deprecated. Use HTTP above. If you must use STDIO, start the binary with `--stdio` and configure your client accordingly.
 
 ### Easy Configuration Setup
 
@@ -82,6 +68,7 @@ For a better user experience, the application provides configuration endpoints w
 
 - **Web UI**: Visit `http://localhost:3000/setup` for an interactive configuration interface
 - **JSON Config**: Get ready-to-use configuration from `http://localhost:3000/config`
+- **MCP Endpoint**: POST JSON-RPC to `http://localhost:3000/` with header `Accept: application/json, text/event-stream` (SSE)
 - **Copy & Paste**: One-click copy functionality for easy setup in Cherry Studio
 
 The configuration includes proper metadata (description, tags, provider info) for better integration with MCP clients.

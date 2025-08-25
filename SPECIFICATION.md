@@ -468,12 +468,12 @@ All tools return standard MCP error responses for:
 - Rate limiting on all operations
 - User override capabilities
 
-### Privacy Protection
+### Privacy & Networking
 
-- All operations are local-only
+- Local-first operation; HTTP transport enables remote deployment when required
 - Screenshot data can be scrubbed before sharing
 - Clipboard access requires explicit permission
-- No network communication
+- Use TLS and authentication when exposing over a network
 
 ### Platform Integration
 
@@ -496,14 +496,14 @@ All tools return standard MCP error responses for:
 
 ### High Priority (Core Functionality)
 
-- **Complete AvaloniaOverlayWindow rendering** - Make overlays actually visible
+- **Web overlay client + WS bridge** - Browser-rendered overlays with pointer-events: none
 - **Session Stop implementation** - Critical safety feature  
 - **Color and text rendering** - Basic overlay functionality
 
 ### Medium Priority (Enhanced Features)
 
-- **GUI overlay management panel** - User control and monitoring
-- **Multi-monitor support** - Professional deployment requirement
+- **Overlay management UI (web)** - User control and monitoring
+- **Multi-monitor viewport sync** - Two-window cropping and coordinate transforms
 - **Advanced overlay shapes** - Enhanced AI interaction capabilities
 
 ### Low Priority (Polish)

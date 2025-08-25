@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overlay Companion Viewer (Stub)</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #eee;
+    }
+    #toolbar { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 1000; display: flex; gap: 8px; align-items: center; }
+    #status { margin-left: auto; font-size: 12px; opacity: 0.8; }
+    #viewer { position: absolute; inset: 0; background: #222; }
+    #overlay-layer { position: absolute; inset: 0; pointer-events: none; z-index: 999; }
+    .overlay-box { position: absolute; border: 2px dashed #f33; box-sizing: border-box; opacity: 0.6; }
+    .label { position: absolute; top: -20px; left: 0; font-size: 12px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="connect">Connect</button>
+    <a href="/setup" target="_blank">Setup</a>
+    <div id="status">Disconnected</div>
+  </div>
+  <div id="viewer"></div>
+  <div id="overlay-layer"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const overlayLayer = document.getElementById('overlay-layer');
+    const connectBtn = document.getElementById('connect');
+
+    let ws;
+
+    function setStatus(text, ok) {
+      statusEl.textContent = text;
+      statusEl.style.color = ok ? '#8f8' : '#f88';
+    }
+
+    function renderOverlay(o) {
+      let el = document.getElementById('ov-' + o.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'overlay-box';
+        el.id = 'ov-' + o.id;
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.id = 'ov-label-' + o.id;
+        el.appendChild(label);
+        overlayLayer.appendChild(el);
+      }
+      el.style.left = o.bounds.x + 'px';
+      el.style.top = o.bounds.y + 'px';
+      el.style.width = o.bounds.width + 'px';
+      el.style.height = o.bounds.height + 'px';
+      el.style.borderColor = o.color || '#f33';
+      el.style.opacity = (o.opacity ?? 0.5).toString();
+      const label = document.getElementById('ov-label-' + o.id);
+      label.textContent = o.label || '';
+    }
+
+    function removeOverlay(id) {
+      const el = document.getElementById('ov-' + id);
+      if (el) el.remove();
+    }
+
+    function resetOverlays() {
+      overlayLayer.innerHTML = '';
+    }
+
+    function handleMessage(msg) {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data.type === 'sync') {
+          resetOverlays();
+          (data.overlays || []).forEach(renderOverlay);
+        } else if (data.type === 'overlay_created' || data.type === 'overlay_updated') {
+          renderOverlay(data.overlay);
+        } else if (data.type === 'overlay_removed') {
+          removeOverlay(data.overlayId);
+        }
+      } catch (e) { console.warn('Bad WS message', e); }
+    }
+
+    function connect() {
+      if (ws && ws.readyState === WebSocket.OPEN) return;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(proto + '://' + location.host + '/ws/overlays');
+      ws.onopen = () => setStatus('Connected', true);
+      ws.onclose = () => setStatus('Disconnected', false);
+      ws.onerror = () => setStatus('Error', false);
+      ws.onmessage = handleMessage;
+    }
+
+    connectBtn.addEventListener('click', connect);
+  </script>
+</body>
+</html>

@@ -145,6 +145,9 @@ public class Program
             });
         });
 
+        // Overlay WS hub
+        builder.Services.AddSingleton<OverlayWebSocketHub>();
+
         // Configure web server (allow overriding port via environment)
         var port = 3000;
         var portEnv = Environment.GetEnvironmentVariable("PORT") ?? Environment.GetEnvironmentVariable("OC_PORT");
@@ -160,17 +163,45 @@ public class Program
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");
         logger.LogInformation("HTTP transport provides multi-client support, streaming, web integration, and image handling");
-        logger.LogInformation("HTTP Transport listening on http://0.0.0.0:3000/mcp");
+        logger.LogInformation("HTTP Transport listening on http://0.0.0.0:{Port}/ (root)", port);
+
+        app.UseWebSockets();
 
         // Enable CORS
         app.UseCors();
 
         // Map MCP endpoints (native HTTP transport with streaming support)
-        app.MapMcp();  // This registers the /mcp endpoint with full MCP protocol support
+        // Preferred root path "/" for MCP per current policy
+        app.MapMcp("/");
+        // Backward-compatible alias at /mcp to avoid client confusion
+        app.MapMcp("/mcp");
 
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
+        // WebSocket endpoint for overlay events
+        app.MapGet("/ws/overlays", async (HttpContext context) =>
+        {
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                using var socket = await context.WebSockets.AcceptWebSocketAsync();
+                var hub = context.RequestServices.GetRequiredService<OverlayWebSocketHub>();
+                var cts = new CancellationTokenSource();
+                await hub.HandleClientAsync(socket, cts.Token);
+            }
+            else
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            }
+        });
+
+        // Serve static web UI at root
+        app.MapGet("/", async context =>
+        {
+            context.Response.ContentType = "text/html; charset=utf-8";
+            await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
+        });
+
         app.MapGet("/config/json", () => Results.Content(GetMcpConfigurationJson(), "application/json"));
         app.MapGet("/config/stdio", () => Results.Json(GetMcpConfigurationStdio()));
 
@@ -297,9 +328,9 @@ public class Program
             {
                 overlay_companion = new
                 {
-                    url = "http://localhost:3000/mcp",
+                    url = "http://localhost:3000/",
                     description = "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-                    tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux" },
+                    tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse" },
                     provider = "Overlay Companion",
                     provider_url = "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
                 }
@@ -451,7 +482,7 @@ public class Program
         
         <div class="status">
             <strong>✅ Server Running</strong><br>
-            HTTP transport is active on <code>http://localhost:3000/mcp</code>
+            HTTP transport is active on <code>http://localhost:3000/</code>
         </div>
 
         <div class="config-section">
@@ -477,7 +508,7 @@ public class Program
         <div class="endpoints">
             <h3>📡 Available Endpoints</h3>
             <div class="endpoint">
-                <strong>MCP Protocol:</strong> <code>POST /mcp</code> - Main MCP server endpoint
+                <strong>MCP Protocol:</strong> <code>POST /</code> - Main MCP server endpoint (Accept: application/json, text/event-stream)
             </div>
             <div class="endpoint">
                 <strong>Configuration UI:</strong> <code>GET /setup</code> - This page

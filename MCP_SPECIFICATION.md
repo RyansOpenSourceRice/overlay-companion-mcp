@@ -95,7 +95,7 @@ The server implements standard MCP error responses:
 {
   "mcpServers": {
     "overlay_companion": {
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
       "provider": "Overlay Companion",
@@ -120,7 +120,7 @@ These endpoints include proper metadata (description, tags, provider info) for b
 {
   "mcpServers": {
     "overlay_companion": {
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
       "provider": "Overlay Companion",
