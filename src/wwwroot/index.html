@@ -29,6 +29,9 @@
   <div id="display-layer"></div>
   <div id="overlay-layer"></div>
   <div id="guac-container" style="position:absolute; inset:0; z-index:0;"></div>
+  <!-- Optional Guacamole iframe as a first step before guacamole-common-js embed -->
+  <iframe id="guac-iframe" src="/guac" style="position:absolute; inset:0; border:0; z-index:1;"></iframe>
+
 
 
   <script>
@@ -57,6 +60,11 @@
       overlayLayer.style.transform = transform;
       displayLayer.style.transformOrigin = '0 0';
       displayLayer.style.transform = transform;
+      const iframe = document.getElementById('guac-iframe');
+      if (iframe) {
+        iframe.style.width = window.innerWidth + 'px';
+        iframe.style.height = window.innerHeight + 'px';
+      }
     }
 
     function renderOverlay(o) {
