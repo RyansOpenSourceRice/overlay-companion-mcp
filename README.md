@@ -25,11 +25,11 @@ The AppImage supports automatic updates via AppImageUpdate:
 2. **Check for updates**: `appimageupdate --check-for-update overlay-companion-mcp-*.AppImage`
 3. **Update automatically**: `appimageupdate overlay-companion-mcp-*.AppImage`
 
-You can also check for updates directly from the application's **Settings tab** when running as an AppImage. The app will automatically detect if it's running as an AppImage and show update controls.
 
-**Architecture**: Full HTTP MCP server with optional native GUI. For web deployments, overlays render in the browser and the server runs headless by default.
-- **Default operation**: HTTP server only (HEADLESS=1)
-- **Optional native GUI**: Can be enabled locally; not required for web
+
+**Architecture**: Full HTTP MCP server with web-only viewer. Overlays render in the browser and the server runs headless by default.
+- **Default operation**: HTTP server on port 3000 (HEADLESS=1)
+- **Native GUI**: Removed. All interaction is via the web UI and MCP over HTTP
 
 ### System Requirements
 - **Runtime**: .NET 8, Linux
@@ -39,7 +39,7 @@ You can also check for updates directly from the application's **Settings tab** 
 
 ### Current Notes
 - **Transport**: HTTP is the primary transport. STDIO is deprecated and only retained for legacy testing.
-- **GUI**: GTK/Avalonia code exists but is not required for the web path.
+- **GUI**: No native GUI. GTK/Avalonia paths have been removed; web-only experience.
 
 ## Usage
 
@@ -52,7 +52,7 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
     "overlay_companion": {
       "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
@@ -112,7 +112,7 @@ For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md
 
 **Headless Environment:**
 - Use `HEADLESS=1` environment variable or `--no-gui` flag
-- HTTP transport will work without GUI: `http://localhost:3000/mcp`
+- HTTP transport works headless: `http://localhost:3000/` (POST with Accept: application/json, text/event-stream)
 
 #### Native Library Issues
 
