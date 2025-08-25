@@ -6,7 +6,7 @@
 - **MCP Protocol**: Full HTTP transport implementation (primary) with 13 working tools
 - **Transport Layer**: Native HTTP transport with image support, multi-client capability
 - **Legacy Support**: STDIO transport (deprecated) for backward compatibility
-- **Overlay System**: Complete with MockOverlayWindow for headless and AvaloniaOverlayWindow for GUI
+- **Overlay System**: Web-only viewer with MockOverlayWindow for server-side tracking; no native desktop GUI
 - **Screenshot Capture**: Working with Linux tools (scrot/gnome-screenshot)
 - **Input Simulation**: Click and type functionality implemented
 - **Mode Management**: 4 modes (passive, assist, autopilot, composing) with proper state management
@@ -60,11 +60,8 @@ MonitorIndex = 0, // TODO: Implement multi-monitor detection
 **Current**: 13/15 documented tools implemented
 
 ### 3. **HTTP Transport Enhancement** 🌐
-**Status**: Bridge implementation exists, needs proper HTTP transport  
-**Impact**: Future-proofing and web integration
-
-**Current Implementation**: HTTP-to-STDIO bridge (functional but not optimal)
-**Needed**: Native HTTP transport using `ModelContextProtocol.AspNetCore`
+Status: Implemented (native HTTP transport via ModelContextProtocol.AspNetCore). Bridge removed.
+Impact: Future-proofing and web integration
 
 **Benefits of HTTP Transport**:
 - **Multi-client support**: Multiple MCP clients can connect simultaneously
@@ -160,10 +157,9 @@ app.MapMcp();  // Registers /mcp endpoint with streaming support
 4. **Overlay positioning**: Ensure overlays appear on correct monitor
 
 ### HTTP Transport Implementation:
-1. **Keep STDIO**: Maintain existing stdio transport (it's working perfectly)
-2. **Add HTTP**: Implement native HTTP using `ModelContextProtocol.AspNetCore`
-3. **Dual mode**: Support both transports simultaneously
-4. **Configuration**: Runtime selection via command-line flags
+1. Primary: Native HTTP using `ModelContextProtocol.AspNetCore` at root `/` with SSE
+2. Legacy: Optional STDIO (`--stdio`) for testing/compat; not recommended
+3. Web UI served at `/`; config endpoints at `/setup`, `/config`
 
 ### Missing Tools Implementation:
 1. **`get_display_info`**: Return monitor configuration, resolutions, scaling

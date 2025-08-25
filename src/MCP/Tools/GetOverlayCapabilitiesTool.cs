@@ -21,7 +21,7 @@ public static class GetOverlayCapabilitiesTool
             supports_opacity = true,
             opacity_range = new { min = 0.0, max = 1.0, default_value = 0.5 },
             color_formats = new[] { "#RRGGBB", "#RRGGBBAA", "#RGB", "0xRRGGBB", "named (fallback)" },
-            layering = new { uses_layer_shell = OverlayCompanion.UI.LayerShellInterop.IsAvailable, notes = "overlay layer with anchors and keyboard=NONE when available; fallback to fullscreen toplevel" },
+            layering = new { uses_layer_shell = false, notes = "web-only viewer; native desktop layer-shell is disabled in this build" },
             coordinates = new { origin = "global", monitor_relative_under_layer_shell = true, tool_inputs = "tools accept monitor-relative coords; auto-adjust to global when not using layer-shell" }
         };
             // Coordinate system notes: global coords everywhere; when layer-shell is active the window is per-monitor and drawing

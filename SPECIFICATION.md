@@ -23,8 +23,8 @@ Cherry Studio → HTTP → MCP Server (OverlayCompanion)
 - **Use Case**: Modern integration, multi-client support, image handling
 - **Security**: Network-level isolation, CORS support
 - **Features**: Server-Sent Events streaming, concurrent clients, web integration
-- **Architecture**: HTTP server + GUI interface (GUI can be disabled for testing with `--no-gui`)
-- **Command**: `dotnet run` (default) or `./overlay-companion-mcp.AppImage`
+- **Architecture**: HTTP server with web-only overlay viewer (served from wwwroot). No native desktop GUI.
+- **Command**: `dotnet run` (default) or `./overlay-companion-mcp`
 
 #### 2. Legacy STDIO Transport (Deprecated)
 
@@ -35,7 +35,7 @@ Cherry Studio → stdio → MCP Server (OverlayCompanion)
 - **Use Case**: Legacy compatibility only
 - **Limitations**: No image support, single client, deprecated
 - **Security**: Process-level isolation
-- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp.AppImage --stdio`
+- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp --stdio`
 
 ### HTTP Transport Benefits
 
@@ -681,7 +681,7 @@ To keep the repository clean and reproducible, packaging outputs are generated a
   - AppStream file path: AppDir/usr/share/metainfo/overlay-companion-mcp.appdata.xml
   - Source of truth: Variables and heredoc content inside scripts/build-appimage.sh (APP_NAME, APP_DISPLAY_NAME, APP_DESCRIPTION, APP_CATEGORY, versioning, etc.).
 - If you need to edit metadata, update scripts/build-appimage.sh. Optionally, introduce checked-in templates (e.g., packaging/linux/overlay-companion-mcp.desktop.tmpl and packaging/linux/overlay-companion-mcp.appdata.xml.tmpl) and have the script copy them into AppDir at build time.
-- Trimming: Disabled by default in src/OverlayCompanion.csproj for stability with Avalonia/reflection. Do not pass /p:PublishTrimmed or TrimMode in workflows or scripts unless you explicitly re-enable trimming in the project.
+- Trimming: Disabled by default in src/OverlayCompanion.csproj for stability. Do not pass /p:PublishTrimmed or TrimMode in workflows or scripts unless you explicitly re-enable trimming in the project.
 - AppImage build notes:
   - The script auto-detects dotnet or installs SDK 8 locally via dotnet-install.sh if missing.
   - FUSE-less environments are supported via the extraction-based fallback.

@@ -1,7 +1,7 @@
 # overlay-companion-mcp
 
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-FF6B35?style=for-the-badge&logo=anthropic)](https://modelcontextprotocol.io/)
-[![Platform](https://img.shields.io/badge/platform-Linux%20AppImage-FCC624?style=for-the-badge&logo=linux)](https://appimage.org/)
+[![Platform](https://img.shields.io/badge/platform-Web%20(HTTP%20MCP)-00ADD8?style=for-the-badge&logo=google-chrome)](https://modelcontextprotocol.io/)
 [![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
 [![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
 [![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
@@ -11,34 +11,34 @@
 
 A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
 
-## Installation
+## Installation (Web-first)
 
-### Download AppImage (Recommended)
-1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases)
-2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
-3. Run: `./overlay-companion-mcp-*.AppImage`
+Run as a headless HTTP MCP server that serves a browser overlay viewer.
 
-#### Automatic Updates
-The AppImage supports automatic updates via AppImageUpdate:
+### From source (recommended during development)
+```bash
+dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
+./build/publish/overlay-companion-mcp
+```
 
-1. **Install AppImageUpdate**: `sudo apt install appimageupdate` or download from [AppImageUpdate releases](https://github.com/AppImage/AppImageUpdate/releases)
-2. **Check for updates**: `appimageupdate --check-for-update overlay-companion-mcp-*.AppImage`
-3. **Update automatically**: `appimageupdate overlay-companion-mcp-*.AppImage`
+Environment:
+- PORT or OC_PORT to change port (default 3000)
+- OC_SMOKE_TEST=1 to run smoke/startup check and exit
 
 
 
 **Architecture**: Full HTTP MCP server with web-only viewer. Overlays render in the browser and the server runs headless by default.
-- **Default operation**: HTTP server on port 3000 (HEADLESS=1)
+- **Default operation**: HTTP server on port 3000
 - **Native GUI**: Removed. All interaction is via the web UI and MCP over HTTP
 
 ### System Requirements
 - **Runtime**: .NET 8, Linux
-- **Web-first**: Browser overlay layer renders above a viewer (stub or Guacamole)
+- **Web-first**: Browser overlay renders via /ws/overlays events from server
 - **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
 - **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
 
 ### Current Notes
-- **Transport**: HTTP is the primary transport. STDIO is deprecated and only retained for legacy testing.
+- **Transport**: HTTP is the primary transport at "/" with SSE. STDIO is deprecated and retained only for legacy/testing.
 - **GUI**: No native GUI. GTK/Avalonia paths have been removed; web-only experience.
 
 ## Usage

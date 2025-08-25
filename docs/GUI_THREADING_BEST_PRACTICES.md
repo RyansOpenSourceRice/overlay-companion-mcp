@@ -1,4 +1,6 @@
-# GUI Threading Best Practices
+# GUI Threading Best Practices (Legacy Desktop)
+
+Note: The project is now web-only. This document is preserved for historical context and applies only to the former GTK/Avalonia desktop UI paths.
 
 This document outlines the threading best practices implemented in the Overlay Companion MCP to prevent GUI freezing and ensure responsive user interfaces.
 

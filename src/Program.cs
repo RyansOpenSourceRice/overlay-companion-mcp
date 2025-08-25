@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using ModelContextProtocol.Server;
 using OverlayCompanion.Services;
 using OverlayCompanion.MCP.Tools;
-using OverlayCompanion.UI;
+
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.IO;
@@ -20,8 +20,7 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
-    private static bool _gtk4Initialized = false;
-    private static readonly object _gtk4Lock = new object();
+    // Web-only: desktop GUI removed
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -83,25 +82,9 @@ public class Program
 
         try
         {
-            // Start MCP host and (optionally) Avalonia GUI concurrently
-            bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
+            // Web-only: no desktop GUI; just run host
             var hostTask = host.RunAsync();
-            Task? gtk4Task = null;
-            if (!headless)
-            {
-                gtk4Task = Task.Run(() => StartGtk4App(host.Services));
-            }
-
-            // Wait appropriately: if GUI started, tie process lifetime to GUI
-            if (gtk4Task is not null)
-            {
-                await gtk4Task;
-            }
-            else
-            {
-                await hostTask;
-            }
+            await hostTask;
         }
         catch (Exception ex)
         {
@@ -207,18 +190,12 @@ public class Program
 
         try
         {
-            // Start HTTP transport and (optionally) GTK4 GUI concurrently
+            // Web-only: no desktop GUI; just run web app
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
-            Task? gtk4Task = null;
-            if (!headless)
-            {
-                gtk4Task = Task.Run(() => StartGtk4App(app.Services));
-            }
 
             // In smoke test mode, create ready file after HTTP server starts and exit after delay
-            if (smoke && headless)
+            if (smoke)
             {
                 // Wait a moment for HTTP server to fully start
                 await Task.Delay(2000);
@@ -246,14 +223,7 @@ public class Program
                 return;
             }
 
-            if (gtk4Task is not null)
-            {
-                await gtk4Task;
-            }
-            else
-            {
-                await webAppTask;
-            }
+            await webAppTask;
         }
         catch (Exception ex)
         {
@@ -262,7 +232,7 @@ public class Program
         }
     }
 
-    // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
+    // Smoke-test hooks: write readiness file if requested (web-only)
     private static void ConfigureSmokeTestHooks()
     {
         var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
@@ -274,48 +244,12 @@ public class Program
         }
         catch { /* best-effort */ }
 
-        Gtk4OverlayApplication.WindowShown += () =>
-        {
-            try
-            {
-                File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
-            }
-            catch { /* ignore */ }
-        };
+        try { File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o")); } catch { }
     }
 
 
-    private static void StartGtk4App(IServiceProvider services)
-    {
-        lock (_gtk4Lock)
-        {
-            if (_gtk4Initialized)
-            {
-                Console.WriteLine("WARNING: GTK4 already initialized, skipping duplicate initialization.");
-                return;
-            }
-            _gtk4Initialized = true;
-
-            try
-            {
-                // Initialize GTK4 application manager
-                Gtk4ApplicationManager.Initialize();
-
-                // Set service provider for dependency injection
-                Gtk4ApplicationManager.SetServiceProvider(services);
-
-                // Run the GTK4 application
-                Gtk4ApplicationManager.RunApplication(Array.Empty<string>());
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR: Failed to start GTK4 application: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                _gtk4Initialized = false; // Reset flag on failure
-                throw;
-            }
-        }
-    }
+    // Web-only: StartGtk4App removed
+    
 
     /// <summary>
     /// Get MCP configuration for HTTP transport (recommended)

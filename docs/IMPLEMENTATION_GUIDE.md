@@ -5,10 +5,11 @@
 ### Core Framework
 - **.NET 8.0** - Latest LTS version for cross-platform support
 - **C# 12** - Modern language features and performance
-- **Avalonia UI** - Cross-platform UI framework for overlay windows
+- **Web-only Viewer** - Static wwwroot served by ASP.NET Core; overlays rendered in browser via WebSocket events
 
 ### MCP Integration
 - **ModelContextProtocol SDK** - Official Microsoft/Anthropic MCP C# SDK
+- **ASP.NET Core** - Native HTTP transport with SSE at root "/"
 - **Microsoft.Extensions.Hosting** - .NET hosting and dependency injection
 - **Microsoft.Extensions.DependencyInjection** - Service container
 - **Cherry Studio Client** - AI model integration via MCP protocol
@@ -70,9 +71,9 @@ overlay-companion-mcp/
    - Privacy scrubbing
 
 2. **Overlay System**
-   - Transparent window management
-   - Multi-monitor positioning
-   - DPI awareness
+   - Browser-rendered overlays via WebSocket hub at `/ws/overlays`
+   - Server tracks state using MockOverlayWindow only
+   - Multi-monitor positioning (mapping logic; rendering handled in web viewer)
    - Temporary overlays
 
 ### Phase 3: Input Simulation

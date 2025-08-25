@@ -97,7 +97,7 @@ The server implements standard MCP error responses:
     "overlay_companion": {
       "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
@@ -122,7 +122,7 @@ These endpoints include proper metadata (description, tags, provider info) for b
     "overlay_companion": {
       "url": "http://localhost:3000/",
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
     }
@@ -515,7 +515,7 @@ This repository uses **automated development environment setup** with:
 
 ### Build and Deployment
 
-**AppImage Build**: Automated AppImage creation with proper metadata validation
+**AppImage Build**: Legacy. Web-only delivery does not ship a desktop AppImage. This section is preserved for historical context if reintroduced.
 ```bash
 ./scripts/build-appimage.sh
 ```
