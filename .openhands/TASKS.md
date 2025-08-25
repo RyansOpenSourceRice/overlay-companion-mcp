@@ -6,10 +6,12 @@ Modified OverlayWebSocketHub to inject IScreenCaptureService; sync payload now i
 index.html now has display-layer, computes virtual_screen scale and offset, renders monitor frames, adapts on resize
 3. ✅ Backend-first: Add Podman Compose stack (caddy, mcp, guacd, guacamole, postgres)
 Added infra/podman-compose.yml, infra/Dockerfile.mcp, infra/Caddyfile, infra/README.md
-4. ✅ Viewer: Add optional Guacamole integration (iframe + optional guacamole-common-js embed)
-Inserted a /guac iframe placeholder; overlay layers remain above; resize handler adjusts it
-5. ⏳ Run server on port 12001 with --http and verify viewer opens
-Earlier attempts collided with stdio; run clean on a free port and explore
-6. ✅ Push to PR branch chore/web-only-alignment-ws-and-docs
-Pushed 3 commits to PR #34 branch
+4. ✅ Viewer: Add optional Guacamole integration (guacamole-common-js embed + iframe fallback)
+Initialize guacamole-common-js if present via /guac tunnel; fallback to iframe at /guac
+5. ✅ Security: Overlay WS token hardening (short-lived HMAC token via env secret)
+Added OverlayTokenService, optional validation on /ws/overlays; /overlay/token mint endpoint for dev
+6. ✅ Docs: VM xrdp provisioning guide
+infra/VM_SETUP.md with step-by-step Fedora setup
+7. ✅ Push to PR branch chore/web-only-alignment-ws-and-docs
+Pushed commits with infra + viewer + security + docs
 

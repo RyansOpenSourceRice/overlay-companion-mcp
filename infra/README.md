@@ -1,4 +1,10 @@
 Infra plan (single-user first, production-ready later)
+Security and CORS
+- Set OC_OVERLAY_WS_SECRET to enable token validation on /ws/overlays
+- Set OC_ALLOWED_ORIGINS to a comma-separated list to restrict web origins when SECRET is set
+- GET /overlay/token is a dev-only helper (omit in prod behind a proxy)
+
+
 
 Overview
 This project targets a web-first overlay viewer with an MCP backend and a remote desktop powered by Apache Guacamole.

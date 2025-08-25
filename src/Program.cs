@@ -118,14 +118,26 @@ public class Program
             .WithHttpTransport()  // Native HTTP transport with streaming support
             .WithToolsFromAssembly();
 
-        // Configure CORS for web integration
+        // Configure CORS for web integration (tighten when secret + allowed origins provided)
+        var secretSet = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OC_OVERLAY_WS_SECRET"));
+        var allowedOriginsEnv = Environment.GetEnvironmentVariable("OC_ALLOWED_ORIGINS");
+        var allowedOrigins = (allowedOriginsEnv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
-                policy.AllowAnyOrigin()
-                      .AllowAnyMethod()
-                      .AllowAnyHeader();
+                if (secretSet && allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins)
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                }
+                else
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                }
             });
         });
 
@@ -173,13 +185,26 @@ public class Program
                 return;
             }
 
-            // Optional token protection
+            // Optional token + origin protection
             var tokenSvc = context.RequestServices.GetRequiredService<OverlayTokenService>();
             var token = context.Request.Query["token"].FirstOrDefault() ?? context.Request.Headers["X-Overlay-Token"].FirstOrDefault();
             if (tokenSvc.IsProtectionEnabled && !tokenSvc.ValidateToken(token, "viewer"))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 return;
+            }
+            // Enforce Origin/Referer when secret is set and OC_ALLOWED_ORIGINS provided
+            if (tokenSvc.IsProtectionEnabled && (allowedOrigins?.Length ?? 0) > 0)
+            {
+                var origin = context.Request.Headers["Origin"].ToString();
+                var referer = context.Request.Headers["Referer"].ToString();
+                bool allowed = (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
+                               || (!string.IsNullOrEmpty(referer) && allowedOrigins.Any(o => referer.StartsWith(o)));
+                if (!allowed)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return;
+                }
             }
 
             using var socket = await context.WebSockets.AcceptWebSocketAsync();
