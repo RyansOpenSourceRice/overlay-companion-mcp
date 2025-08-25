@@ -129,8 +129,9 @@ public class Program
             });
         });
 
-        // Overlay WS hub
+        // Overlay WS hub and token service
         builder.Services.AddSingleton<OverlayWebSocketHub>();
+        builder.Services.AddSingleton<OverlayTokenService>();
 
         // Configure web server (allow overriding port via environment)
         var port = 3000;
@@ -166,19 +167,37 @@ public class Program
         // WebSocket endpoint for overlay events
         app.MapGet("/ws/overlays", async (HttpContext context) =>
         {
-            if (context.WebSockets.IsWebSocketRequest)
-            {
-                using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                var hub = context.RequestServices.GetRequiredService<OverlayWebSocketHub>();
-                var cts = new CancellationTokenSource();
-                await hub.HandleClientAsync(socket, cts.Token);
-            }
-            else
+            if (!context.WebSockets.IsWebSocketRequest)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
             }
+
+            // Optional token protection
+            var tokenSvc = context.RequestServices.GetRequiredService<OverlayTokenService>();
+            var token = context.Request.Query["token"].FirstOrDefault() ?? context.Request.Headers["X-Overlay-Token"].FirstOrDefault();
+            if (tokenSvc.IsProtectionEnabled && !tokenSvc.ValidateToken(token, "viewer"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            var hub = context.RequestServices.GetRequiredService<OverlayWebSocketHub>();
+            var cts = new CancellationTokenSource();
+            await hub.HandleClientAsync(socket, cts.Token);
         });
 
+            
+        });
+
+        // Token mint endpoint (dev aid): returns short-lived token if OC_OVERLAY_WS_SECRET is set
+        app.MapGet("/overlay/token", (OverlayTokenService tokenSvc) =>
+        {
+            if (!tokenSvc.IsProtectionEnabled) return Results.Json(new { token = "", protection = false });
+            var token = tokenSvc.GenerateToken("viewer");
+            return Results.Json(new { token, protection = true });
+        });
         // Serve static web UI at root
         app.MapGet("/", async context =>
         {
