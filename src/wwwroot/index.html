@@ -28,11 +28,14 @@
   <div id="viewer"></div>
   <div id="display-layer"></div>
   <div id="overlay-layer"></div>
+  <div id="guac-container" style="position:absolute; inset:0; z-index:0;"></div>
+
 
   <script>
     const statusEl = document.getElementById('status');
     const overlayLayer = document.getElementById('overlay-layer');
     const displayLayer = document.getElementById('display-layer');
+    const guacContainer = document.getElementById('guac-container');
     const connectBtn = document.getElementById('connect');
 
     let ws;
@@ -107,6 +110,10 @@
         displayLayer.appendChild(el);
       });
     }
+      // Resize potential Guacamole container to fill viewport
+      guacContainer.style.width = window.innerWidth + 'px';
+      guacContainer.style.height = window.innerHeight + 'px';
+
 
     function handleMessage(msg) {
       try {
