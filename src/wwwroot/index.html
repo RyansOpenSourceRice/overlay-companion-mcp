@@ -13,7 +13,8 @@
     #toolbar { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 1000; display: flex; gap: 8px; align-items: center; }
     #status { margin-left: auto; font-size: 12px; opacity: 0.8; }
     #viewer { position: absolute; inset: 0; background: #222; }
-    #overlay-layer { position: absolute; inset: 0; pointer-events: none; z-index: 999; }
+    #display-layer, #overlay-layer { position: absolute; inset: 0; pointer-events: none; }
+    #overlay-layer { z-index: 999; }
     .overlay-box { position: absolute; border: 2px dashed #f33; box-sizing: border-box; opacity: 0.6; }
     .label { position: absolute; top: -20px; left: 0; font-size: 12px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; pointer-events: none; }
   </style>
@@ -25,18 +26,34 @@
     <div id="status">Disconnected</div>
   </div>
   <div id="viewer"></div>
+  <div id="display-layer"></div>
   <div id="overlay-layer"></div>
 
   <script>
     const statusEl = document.getElementById('status');
     const overlayLayer = document.getElementById('overlay-layer');
+    const displayLayer = document.getElementById('display-layer');
     const connectBtn = document.getElementById('connect');
 
     let ws;
+    let virtual = { min_x: 0, min_y: 0, width: 1920, height: 1080 };
+    let scale = 1;
 
     function setStatus(text, ok) {
       statusEl.textContent = text;
       statusEl.style.color = ok ? '#8f8' : '#f88';
+    }
+
+    function layoutLayers() {
+      const vw = window.innerWidth; const vh = window.innerHeight;
+      const sx = vw / virtual.width; const sy = vh / virtual.height;
+      scale = Math.min(sx, sy);
+      const tx = -virtual.min_x * scale; const ty = -virtual.min_y * scale;
+      const transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      overlayLayer.style.transformOrigin = '0 0';
+      overlayLayer.style.transform = transform;
+      displayLayer.style.transformOrigin = '0 0';
+      displayLayer.style.transform = transform;
     }
 
     function renderOverlay(o) {
@@ -70,10 +87,34 @@
       overlayLayer.innerHTML = '';
     }
 
+    function renderDisplays(displays) {
+      displayLayer.innerHTML = '';
+      if (!displays) return;
+      displays.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'overlay-box';
+        el.style.borderStyle = 'solid';
+        el.style.borderColor = '#0af';
+        el.style.opacity = '0.2';
+        el.style.left = d.x + 'px';
+        el.style.top = d.y + 'px';
+        el.style.width = d.width + 'px';
+        el.style.height = d.height + 'px';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = `${d.name || 'Display'} (${d.width}x${d.height})`;
+        el.appendChild(label);
+        displayLayer.appendChild(el);
+      });
+    }
+
     function handleMessage(msg) {
       try {
         const data = JSON.parse(msg.data);
         if (data.type === 'sync') {
+          virtual = data.virtual_screen || virtual;
+          layoutLayers();
+          renderDisplays(data.displays);
           resetOverlays();
           (data.overlays || []).forEach(renderOverlay);
         } else if (data.type === 'overlay_created' || data.type === 'overlay_updated') {
@@ -95,6 +136,8 @@
     }
 
     connectBtn.addEventListener('click', connect);
+    window.addEventListener('resize', layoutLayers);
+
   </script>
 </body>
 </html>

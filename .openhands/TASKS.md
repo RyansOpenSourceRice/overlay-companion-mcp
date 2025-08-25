@@ -1,13 +1,11 @@
 # Task List
 
-1. ✅ Update README to be HTTP-first, deprecate STDIO, set endpoint to '/' and adjust limitations
+1. ✅ Extend WebSocket hub to send multi-monitor display info on connect
+Modified OverlayWebSocketHub to inject IScreenCaptureService; sync payload now includes displays and virtual_screen; camelCase JSON serialization via JsonSerializerOptions
+2. ✅ Update browser viewer to support multi-monitor virtual canvas (fit-to-window scaling) and render overlays correctly
+index.html now has display-layer, computes virtual_screen scale and offset, renders monitor frames, adapts on resize
+3. ⏳ Explore in browser: launch server and open viewer to verify flows (no Playwright)
 
-2. ✅ Update SPECIFICATION.md privacy/networking and roadmap bullets away from Avalonia; keep STDIO as legacy
-
-3. ✅ Update MCP_SPECIFICATION.md to HTTP root endpoint '/', tags, and security model note
-
-4. 🔄 Minor code alignment: update Program.cs configuration JSON, setup UI, and log message to reflect '/' and dynamic port; add /mcp alias, web root static page, WS overlays
-Program.cs changed: MapMcp("/" and "/mcp"), GetMcpConfiguration url now root, setup HTML reflects Post '/', logs show dynamic port, UseWebSockets added; added OverlayWebSocketHub and wwwroot/index.html; created WS endpoint and static root handler.
-5. ⏳ Optional: Update ROADMAP and SDK_INTEGRATION_SUMMARY to reflect HTTP-first and legacy STDIO
+4. ⏳ Commit changes and update PR (no push without confirmation)
 
 
