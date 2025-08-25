@@ -1,4 +1,9 @@
 Infra plan (single-user first, production-ready later)
+Guacamole auto-provision
+- Set env vars: GUAC_ADMIN_USER, GUAC_ADMIN_PASS, GUAC_CONN_NAME, GUAC_RDP_HOST, GUAC_RDP_PORT, GUAC_RDP_USERNAME, GUAC_RDP_PASSWORD, GUAC_RDP_DOMAIN, GUAC_RDP_SECURITY, GUAC_RDP_IGNORE_CERT, GUAC_RDP_WIDTH, GUAC_RDP_HEIGHT
+- guac-init container will create/update the connection via REST after Guacamole boots
+
+
 Security and CORS
 - Set OC_OVERLAY_WS_SECRET to enable token validation on /ws/overlays
 - Set OC_ALLOWED_ORIGINS to a comma-separated list to restrict web origins when SECRET is set
