@@ -1,20 +1,8 @@
-name: Build AppImage
+name: Build AppImage (DISABLED)
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'src/**'
-      - 'scripts/build-appimage.sh'
-      - '.github/workflows/build-appimage.yml'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'src/**'
-      - 'scripts/build-appimage.sh'
-      - '.github/workflows/build-appimage.yml'
-  release:
-    types: [published]
+  # Disabled - AppImage builds no longer needed
+  # Use install.sh or Podman deployment instead
   workflow_dispatch:
     inputs:
       create_release:

@@ -11,11 +11,27 @@
 
 A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
 
+## 🚀 Quick Installation
+
+**One-command installation (recommended):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh | bash
+```
+
+Then start the server:
+```bash
+./run.sh
+```
+
+Visit `http://localhost:3000/setup` to configure your AI client.
+
+**Alternative methods:** See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker, cloud deployment, and other options.
+
 ## Installation (Web-first)
 
 Run as a headless HTTP MCP server that serves a browser overlay viewer.
 
-### From source (recommended during development)
+### From source (for development)
 ```bash
 dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
 ./build/publish/overlay-companion-mcp

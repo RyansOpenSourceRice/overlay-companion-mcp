@@ -10,7 +10,7 @@
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
-[Rr]elease/
+# [Rr]elease/ - commented out to allow our release/ directory
 [Rr]eleases/
 x64/
 x86/
@@ -61,6 +61,28 @@ tests/ai-gui/artifacts/
 
 # Local virtualenv
 /tests/ai-gui/.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Server logs
 *.log

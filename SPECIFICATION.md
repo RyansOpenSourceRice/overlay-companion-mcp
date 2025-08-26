@@ -6,36 +6,62 @@ _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ## Architecture Overview
 
-The Overlay Companion MCP server is built using the **official ModelContextProtocol C# SDK** from
-Microsoft/Anthropic, providing a robust foundation for MCP compliance and integration with the .NET
-ecosystem.
+The Overlay Companion MCP is a single-user, web-first system that provides AI-assisted screen interaction through a virtualized desktop environment. The system is built using the **official ModelContextProtocol C# SDK** and deployed via OpenTofu + Podman for automated infrastructure provisioning.
+
+### System Components
+
+```text
+Cherry Studio → HTTP/WS → Management Container → Guacamole → Fedora Silverblue VM
+                              ↓
+                         Web Interface (guacamole-common-js + overlays)
+```
+
+#### Core Architecture
+
+1. **Management Container** (Podman/OCI):
+   - Guacamole stack (guacd + webapp + postgres)
+   - MCP server with WebSocket overlay broadcasting
+   - Web frontend with guacamole-common-js client
+   - Landing page with "Copy MCP Config" functionality
+
+2. **Fedora Silverblue VM** (KVM/libvirt):
+   - Wayland desktop environment (future-proof)
+   - XRDP for remote desktop compatibility
+   - Isolated execution environment
+
+3. **OpenTofu Infrastructure**:
+   - Automated container and VM provisioning
+   - Network configuration (host-only or LAN exposure)
+   - Resource management and lifecycle
+
+#### Network Architecture
+
+- **Default**: Host-only access (localhost) for security
+- **Optional**: LAN exposure with security warnings
+- **Output**: Non-localhost IP URL (e.g., http://192.168.1.42:8080)
 
 ### Deployment Architectures
 
-The system supports two deployment architectures to meet different security and operational requirements:
+#### Single-User Lightweight Release (Primary)
 
-#### 1. Native HTTP Transport (Default & Recommended)
+```text
+install.sh → OpenTofu → Management Container + Fedora VM → Web Interface
+```
+
+- **Target Platform**: Fedora Linux only (Windows/Mac explicitly out of scope)
+- **Installation**: Automated via install.sh script
+- **Dependencies**: Podman + OpenTofu + libvirt/KVM (auto-installed)
+- **VM Caching**: Fedora Silverblue images cached locally to avoid re-downloads
+
+#### Legacy HTTP Transport (Deprecated)
 
 ```text
 Cherry Studio → HTTP → MCP Server (OverlayCompanion)
 ```
 
-- **Use Case**: Modern integration, multi-client support, image handling
-- **Security**: Network-level isolation, CORS support
-- **Features**: Server-Sent Events streaming, concurrent clients, web integration
-- **Architecture**: HTTP server with web-only overlay viewer (served from wwwroot). No native desktop GUI.
-- **Command**: `dotnet run` (default) or `./overlay-companion-mcp`
-
-#### 2. Legacy STDIO Transport (Deprecated)
-
-```text
-Cherry Studio → stdio → MCP Server (OverlayCompanion)
-```
-
-- **Use Case**: Legacy compatibility only
-- **Limitations**: No image support, single client, deprecated
-- **Security**: Process-level isolation
-- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp --stdio`
+- **Use Case**: Development and testing only
+- **Limitations**: No VM integration, limited overlay capabilities
+- **Command**: `dotnet run` or `./overlay-companion-mcp`
 
 ### HTTP Transport Benefits
 
