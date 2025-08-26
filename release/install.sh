@@ -229,9 +229,9 @@ cache_fedora_image() {
     local images_dir="$cache_dir/images"
     mkdir -p "$images_dir"
     
-    # Fedora Silverblue 39 (latest stable)
-    local fedora_version="39"
-    local image_name="Fedora-Silverblue-ostree-x86_64-${fedora_version}.iso"
+    # Fedora Silverblue 41 (latest stable)
+    local fedora_version="41"
+    local image_name="Fedora-Silverblue-ostree-x86_64-${fedora_version}-1.4.iso"
     local image_path="$images_dir/$image_name"
     local image_url="https://download.fedoraproject.org/pub/fedora/linux/releases/${fedora_version}/Silverblue/x86_64/iso/${image_name}"
     
