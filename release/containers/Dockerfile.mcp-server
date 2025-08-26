@@ -1,0 +1,107 @@
+# Overlay Companion MCP Server Container
+# This container runs the C# MCP server that provides AI screen interaction capabilities
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+WORKDIR /app
+EXPOSE 8081
+
+# Install system dependencies for screen capture and GUI interaction
+RUN apt-get update && apt-get install -y \
+    # X11 and display dependencies
+    xvfb \
+    x11-utils \
+    x11-xserver-utils \
+    xauth \
+    # Image processing and screenshot tools
+    imagemagick \
+    scrot \
+    # Input simulation tools
+    xdotool \
+    # Network tools for debugging
+    curl \
+    wget \
+    # Clean up
+    && rm -rf /var/lib/apt/lists/*
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy project files
+COPY ["src/OverlayCompanion.csproj", "src/"]
+RUN dotnet restore "src/OverlayCompanion.csproj"
+
+# Copy source code
+COPY src/ src/
+WORKDIR "/src/src"
+
+# Build the application
+RUN dotnet build "OverlayCompanion.csproj" -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish "OverlayCompanion.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+
+# Copy published application
+COPY --from=publish /app/publish .
+
+# Create non-root user for security
+RUN groupadd -r mcpuser && useradd -r -g mcpuser mcpuser
+RUN chown -R mcpuser:mcpuser /app
+
+# Set up X11 display for headless operation
+ENV DISPLAY=:99
+ENV XVFB_RES=1920x1080x24
+
+# Create startup script
+RUN cat > /app/start.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Start virtual display
+echo "Starting virtual X server..."
+Xvfb :99 -screen 0 $XVFB_RES -ac -nolisten tcp -dpi 96 &
+XVFB_PID=$!
+
+# Wait for X server to start
+sleep 2
+
+# Set up X11 authentication
+xauth add :99 . $(xxd -l 16 -p /dev/urandom)
+
+# Function to cleanup on exit
+cleanup() {
+    echo "Shutting down..."
+    kill $XVFB_PID 2>/dev/null || true
+    exit 0
+}
+trap cleanup SIGTERM SIGINT
+
+# Start the MCP server
+echo "Starting Overlay Companion MCP Server..."
+exec dotnet OverlayCompanion.dll "$@"
+EOF
+
+RUN chmod +x /app/start.sh
+RUN chown mcpuser:mcpuser /app/start.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+# Switch to non-root user
+USER mcpuser
+
+# Set entrypoint
+ENTRYPOINT ["/app/start.sh"]
+
+# Default command line arguments
+CMD ["--urls", "http://0.0.0.0:8081"]
+
+# Labels for container metadata
+LABEL org.opencontainers.image.title="Overlay Companion MCP Server"
+LABEL org.opencontainers.image.description="C# MCP server for AI-assisted screen interaction"
+LABEL org.opencontainers.image.vendor="Overlay Companion MCP"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/RyansOpenSauceRice/overlay-companion-mcp"

@@ -14,6 +14,11 @@ on:
 env:
   PACKAGE_NAME: overlay-companion-mcp
 
+permissions:
+  contents: write
+  actions: read
+  packages: write
+
 jobs:
   build-release:
     runs-on: ubuntu-latest

@@ -24,6 +24,7 @@ const config = {
   httpPort: parseInt(process.env.HTTP_PORT) || 8080,
   wsPort: parseInt(process.env.WS_PORT) || 8081,
   guacamoleUrl: process.env.GUACAMOLE_URL || 'http://localhost:8080',
+  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:8081',
   mcpWsEnabled: process.env.MCP_WS_ENABLED === 'true',
   nodeEnv: process.env.NODE_ENV || 'development'
 };
@@ -170,8 +171,39 @@ function handleViewportUpdate(payload, clientId) {
   // This could be persisted to a database in production
 }
 
+// MCP Server proxy - forward requests to C# MCP server
+app.use('/mcp', createProxyMiddleware({
+  target: config.mcpServerUrl,
+  changeOrigin: true,
+  pathRewrite: {
+    '^/mcp': '' // Remove /mcp prefix when forwarding
+  },
+  onError: (err, req, res) => {
+    log.error('MCP server proxy error:', err.message);
+    res.status(503).json({
+      error: 'MCP server unavailable',
+      message: 'The C# MCP server is not responding. It may not be running or configured.'
+    });
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
+  }
+}));
+
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  // Check MCP server health
+  let mcpServerStatus = 'unknown';
+  try {
+    const response = await fetch(`${config.mcpServerUrl}/health`, { 
+      timeout: 5000,
+      signal: AbortSignal.timeout(5000)
+    });
+    mcpServerStatus = response.ok ? 'healthy' : 'unhealthy';
+  } catch (error) {
+    mcpServerStatus = 'unavailable';
+  }
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -181,11 +213,13 @@ app.get('/health', (req, res) => {
       projectName: config.projectName,
       httpPort: config.httpPort,
       wsPort: config.wsPort,
-      mcpWsEnabled: config.mcpWsEnabled
+      mcpWsEnabled: config.mcpWsEnabled,
+      mcpServerUrl: config.mcpServerUrl
     },
     services: {
       webServer: 'running',
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
+      mcpServer: mcpServerStatus,
       connectedClients: overlayClients.size
     }
   };

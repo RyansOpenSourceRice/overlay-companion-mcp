@@ -14,6 +14,7 @@ DEFAULT_VM_MEMORY="4096"
 DEFAULT_VM_CPUS="2"
 DEFAULT_CONTAINER_PORT="8080"
 EXPOSE_TO_LAN="${EXPOSE_TO_LAN:-false}"
+UPDATE_MODE=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -423,26 +424,93 @@ cleanup() {
     fi
 }
 
+# Update existing installation
+update_installation() {
+    log "🔄 Updating Overlay Companion MCP installation..."
+    
+    # Check if OpenTofu directory exists
+    if [[ ! -d "$SCRIPT_DIR/opentofu" ]]; then
+        error "❌ OpenTofu directory not found. This doesn't appear to be an existing installation."
+        error "Run without --update flag for fresh installation."
+        exit 1
+    fi
+    
+    # Stop existing services
+    log "Stopping existing services..."
+    cd "$SCRIPT_DIR/opentofu"
+    if tofu state list >/dev/null 2>&1; then
+        log "Destroying existing infrastructure..."
+        tofu destroy -auto-approve || warn "Some resources may not have been destroyed cleanly"
+    fi
+    
+    # Update container images
+    log "Updating container images..."
+    if command -v podman >/dev/null 2>&1; then
+        # Remove old containers and images
+        podman container prune -f || true
+        podman image prune -f || true
+        
+        # Remove specific overlay-companion-mcp images if they exist
+        podman images --format "{{.Repository}}:{{.Tag}}" | grep -E "overlay-companion|guacamole|postgres" | while read -r image; do
+            log "Removing old image: $image"
+            podman rmi "$image" || true
+        done
+    fi
+    
+    # Rebuild containers with new code
+    log "Building updated containers..."
+    cd "$SCRIPT_DIR/containers"
+    if [[ -f "Dockerfile.management" ]]; then
+        log "Building management container..."
+        podman build -t overlay-companion-mcp-management:latest -f Dockerfile.management .
+    fi
+    
+    # Re-provision infrastructure
+    log "Re-provisioning infrastructure with updates..."
+    cd "$SCRIPT_DIR/opentofu"
+    tofu init -upgrade
+    tofu plan -out=tfplan
+    tofu apply tfplan
+    
+    # Wait for services to come up
+    wait_for_services
+    
+    log "✅ Update completed successfully!"
+    show_completion
+}
+
 # Main installation flow
 main() {
     trap cleanup EXIT
     
-    echo "🚀 Overlay Companion MCP - Single User Installation"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo
-    
-    # Clear log file
-    > "$LOG_FILE"
-    
-    check_platform
-    check_requirements
-    install_dependencies
-    install_opentofu
-    setup_networking
-    cache_fedora_image
-    provision_infrastructure
-    wait_for_services
-    show_completion
+    if [[ "$UPDATE_MODE" == "true" ]]; then
+        echo "🔄 Overlay Companion MCP - Update Mode"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo
+        
+        # Clear log file
+        > "$LOG_FILE"
+        
+        log "Running in update mode - skipping OS and dependency checks"
+        update_installation
+    else
+        echo "🚀 Overlay Companion MCP - Single User Installation"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo
+        
+        # Clear log file
+        > "$LOG_FILE"
+        
+        check_platform
+        check_requirements
+        install_dependencies
+        install_opentofu
+        setup_networking
+        cache_fedora_image
+        provision_infrastructure
+        wait_for_services
+        show_completion
+    fi
 }
 
 # Handle command line arguments
@@ -454,6 +522,7 @@ case "${1:-}" in
         echo
         echo "Options:"
         echo "  --help, -h          Show this help message"
+        echo "  --update            Update existing installation"
         echo "  --expose-lan        Expose service to LAN (security risk)"
         echo "  --host-only         Use host-only networking (default)"
         echo
@@ -462,9 +531,13 @@ case "${1:-}" in
         echo
         echo "Examples:"
         echo "  $0                  # Install with host-only access"
+        echo "  $0 --update         # Update existing installation"
         echo "  $0 --expose-lan     # Install with LAN access"
         echo "  EXPOSE_TO_LAN=true $0  # Install with LAN access"
         exit 0
+        ;;
+    --update)
+        UPDATE_MODE=true
         ;;
     --expose-lan)
         EXPOSE_TO_LAN="true"

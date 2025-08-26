@@ -56,6 +56,33 @@ resource "null_resource" "build_container_image" {
   }
 }
 
+# Build C# MCP server container image (if source exists)
+resource "null_resource" "build_mcp_server_image" {
+  depends_on = [null_resource.create_directories]
+  
+  provisioner "local-exec" {
+    command = <<-EOT
+      if [ -d "${path.module}/../../../../src" ]; then
+        echo "Building C# MCP server container image..."
+        cd "${path.module}/../../../.."
+        podman build \
+          -t "${var.project_name}-mcp-server:latest" \
+          -f release/containers/Dockerfile.mcp-server \
+          .
+        echo "✅ C# MCP server container image built"
+      else
+        echo "⚠️  C# source code not found, skipping MCP server container build"
+        echo "   The MCP server container will not be available"
+      fi
+    EOT
+  }
+  
+  triggers = {
+    dockerfile_hash = filemd5("${path.module}/../../../containers/Dockerfile.mcp-server")
+    project_name    = var.project_name
+  }
+}
+
 # Generate podman-compose configuration
 resource "local_file" "podman_compose" {
   depends_on = [null_resource.build_container_image]
@@ -127,6 +154,7 @@ resource "local_file" "podman_compose" {
         environment = {
           PROJECT_NAME      = var.project_name
           GUACAMOLE_URL     = "http://${var.container_name}-guacamole:8080"
+          MCP_SERVER_URL    = "http://${var.container_name}-mcp-server:8081"
           MCP_WS_PORT       = "8081"
           BIND_ADDRESS      = "0.0.0.0"
         }
@@ -136,6 +164,27 @@ resource "local_file" "podman_compose" {
         ]
         restart = "unless-stopped"
         labels = var.labels
+      }
+      
+      mcp-server = {
+        image = "${var.project_name}-mcp-server:latest"
+        container_name = "${var.container_name}-mcp-server"
+        ports = [
+          "${var.bind_address}:8081:8081"
+        ]
+        environment = {
+          ASPNETCORE_URLS = "http://0.0.0.0:8081"
+          DISPLAY = ":99"
+          XVFB_RES = "1920x1080x24"
+        }
+        volumes = [
+          "${local.data_dir}/mcp-server:/app/data:Z",
+          "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+        ]
+        restart = "unless-stopped"
+        labels = var.labels
+        # Only include if the image exists
+        profiles = ["mcp-server"]
       }
     }
     
@@ -205,8 +254,16 @@ resource "null_resource" "start_services" {
     command = <<-EOT
       cd "${local.config_dir}"
       
-      echo "Starting all services..."
-      podman-compose up -d
+      echo "Starting core services..."
+      podman-compose up -d postgres guacd guacamole management
+      
+      # Check if MCP server image exists and start it
+      if podman image exists "${var.project_name}-mcp-server:latest"; then
+        echo "Starting C# MCP server..."
+        podman-compose --profile mcp-server up -d mcp-server
+      else
+        echo "⚠️  C# MCP server image not found, skipping"
+      fi
       
       echo "Waiting for services to be ready..."
       sleep 15
