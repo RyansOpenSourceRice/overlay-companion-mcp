@@ -1,339 +1,138 @@
-# Deployment Guide - Overlay Companion MCP
+# Deployment Guide
 
-Multiple ways to deploy and run Overlay Companion MCP, from simple local installation to cloud deployment.
+Multiple deployment options for different use cases and infrastructure preferences.
 
-## 🚀 Option 1: One-Command Installation (Recommended)
+---
 
-**Simplest option - Download and run everything automatically:**
+## 🏠 Option 1: Host + VM Architecture (Recommended)
 
+**Containers on HOST Fedora Linux, VMs separate - proper separation of concerns**
+
+### Architecture
+- **Host OS**: Runs 4 podman containers (MCP server, Management web, PostgreSQL, Guacamole)
+- **Separate VM**: Runs RDP services, accessed through Guacamole
+- **Connection**: Guacamole connects to VM via RDP, MCP provides AI overlay
+
+### Quick Start
+
+**Step 1: Set up containers on HOST Fedora Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
 ```
 
-Or download and run manually:
+**Step 2: Create Fedora VM on your preferred platform**
+- Use VMware, VirtualBox, Proxmox, etc.
+- Install Fedora Silverblue or Workstation
+- Minimum: 4GB RAM, internet access
+
+**Step 3: Set up RDP in VM**
 ```bash
-wget https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh
-chmod +x install.sh
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup.sh | bash
 ```
 
-**What it does:**
-- ✅ Installs .NET 8.0 if missing
-- ✅ Clones the repository
-- ✅ Builds the project
-- ✅ Creates a simple `run.sh` script
-- ✅ Creates systemd service file
-- ✅ Ready to use in 2-3 minutes
+**What gets installed:**
+- ✅ **Host**: 4 containers (MCP server, Management web, PostgreSQL, Guacamole)
+- ✅ **VM**: RDP services (xrdp, VNC, GNOME desktop)
+- ✅ **Connection**: Guacamole connects to VM via RDP
+- ✅ Ready to use in 15-20 minutes
 
 **After installation:**
-```bash
-./run.sh  # Start the server
-# Visit http://localhost:3000/setup
-```
+- Management Interface: `http://localhost:8080`
+- MCP Server: `http://localhost:8080/mcp`
+- Add VM via web interface using its IP address
+
+**Benefits:**
+- ✅ Proper separation: containers on host, VMs separate
+- ✅ Platform agnostic: use any VM platform
+- ✅ Scalable: add multiple VMs easily
+- ✅ Resource efficient: containers don't compete with VM resources
 
 ---
 
 ## 🐳 Option 2: Podman (OCI Containers - Existing Infrastructure)
 
-**The project already has Podman infrastructure with Guacamole integration!**
+**For users with existing container infrastructure**
 
-### Simple MCP-Only Deployment
+If you already have Podman/Docker infrastructure and want to integrate:
+
 ```bash
-# Clone repository
 git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
-cd overlay-companion-mcp
-
-# Build and run just the MCP server
-podman build -t overlay-companion-mcp -f infra/Dockerfile.mcp .
-podman run -d --name overlay-companion -p 3000:3000 overlay-companion-mcp
-```
-
-### Full Stack with Guacamole (Advanced)
-**For remote desktop integration with web-based overlays:**
-
-```bash
-cd overlay-companion-mcp/infra
-
-# Set environment variables for Guacamole
-export GUAC_ADMIN_USER=admin
-export GUAC_ADMIN_PASS=yourpassword
-export GUAC_CONN_NAME=my-desktop
-export GUAC_RDP_HOST=your-vm-ip
-export GUAC_RDP_USERNAME=your-username
-export GUAC_RDP_PASSWORD=your-password
-
-# Start the full stack
+cd overlay-companion-mcp/release/containers
 podman-compose up -d
 ```
 
-**What this gives you:**
-- ✅ MCP server on port 3000
-- ✅ Guacamole web interface on port 8081
-- ✅ Caddy reverse proxy on port 8080
-- ✅ PostgreSQL database for Guacamole
-- ✅ Remote desktop integration
-
-### Podman vs Docker Benefits
-- ✅ **Rootless**: Runs without root privileges
-- ✅ **Systemd integration**: Better service management
-- ✅ **OCI compliant**: Uses same container images
-- ✅ **No daemon**: More secure architecture
-- ✅ **Drop-in replacement**: Same commands as Docker
+**Requirements:**
+- Existing Podman/Docker setup
+- Fedora Linux host
+- Network access to target VMs
 
 ---
 
-## ☁️ Option 3: Cloud Deployment
+## 🖥️ Option 3: Legacy VM-Only (Not Recommended)
 
-### Railway (Easiest Cloud Option)
-1. Fork the repository on GitHub
-2. Connect to [Railway](https://railway.app)
-3. Deploy from GitHub
-4. Set environment variables:
-   - `PORT=3000`
-   - `ASPNETCORE_ENVIRONMENT=Production`
+**Everything in containers inside a VM - for testing only**
 
-### Heroku Alternative - Render
-1. Fork the repository
-2. Connect to [Render](https://render.com)
-3. Create new Web Service
-4. Build command: `dotnet publish src/OverlayCompanion.csproj -c Release -o out`
-5. Start command: `dotnet out/overlay-companion-mcp.dll`
+⚠️ **Warning**: This approach is overly complex and resource-intensive. Use Option 1 instead.
 
-### DigitalOcean App Platform
-1. Fork repository
-2. Create new app on [DigitalOcean](https://cloud.digitalocean.com/apps)
-3. Connect GitHub repository
-4. Configure build:
-   - Build command: `dotnet publish src/OverlayCompanion.csproj -c Release -o out`
-   - Run command: `dotnet out/overlay-companion-mcp.dll`
+If you must use this approach:
+1. Create a large Fedora VM (8+ GB RAM, 4+ cores)
+2. Run the old container setup inside the VM
+3. Access via VM IP address
 
-### AWS/GCP/Azure
-Use the Docker image with their container services:
-- **AWS**: ECS Fargate or App Runner
-- **GCP**: Cloud Run
-- **Azure**: Container Instances
+**Why not recommended:**
+- ❌ Resource waste: containers compete with VM overhead
+- ❌ Complex networking: multiple layers of virtualization
+- ❌ Harder troubleshooting: nested virtualization issues
+- ❌ Platform lock-in: tied to specific VM platform
 
 ---
 
-## 🖥️ Option 4: VPS/Server Deployment
+## 🔧 Advanced Deployment
 
-### Ubuntu/Debian Server
+### Custom Container Build
 ```bash
-# Install .NET 8.0
-wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
-sudo dpkg -i packages-microsoft-prod.deb
-sudo apt update
-sudo apt install -y dotnet-sdk-8.0 git
-
-# Clone and build
 git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
-dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
 
-# Install as systemd service
-sudo cp overlay-companion-mcp.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now overlay-companion-mcp
+# Build custom containers
+podman build -f release/containers/Dockerfile.unified -t overlay-companion:custom .
 
-# Check status
-sudo systemctl status overlay-companion-mcp
+# Deploy with custom configuration
+cp release/containers/podman-compose.yml ~/.config/overlay-companion-mcp/
+# Edit configuration as needed
+podman-compose up -d
 ```
 
-### CentOS/RHEL/Fedora
-```bash
-# Install .NET 8.0
-sudo dnf install -y dotnet-sdk-8.0 git
-
-# Same build and service steps as Ubuntu
-```
-
-### Reverse Proxy (Nginx)
-```nginx
-# /etc/nginx/sites-available/overlay-companion
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
----
-
-## 📱 Option 5: Local Development
-
-### Manual Build (No Scripts)
-```bash
-# Prerequisites: .NET 8.0 SDK
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
-cd overlay-companion-mcp
-dotnet restore src/OverlayCompanion.csproj
-dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
-./build/publish/overlay-companion-mcp
-```
-
-### Development Mode
-```bash
-cd src
-dotnet run  # Runs on http://localhost:5000 by default
-```
-
----
-
-## 🔧 Configuration Options
-
-### Environment Variables
-```bash
-# Port configuration
-PORT=8080                    # Custom port (default: 3000)
-OC_PORT=8080                # Alternative port variable
-
-# Mode configuration
-OC_SMOKE_TEST=1             # Run startup test and exit
-ASPNETCORE_ENVIRONMENT=Production  # Production mode
-
-# Feature flags
-OC_DISABLE_GUI=1            # Disable native GUI (web-only)
-OC_ENABLE_CORS=1            # Enable CORS for web requests
-```
-
-### Custom Configuration
-```bash
-# Custom port
-PORT=8080 ./run.sh
-
-# Production mode
-ASPNETCORE_ENVIRONMENT=Production ./run.sh
-
-# Smoke test
-OC_SMOKE_TEST=1 ./build/publish/overlay-companion-mcp
-```
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues
-
-#### Port Already in Use
-```bash
-# Find what's using port 3000
-sudo lsof -i :3000
-# or
-sudo netstat -tlnp | grep 3000
-
-# Use different port
-PORT=8080 ./run.sh
-```
-
-#### .NET Not Found
-```bash
-# Install .NET 8.0
-# Ubuntu/Debian:
-wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
-sudo dpkg -i packages-microsoft-prod.deb
-sudo apt update && sudo apt install -y dotnet-sdk-8.0
-
-# CentOS/RHEL/Fedora:
-sudo dnf install -y dotnet-sdk-8.0
-```
-
-#### Permission Denied
-```bash
-# Make scripts executable
-chmod +x install.sh run.sh
-chmod +x build/publish/overlay-companion-mcp
-```
-
-#### Screen Capture Not Working
-```bash
-# Install screen capture tools
-# Wayland:
-sudo apt install -y grim wl-clipboard
-
-# X11:
-sudo apt install -y scrot xclip
-```
-
-### Logs and Debugging
-```bash
-# Check service logs
-sudo journalctl -u overlay-companion-mcp -f
-
-# Run in debug mode
-ASPNETCORE_ENVIRONMENT=Development ./run.sh
-
-# Test connectivity
-curl http://localhost:3000/config
-```
-
----
-
-## 🔒 Security Considerations
+### Multiple VM Setup
+1. Run host-setup.sh once on your Fedora Linux
+2. Create multiple VMs on different platforms
+3. Run vm-setup.sh in each VM
+4. Add all VMs to the management interface
+5. Switch between VMs through the web interface
 
 ### Production Deployment
-- Use HTTPS with reverse proxy (Nginx/Apache)
-- Configure firewall rules
-- Run as non-root user
-- Regular security updates
-- Monitor logs for suspicious activity
-
-### Network Security
-```bash
-# Firewall rules (UFW)
-sudo ufw allow 3000/tcp
-sudo ufw enable
-
-# Or restrict to specific IPs
-sudo ufw allow from 192.168.1.0/24 to any port 3000
-```
+- Use systemd services for container auto-start
+- Configure firewall rules for security
+- Set up SSL/TLS for web interface
+- Use persistent volumes for data
+- Monitor container health
 
 ---
 
-## 📊 Monitoring
+## 📊 Comparison
 
-### Health Checks
-```bash
-# Basic health check
-curl http://localhost:3000/config
-
-# Smoke test
-OC_SMOKE_TEST=1 ./build/publish/overlay-companion-mcp
-```
-
-### System Monitoring
-```bash
-# Resource usage
-htop
-docker stats  # For Docker deployment
-
-# Service status
-sudo systemctl status overlay-companion-mcp
-```
+| Deployment | Complexity | Resources | Flexibility | Recommended |
+|------------|------------|-----------|-------------|-------------|
+| Host + VM  | Medium     | Efficient | High        | ✅ Yes      |
+| Containers | Low        | Very Efficient | Medium | For experts |
+| VM-Only    | High       | Wasteful  | Low         | ❌ No       |
 
 ---
 
-## 🚀 Quick Comparison
+## 🚀 Getting Started
 
-| Method | Complexity | Time | Best For | GUI Access |
-|--------|------------|------|----------|------------|
-| **install.sh** | ⭐ | 2-3 min | Local use, quick start | ✅ Full |
-| **Podman (MCP only)** | ⭐⭐ | 5 min | Isolation, local containers | ❌ Limited |
-| **Podman (Full stack)** | ⭐⭐⭐ | 15 min | Remote desktop integration | ✅ Via Guacamole |
-| **Cloud (Railway)** | ⭐⭐ | 10 min | Remote access, scaling | ❌ None |
-| **VPS/Server** | ⭐⭐⭐ | 15 min | Production, control | ❌ None |
-| **Manual Build** | ⭐⭐⭐⭐ | 10 min | Development, customization | ✅ Full |
+**New users**: Start with Option 1 (Host + VM Architecture)
+**Container experts**: Consider Option 2 (Podman integration)
+**Testing only**: Option 3 might work but is not supported
 
-**Recommendation**: 
-- **Local GUI use**: `install.sh` (simplest)
-- **Remote desktop**: Podman full stack with Guacamole
-- **Development**: Manual build
+Choose the deployment that best fits your infrastructure and expertise level.
