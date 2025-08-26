@@ -1,119 +1,212 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Overlay Companion - Viewer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overlay Companion Viewer (Stub)</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #111; }
-    #container { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
-    #viewer { position: absolute; inset: 0; background: #222; color: #eee; display: flex; align-items: center; justify-content: center; font-family: system-ui, sans-serif; }
-    #overlay { position: absolute; inset: 0; pointer-events: none; }
-    .box { position: absolute; border: 2px solid red; background: rgba(255,0,0,0.2); box-sizing: border-box; border-radius: 4px; }
-    #hud { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,0.5); color: #fff; padding: 6px 10px; border-radius: 6px; font-family: system-ui, sans-serif; font-size: 12px; }
-    /* ensure overlay canvas never steals input; explicit for clarity */
-    #overlay, .box { pointer-events: none; }
+    html, body {
+      margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #eee;
+    }
+    #toolbar { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 1000; display: flex; gap: 8px; align-items: center; }
+    #status { margin-left: auto; font-size: 12px; opacity: 0.8; }
+    #viewer { position: absolute; inset: 0; background: #222; }
+    #display-layer, #overlay-layer { position: absolute; inset: 0; pointer-events: none; }
+    #overlay-layer { z-index: 999; }
+    .overlay-box { position: absolute; border: 2px dashed #f33; box-sizing: border-box; opacity: 0.6; }
+    .label { position: absolute; top: -20px; left: 0; font-size: 12px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 3px; pointer-events: none; }
   </style>
 </head>
 <body>
-  <div id="container">
-    <div id="viewer">Stub Viewer (CI-safe). Real setup uses Guacamole here.</div>
-    <div id="overlay"></div>
-    <div id="hud">Click-through overlays enabled. Pointer events go to the viewer behind.</div>
+  <div id="toolbar">
+    <button id="connect">Connect</button>
+    <a href="/setup" target="_blank">Setup</a>
+    <div id="status">Disconnected</div>
   </div>
+  <div id="viewer"></div>
+  <div id="display-layer"></div>
+  <div id="overlay-layer"></div>
+  <div id="guac-container" style="position:absolute; inset:0; z-index:0;"></div>
+  <!-- Optional Guacamole iframe as a first step before guacamole-common-js embed -->
+  <iframe id="guac-iframe" src="/guac" style="position:absolute; inset:0; border:0; z-index:1;"></iframe>
+
+
+    <script src="/guac/js/guacamole-common.min.js"></script>
+    <script>
+      (function initGuac() {
+        if (!window.Guacamole) return;
+        const iframe = document.getElementById('guac-iframe');
+        const container = document.getElementById('guac-container');
+        const display = new Guacamole.Display();
+        container.appendChild(display.getElement());
+        const tunnel = new Guacamole.HTTPTunnel('/guac/tunnel');
+        const client = new Guacamole.Client(tunnel);
+        client.onstatechange = function(state) {
+          // 0=idle,1=connecting,2=waiting,3=connected,4=disconnecting,5=disconnected
+          console.log('Guac state:', state);
+          if (state === 3 && iframe) iframe.remove();
+        };
+        client.onerror = function(e) { console.error('Guac error', e); };
+        client.onchat = function(msg) { console.log('Guac chat:', msg); };
+        client.onclipboard = function(stream, mimetype) { stream.sendEnd(); };
+        client.onname = function(name) { console.log('Guac name:', name); };
+        client.onfile = function(stream, mimetype, filename) { stream.sendEnd(); };
+        function resizeGuac() {
+          const w = window.innerWidth, h = window.innerHeight;
+          client.sendSize(w, h);
+          if (container) { container.style.width = w + 'px'; container.style.height = h + 'px'; }
+          // Browser drives VM size: update virtual screen to match viewport
+          if (typeof virtual === 'object' && virtual) {
+            virtual.min_x = 0; virtual.min_y = 0; virtual.width = w; virtual.height = h;
+          } else {
+            virtual = { min_x: 0, min_y: 0, width: w, height: h };
+          }
+          // Recompute overlay transforms
+          if (typeof layoutLayers === 'function') layoutLayers();
+          // Scale Guacamole canvas to fit current virtual screen
+          const s = Math.min(w / (virtual.width || w), h / (virtual.height || h));
+          display.scale(s);
+        }
+        window.addEventListener('resize', resizeGuac);
+        resizeGuac();
+        // Mouse/keyboard passthrough (optional)
+        const mouse = new Guacamole.Mouse(display.getElement());
+        const keyboard = new Guacamole.Keyboard(document);
+        mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = function(state) {
+          client.sendMouseState(state);
+        };
+        keyboard.onkeydown = function (keysym) { client.sendKeyEvent(1, keysym); };
+        keyboard.onkeyup = function (keysym) { client.sendKeyEvent(0, keysym); };
+        // Connect – parameters can be provided via querystring or configured server-side
+        client.connect();
+        window.addEventListener('unload', function() { client.disconnect(); });
+      })();
+    </script>
+
+
   <script>
-  // Basic client that draws click-through overlays from the MCP server
-  (function() {
-    const overlayEl = document.getElementById('overlay');
-    const params = new URLSearchParams(location.search);
-    // Viewport crop for multi-window mode
-    const vx = parseInt(params.get('vx')||'0', 10);
-    const vy = parseInt(params.get('vy')||'0', 10);
-    const vw = parseInt(params.get('vw')||window.innerWidth, 10);
-    const vh = parseInt(params.get('vh')||window.innerHeight, 10);
-    const scale = parseFloat(params.get('scale')||'1');
+    const statusEl = document.getElementById('status');
+    const overlayLayer = document.getElementById('overlay-layer');
+    const displayLayer = document.getElementById('display-layer');
+    const guacContainer = document.getElementById('guac-container');
+    const connectBtn = document.getElementById('connect');
 
-    function intersects(x, y, w, h) {
-      return !(x + w <= vx || y + h <= vy || x >= vx + vw || y >= vy + vh);
+    let ws;
+    let virtual = { min_x: 0, min_y: 0, width: 1920, height: 1080 };
+    let scale = 1;
+
+    function setStatus(text, ok) {
+      statusEl.textContent = text;
+      statusEl.style.color = ok ? '#8f8' : '#f88';
     }
 
-    function toLocalRect(x, y, w, h) {
-      return {
-        left: (x - vx) * scale,
-        top: (y - vy) * scale,
-        width: w * scale,
-        height: h * scale,
-      };
+    function layoutLayers() {
+      const vw = window.innerWidth; const vh = window.innerHeight;
+      const sx = vw / virtual.width; const sy = vh / virtual.height;
+      scale = Math.min(sx, sy);
+      const tx = -virtual.min_x * scale; const ty = -virtual.min_y * scale;
+      const transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+      overlayLayer.style.transformOrigin = '0 0';
+      overlayLayer.style.transform = transform;
+      displayLayer.style.transformOrigin = '0 0';
+      displayLayer.style.transform = transform;
+      const iframe = document.getElementById('guac-iframe');
+      if (iframe) {
+        iframe.style.width = window.innerWidth + 'px';
+        iframe.style.height = window.innerHeight + 'px';
+      }
     }
 
-    function drawBox(data) {
-      const { x, y, width, height, color, opacity } = data;
-      if (!intersects(x, y, width, height)) return;
-      const rect = toLocalRect(x, y, width, height);
-      const el = document.createElement('div');
-      el.className = 'box';
-      el.style.left = rect.left + 'px';
-      el.style.top = rect.top + 'px';
-      el.style.width = rect.width + 'px';
-      el.style.height = rect.height + 'px';
-      el.style.borderColor = color || 'red';
-      el.style.backgroundColor = color ? hexOrNameToRgba(color, opacity ?? 0.25) : 'rgba(255,0,0,0.25)';
-      el.dataset.id = data.id;
-      overlayEl.appendChild(el);
+    function renderOverlay(o) {
+      let el = document.getElementById('ov-' + o.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'overlay-box';
+        el.id = 'ov-' + o.id;
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.id = 'ov-label-' + o.id;
+        el.appendChild(label);
+        overlayLayer.appendChild(el);
+      }
+      el.style.left = o.bounds.x + 'px';
+      el.style.top = o.bounds.y + 'px';
+      el.style.width = o.bounds.width + 'px';
+      el.style.height = o.bounds.height + 'px';
+      el.style.borderColor = o.color || '#f33';
+      el.style.opacity = (o.opacity ?? 0.5).toString();
+      const label = document.getElementById('ov-label-' + o.id);
+      label.textContent = o.label || '';
     }
 
-    function removeBox(id) {
-      const el = overlayEl.querySelector(`.box[data-id="${id}"]`);
+    function removeOverlay(id) {
+      const el = document.getElementById('ov-' + id);
       if (el) el.remove();
     }
 
-    function clearAll() { overlayEl.innerHTML = ''; }
+    function resetOverlays() {
+      overlayLayer.innerHTML = '';
+    }
 
-    function hexOrNameToRgba(color, opacity) {
-      const ctx = document.createElement('canvas').getContext('2d');
-      if (!ctx) return `rgba(255,0,0,${opacity})`;
-      ctx.fillStyle = color;
-      const computed = ctx.fillStyle; // normalized
-      // If rgb(a), just inject opacity
-      if (computed.startsWith('rgb')) {
-        const nums = computed.match(/\d+\.?\d*/g) || [];
-        const [r,g,b] = nums.map(Number);
-        return `rgba(${r},${g},${b},${opacity})`;
-      }
-      // Simplistic hex parse fallback
-      const hex = computed.replace('#','');
-      const bigint = parseInt(hex, 16);
-      const r = (bigint >> 16) & 255;
-      const g = (bigint >> 8) & 255;
-      const b = bigint & 255;
-      return `rgba(${r},${g},${b},${opacity})`;
+    function renderDisplays(displays) {
+      displayLayer.innerHTML = '';
+      if (!displays) return;
+      displays.forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'overlay-box';
+        el.style.borderStyle = 'solid';
+        el.style.borderColor = '#0af';
+        el.style.opacity = '0.2';
+        el.style.left = d.x + 'px';
+        el.style.top = d.y + 'px';
+        el.style.width = d.width + 'px';
+        el.style.height = d.height + 'px';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = `${d.name || 'Display'} (${d.width}x${d.height})`;
+        el.appendChild(label);
+        displayLayer.appendChild(el);
+      });
+    }
+      // Resize potential Guacamole container to fill viewport
+      guacContainer.style.width = window.innerWidth + 'px';
+      guacContainer.style.height = window.innerHeight + 'px';
+
+
+    function handleMessage(msg) {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data.type === 'sync') {
+          virtual = data.virtual_screen || virtual;
+          layoutLayers();
+          renderDisplays(data.displays);
+          resetOverlays();
+          (data.overlays || []).forEach(renderOverlay);
+        } else if (data.type === 'overlay_created' || data.type === 'overlay_updated') {
+          renderOverlay(data.overlay);
+        } else if (data.type === 'overlay_removed') {
+          removeOverlay(data.overlayId);
+        }
+      } catch (e) { console.warn('Bad WS message', e); }
     }
 
     function connect() {
+      if (ws && ws.readyState === WebSocket.OPEN) return;
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/ws/overlays`);
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.type === 'overlay_created') drawBox(msg.overlay);
-          else if (msg.type === 'overlay_removed') removeBox(msg.overlay_id);
-          else if (msg.type === 'clear_overlays') clearAll();
-          else if (msg.type === 'sync_state' && Array.isArray(msg.overlays)) {
-            clearAll();
-            for (const o of msg.overlays) drawBox(o);
-          }
-        } catch (e) {
-          console.error('WS parse error', e);
-        }
-      };
-      ws.onclose = () => setTimeout(connect, 1000);
+      const tokenParam = new URLSearchParams(location.search).get('token');
+      const tokenQ = tokenParam ? ('?token=' + encodeURIComponent(tokenParam)) : '';
+      ws = new WebSocket(proto + '://' + location.host + '/ws/overlays' + tokenQ);
+      ws.onopen = () => setStatus('Connected', true);
+      ws.onclose = () => setStatus('Disconnected', false);
+      ws.onerror = () => setStatus('Error', false);
+      ws.onmessage = handleMessage;
     }
 
-    connect();
-    window.addEventListener('resize', () => {
-      // In real app, we’d broadcast viewport changes; stub keeps it simple.
-    });
-  })();
+    connectBtn.addEventListener('click', connect);
+    window.addEventListener('resize', layoutLayers);
+
   </script>
 </body>
 </html>

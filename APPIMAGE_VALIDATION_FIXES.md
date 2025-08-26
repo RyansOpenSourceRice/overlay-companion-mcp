@@ -1,8 +1,10 @@
 # AppImage Validation and Error Detection Fixes
 
-## Problem Summary
+## Problem Summary (Legacy)
 
-The AppImage build was failing with GTK4 dependency errors, but GitHub Actions tests were still passing (green checkmark) due to inadequate error detection. This created a false sense of success while the AppImage was actually broken.
+Note: The project is now web-only. Native GTK/Avalonia desktop UI paths have been removed. The notes below are preserved for historical context in case AppImage packaging is reintroduced for a desktop build in the future.
+
+Previously, the AppImage build could fail with GTK4 dependency errors while GitHub Actions tests still passed (green checkmark) due to inadequate error detection. This created a false sense of success while the AppImage was actually broken.
 
 ### Original Errors
 
@@ -36,9 +38,9 @@ if ! xvfb-run -a timeout 30 ./app.AppImage --help > appimage_help_test.log 2>&1;
 fi
 ```
 
-### 2. Added GTK4 System Dependencies
+### 2. Added GTK4 System Dependencies (Historical)
 
-Added comprehensive GTK4 development packages to CI build:
+This section applied to the former desktop build. With web-only delivery, GTK4 is no longer required. If reintroducing a desktop build, install comprehensive GTK4 development packages in CI:
 ```yaml
 sudo apt-get install -y \
   libgtk-4-dev \
@@ -52,7 +54,7 @@ sudo apt-get install -y \
   libepoxy-dev
 ```
 
-### 3. Created Comprehensive Validation Script
+### 3. Created Comprehensive Validation Script (Applies to any AppImage)
 
 **New file: `scripts/validate-appimage.sh`**
 
@@ -77,7 +79,7 @@ Improved `scripts/build-appimage.sh` to provide better feedback:
 - Checks system GTK4 availability
 - Provides clear warnings when GTK4 isn't bundled
 
-### 5. Added Pre-commit Validation Hooks
+### 5. Added Pre-commit Validation Hooks (General)
 
 Enhanced `.pre-commit-config.yaml` with:
 - Build script executable permission checks
@@ -113,7 +115,7 @@ The updated workflow will now:
 
 ### After Fixes
 - ✅ Critical errors cause build failures
-- ✅ GTK4 libraries bundled in AppImage
+- ✅ GTK4 libraries bundled in AppImage (desktop build only)
 - ✅ Comprehensive validation with clear diagnostics
 - ✅ Pre-commit hooks catch issues early
 - ✅ Better error reporting and debugging info
@@ -141,3 +143,9 @@ The updated workflow will now:
 3. AppImage artifacts are only uploaded if validation passes
 
 This comprehensive approach ensures that AppImage builds are properly validated and critical errors are caught early in the development process.
+## Current State
+
+- The application runs as a web-first MCP server with HTTP transport at root "/" and a browser overlay viewer served from wwwroot.
+- STDIO is retained only for legacy/testing.
+- Desktop GUI artifacts (GTK/Avalonia) are excluded from the build. Any future reintroduction should revisit this document.
+

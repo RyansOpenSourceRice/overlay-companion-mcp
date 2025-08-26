@@ -22,6 +22,7 @@ public interface IOverlayService
     Task<bool> UpdateOverlayPositionAsync(string overlayId, ScreenRegion newBounds);
     event EventHandler<OverlayElement>? OverlayCreated;
     event EventHandler<string>? OverlayRemoved;
+    event EventHandler<OverlayElement>? OverlayUpdated;
 }
 
 /// <summary>
@@ -44,6 +45,7 @@ public class OverlayService : IOverlayService
 
     public event EventHandler<OverlayElement>? OverlayCreated;
     public event EventHandler<string>? OverlayRemoved;
+    public event EventHandler<OverlayElement>? OverlayUpdated;
 
     public async Task<string> DrawOverlayAsync(ScreenRegion bounds, string color = "Yellow", string? label = null, int temporaryMs = 0, bool clickThrough = true)
     {
@@ -176,24 +178,14 @@ public class OverlayService : IOverlayService
             await window.UpdatePositionAsync(newBounds);
         }
 
+        OverlayUpdated?.Invoke(this, overlay);
         return true;
     }
 
     private IOverlayWindow CreateOverlayWindow(OverlayElement overlay)
     {
-        // Check if running in headless mode
-        bool headless = Environment.GetEnvironmentVariable("HEADLESS") == "1";
-
-        if (headless)
-        {
-            // Use mock overlay window for headless mode
-            return new MockOverlayWindow(overlay);
-        }
-        else
-        {
-            // Use GTK4 overlay windows with true click-through support
-            return new Gtk4OverlayWindow(overlay);
-        }
+        // Web-only build: always use mock overlay window (rendering handled in browser via WebSocket events)
+        return new MockOverlayWindow(overlay);
     }
 }
 
@@ -207,53 +199,4 @@ public interface IOverlayWindow : IDisposable
     Task HideAsync();
     Task UpdatePositionAsync(ScreenRegion bounds);
     Task UpdateAppearanceAsync(string color, string? label);
-}
-
-/// <summary>
-/// Mock overlay window for testing
-/// Real implementation would use Avalonia, WPF, or other UI framework
-/// </summary>
-internal class MockOverlayWindow : IOverlayWindow
-{
-    private readonly OverlayElement _overlay;
-    private bool _isVisible;
-
-    public MockOverlayWindow(OverlayElement overlay)
-    {
-        _overlay = overlay;
-    }
-
-    public async Task ShowAsync()
-    {
-        _isVisible = true;
-        // TODO: Implement actual window creation and display
-        await Task.CompletedTask;
-    }
-
-    public async Task HideAsync()
-    {
-        _isVisible = false;
-        // TODO: Implement actual window hiding
-        await Task.CompletedTask;
-    }
-
-    public async Task UpdatePositionAsync(ScreenRegion bounds)
-    {
-        _overlay.Bounds = bounds;
-        // TODO: Implement actual position update
-        await Task.CompletedTask;
-    }
-
-    public async Task UpdateAppearanceAsync(string color, string? label)
-    {
-        _overlay.Color = color;
-        _overlay.Label = label;
-        // TODO: Implement actual appearance update
-        await Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
-        // TODO: Implement actual cleanup
-    }
 }

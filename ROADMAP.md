@@ -6,7 +6,7 @@
 - **MCP Protocol**: Full HTTP transport implementation (primary) with 13 working tools
 - **Transport Layer**: Native HTTP transport with image support, multi-client capability
 - **Legacy Support**: STDIO transport (deprecated) for backward compatibility
-- **Overlay System**: Complete with MockOverlayWindow for headless and AvaloniaOverlayWindow for GUI
+- **Overlay System**: Web-only viewer with MockOverlayWindow for server-side tracking; no native desktop GUI
 - **Screenshot Capture**: Working with Linux tools (scrot/gnome-screenshot)
 - **Input Simulation**: Click and type functionality implemented
 - **Mode Management**: 4 modes (passive, assist, autopilot, composing) with proper state management
@@ -25,19 +25,27 @@
 
 ## 🚀 **HIGH PRIORITY - Missing Core Features**
 
-### 1. **Multi-Monitor (Web) – Two Firefox Tabs** 🖥️🖥️
-**Status**: Implement as web feature  
-**Impact**: Critical  
-**Initial Behavior**: One RDP desktop spanning two monitors; two Firefox tabs/windows opened by the launcher, each fullscreen on a physical monitor and cropped to its viewport.
+### 1. **Multi-Monitor Support** 🖥️🖥️
+**Status**: Planned but not implemented  
+**Impact**: Critical for professional/enterprise use  
+**Current Limitation**: All operations assume single monitor (index 0)
 
 **Implementation Needed**:
-- **Viewport model**: per-window rect {vx,vy,w,h}, devicePixelRatio, scale
-- **Coordinate translation**: render at (x - vx, y - vy) * scale; only draw if intersects
-- **Sync overlays**: BroadcastChannel/shared worker to synchronize overlays across windows
-- **Guacamole token bootstrap**: one RDP session shared by both tabs
+- **`get_display_info` tool**: Return monitor count, resolutions, positions, primary monitor
+- **Enhanced `CaptureMonitorAsync`**: Proper multi-monitor screenshot capture
+- **Monitor-aware overlays**: Coordinate mapping across multiple displays
+- **Display detection**: Runtime discovery of monitor configuration changes
+
+**Technical Details**:
+```csharp
+// Current TODO in ScreenCaptureService.cs:
+MonitorIndex = 0, // TODO: Implement multi-monitor detection
+// TODO: Implement proper multi-monitor support
+```
 
 **Use Cases**:
 - Developers with multiple monitors
+- Trading/financial applications
 - Design/creative workflows
 - Enterprise environments
 
@@ -51,21 +59,27 @@
 
 **Current**: 13/15 documented tools implemented
 
-### 3. **HTTP Transport Enhancement (Native)** 🌐
-**Status**: Ensure native HTTP transport (ModelContextProtocol.AspNetCore)  
-**Impact**: Web integration, Playwright testing
+### 3. **HTTP Transport Enhancement** 🌐
+Status: Implemented (native HTTP transport via ModelContextProtocol.AspNetCore). Bridge removed.
+Impact: Future-proofing and web integration
 
-**Benefits**:
-- Multi-client support, streaming, CORS, session management
-- Direct compatibility with web overlay client via WebSocket bridge
+**Benefits of HTTP Transport**:
+- **Multi-client support**: Multiple MCP clients can connect simultaneously
+- **Web integration**: Browser-based MCP clients can connect directly
+- **Session management**: Persistent connections and state
+- **Streaming responses**: Large image data can be streamed efficiently
+- **Authentication**: Built-in auth support for secure deployments
+- **CORS support**: Cross-origin requests for web applications
 
 **Implementation Plan**:
 ```csharp
+// Use ModelContextProtocol.AspNetCore for native HTTP
 builder.Services
     .AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport()  // Native HTTP, not bridge
     .WithToolsFromAssembly();
-app.MapMcp();
+
+app.MapMcp();  // Registers /mcp endpoint with streaming support
 ```
 
 ---
@@ -143,10 +157,9 @@ app.MapMcp();
 4. **Overlay positioning**: Ensure overlays appear on correct monitor
 
 ### HTTP Transport Implementation:
-1. **Keep STDIO**: Maintain existing stdio transport (it's working perfectly)
-2. **Add HTTP**: Implement native HTTP using `ModelContextProtocol.AspNetCore`
-3. **Dual mode**: Support both transports simultaneously
-4. **Configuration**: Runtime selection via command-line flags
+1. Primary: Native HTTP using `ModelContextProtocol.AspNetCore` at root `/` with SSE
+2. Legacy: Optional STDIO (`--stdio`) for testing/compat; not recommended
+3. Web UI served at `/`; config endpoints at `/setup`, `/config`
 
 ### Missing Tools Implementation:
 1. **`get_display_info`**: Return monitor configuration, resolutions, scaling

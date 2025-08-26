@@ -1,8 +1,10 @@
-# GearLever Integration (Future Enhancement)
+# GearLever Integration (Legacy - Desktop AppImage)
 
 ## Overview
 
-[GearLever](https://mijorus.it/posts/gearlever/update-url-info/) is an AppImage manager that provides automatic update capabilities. This document outlines the planned integration to make Overlay Companion MCP compatible with GearLever's update system.
+Note: The project is now web-only and does not ship a desktop AppImage. This document is preserved for historical context in case a native desktop/AppImage distribution is reintroduced.
+
+[GearLever](https://mijorus.it/posts/gearlever/update-url-info/) is an AppImage manager that provides automatic update capabilities. This document outlines the planned integration to make a future Overlay Companion desktop AppImage compatible with GearLever's update system.
 
 ## Current Status
 

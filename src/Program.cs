@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using ModelContextProtocol.Server;
 using OverlayCompanion.Services;
 using OverlayCompanion.MCP.Tools;
-using OverlayCompanion.UI;
+
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.IO;
@@ -21,8 +21,7 @@ namespace OverlayCompanion;
 /// </summary>
 public class Program
 {
-    private static bool _gtk4Initialized = false;
-    private static readonly object _gtk4Lock = new object();
+    // Web-only: desktop GUI removed
     [RequiresUnreferencedCode("MCP server uses reflection-based tool discovery and JSON serialization; trimming may remove required members.")]
     public static async Task Main(string[] args)
     {
@@ -34,7 +33,10 @@ public class Program
 
         // HTTP transport is now the primary and default transport
         // STDIO transport is deprecated and only available for legacy compatibility
-        bool useStdioTransport = args.Contains("--stdio") || args.Contains("--legacy");
+        bool forceHttp = args.Contains("--http") || string.Equals(Environment.GetEnvironmentVariable("MCP_TRANSPORT"), "http", StringComparison.OrdinalIgnoreCase);
+        bool useStdioTransport = !forceHttp && (args.Contains("--stdio") || args.Contains("--legacy")
+            || string.Equals(Environment.GetEnvironmentVariable("MCP_TRANSPORT"), "stdio", StringComparison.OrdinalIgnoreCase)
+            || Console.IsInputRedirected);
 
         if (useStdioTransport)
         {
@@ -82,25 +84,9 @@ public class Program
 
         try
         {
-            // Start MCP host and (optionally) Avalonia GUI concurrently
-            bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
+            // Web-only: no desktop GUI; just run host
             var hostTask = host.RunAsync();
-            Task? gtk4Task = null;
-            if (!headless)
-            {
-                gtk4Task = Task.Run(() => StartGtk4App(host.Services));
-            }
-
-            // Wait appropriately: if GUI started, tie process lifetime to GUI
-            if (gtk4Task is not null)
-            {
-                await gtk4Task;
-            }
-            else
-            {
-                await hostTask;
-            }
+            await hostTask;
         }
         catch (Exception ex)
         {
@@ -134,21 +120,41 @@ public class Program
             .WithHttpTransport()  // Native HTTP transport with streaming support
             .WithToolsFromAssembly();
 
-        // Configure CORS for web integration
+        // Configure CORS for web integration (tighten when secret + allowed origins provided)
+        var secretSet = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OC_OVERLAY_WS_SECRET"));
+        var allowedOriginsEnv = Environment.GetEnvironmentVariable("OC_ALLOWED_ORIGINS");
+        var allowedOrigins = (allowedOriginsEnv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
-                policy.AllowAnyOrigin()
-                      .AllowAnyMethod()
-                      .AllowAnyHeader();
+                if (secretSet && allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins)
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                }
+                else
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
+                }
             });
         });
 
-        // Configure web server
+        // Overlay WS hub and token service
+        builder.Services.AddSingleton<OverlayWebSocketHub>();
+        builder.Services.AddSingleton<OverlayTokenService>();
+
+        // Configure web server (allow overriding port via environment)
+        var port = 3000;
+        var portEnv = Environment.GetEnvironmentVariable("PORT") ?? Environment.GetEnvironmentVariable("OC_PORT");
+        if (int.TryParse(portEnv, out var p) && p > 0) port = p;
+
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.ListenAnyIP(3000);
+            options.ListenAnyIP(port);
         });
 
         var app = builder.Build();
@@ -156,7 +162,9 @@ public class Program
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");
         logger.LogInformation("HTTP transport provides multi-client support, streaming, web integration, and image handling");
-        logger.LogInformation("HTTP Transport listening on http://0.0.0.0:3000/mcp");
+        logger.LogInformation("HTTP Transport listening on http://0.0.0.0:{Port}/ (root)", port);
+
+        app.UseWebSockets();
 
         // Enable CORS
         app.UseCors();
@@ -189,28 +197,76 @@ public class Program
 	        });
 
         // Map MCP endpoints (native HTTP transport with streaming support)
-        app.MapMcp();  // This registers the /mcp endpoint with full MCP protocol support
+        // Preferred root path "/" for MCP per current policy
+        app.MapMcp("/");
+        // Backward-compatible alias at /mcp to avoid client confusion
+        app.MapMcp("/mcp");
 
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
+        // WebSocket endpoint for overlay events
+        app.MapGet("/ws/overlays", async (HttpContext context) =>
+        {
+            if (!context.WebSockets.IsWebSocketRequest)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            // Optional token + origin protection
+            var tokenSvc = context.RequestServices.GetRequiredService<OverlayTokenService>();
+            var token = context.Request.Query["token"].FirstOrDefault() ?? context.Request.Headers["X-Overlay-Token"].FirstOrDefault();
+            if (tokenSvc.IsProtectionEnabled && !tokenSvc.ValidateToken(token, "viewer"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
+            // Enforce Origin/Referer when secret is set and OC_ALLOWED_ORIGINS provided
+            if (tokenSvc.IsProtectionEnabled && (allowedOrigins?.Length ?? 0) > 0)
+            {
+                var origin = context.Request.Headers["Origin"].ToString();
+                var referer = context.Request.Headers["Referer"].ToString();
+                bool allowed = (!string.IsNullOrEmpty(origin) && allowedOrigins.Contains(origin))
+                               || (!string.IsNullOrEmpty(referer) && allowedOrigins.Any(o => referer.StartsWith(o)));
+                if (!allowed)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return;
+                }
+            }
+
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
+            var hub = context.RequestServices.GetRequiredService<OverlayWebSocketHub>();
+            var cts = new CancellationTokenSource();
+            await hub.HandleClientAsync(socket, cts.Token);
+        });
+
+        // Token mint endpoint (dev aid): returns short-lived token if OC_OVERLAY_WS_SECRET is set
+        app.MapGet("/overlay/token", (OverlayTokenService tokenSvc) =>
+        {
+            if (!tokenSvc.IsProtectionEnabled) return Results.Json(new { token = "", protection = false });
+            var token = tokenSvc.GenerateToken("viewer");
+            return Results.Json(new { token, protection = true });
+        });
+        // Serve static web UI at root
+        app.MapGet("/", async context =>
+        {
+            context.Response.ContentType = "text/html; charset=utf-8";
+            await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
+        });
+
         app.MapGet("/config/json", () => Results.Content(GetMcpConfigurationJson(), "application/json"));
         app.MapGet("/config/stdio", () => Results.Json(GetMcpConfigurationStdio()));
 
         try
         {
-            // Start HTTP transport and (optionally) GTK4 GUI concurrently
+            // Web-only: no desktop GUI; just run web app
             bool smoke = args.Contains("--smoke-test") || Environment.GetEnvironmentVariable("OC_SMOKE_TEST") == "1";
-            bool headless = smoke || args.Contains("--no-gui") || Environment.GetEnvironmentVariable("HEADLESS") == "1";
             var webAppTask = app.RunAsync();
-            Task? gtk4Task = null;
-            if (!headless)
-            {
-                gtk4Task = Task.Run(() => StartGtk4App(app.Services));
-            }
 
             // In smoke test mode, create ready file after HTTP server starts and exit after delay
-            if (smoke && headless)
+            if (smoke)
             {
                 // Wait a moment for HTTP server to fully start
                 await Task.Delay(2000);
@@ -238,14 +294,7 @@ public class Program
                 return;
             }
 
-            if (gtk4Task is not null)
-            {
-                await gtk4Task;
-            }
-            else
-            {
-                await webAppTask;
-            }
+            await webAppTask;
         }
         catch (Exception ex)
         {
@@ -254,7 +303,7 @@ public class Program
         }
     }
 
-    // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
+    // Smoke-test hooks: write readiness file if requested (web-only)
     private static void ConfigureSmokeTestHooks()
     {
         var readyFile = Environment.GetEnvironmentVariable("OC_WINDOW_READY_FILE");
@@ -266,48 +315,12 @@ public class Program
         }
         catch { /* best-effort */ }
 
-        Gtk4OverlayApplication.WindowShown += () =>
-        {
-            try
-            {
-                File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o"));
-            }
-            catch { /* ignore */ }
-        };
+        try { File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o")); } catch { }
     }
 
 
-    private static void StartGtk4App(IServiceProvider services)
-    {
-        lock (_gtk4Lock)
-        {
-            if (_gtk4Initialized)
-            {
-                Console.WriteLine("WARNING: GTK4 already initialized, skipping duplicate initialization.");
-                return;
-            }
-            _gtk4Initialized = true;
-
-            try
-            {
-                // Initialize GTK4 application manager
-                Gtk4ApplicationManager.Initialize();
-
-                // Set service provider for dependency injection
-                Gtk4ApplicationManager.SetServiceProvider(services);
-
-                // Run the GTK4 application
-                Gtk4ApplicationManager.RunApplication(Array.Empty<string>());
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR: Failed to start GTK4 application: {ex.Message}");
-                Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                _gtk4Initialized = false; // Reset flag on failure
-                throw;
-            }
-        }
-    }
+    // Web-only: StartGtk4App removed
+    
 
     /// <summary>
     /// Get MCP configuration for HTTP transport (recommended)
@@ -320,9 +333,9 @@ public class Program
             {
                 overlay_companion = new
                 {
-                    url = "http://localhost:3000/mcp",
+                    url = "http://localhost:3000/",
                     description = "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-                    tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux" },
+                    tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse" },
                     provider = "Overlay Companion",
                     provider_url = "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
                 }
@@ -474,7 +487,7 @@ public class Program
         
         <div class="status">
             <strong>✅ Server Running</strong><br>
-            HTTP transport is active on <code>http://localhost:3000/mcp</code>
+            HTTP transport is active on <code>http://localhost:3000/</code>
         </div>
 
         <div class="config-section">
@@ -500,7 +513,7 @@ public class Program
         <div class="endpoints">
             <h3>📡 Available Endpoints</h3>
             <div class="endpoint">
-                <strong>MCP Protocol:</strong> <code>POST /mcp</code> - Main MCP server endpoint
+                <strong>MCP Protocol:</strong> <code>POST /</code> - Main MCP server endpoint (Accept: application/json, text/event-stream)
             </div>
             <div class="endpoint">
                 <strong>Configuration UI:</strong> <code>GET /setup</code> - This page

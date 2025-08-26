@@ -124,7 +124,7 @@ Cherry Studio → ModelContextProtocol SDK → McpServerBuilder → Tool Registr
 - Implement batch operations
 
 ### 2. **UI Framework Integration**
-- Replace MockOverlayWindow with Avalonia implementation
+- Maintain MockOverlayWindow for server-side state tracking; the browser renders overlays via WebSocket events
 - Port visual design from extracted components
 - Add multi-monitor overlay positioning
 
