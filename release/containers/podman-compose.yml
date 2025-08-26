@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  overlay-companion:
+    image: overlay-companion:latest
+    container_name: overlay-companion
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount for persistent data if needed
+      - overlay-companion-data:/app/data
+      # Mount for X11 socket (if needed for advanced display features)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=:99
+      - PORT=8080
+      - MCP_SERVER_URL=http://localhost:8081
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  overlay-companion-data:
+    driver: local

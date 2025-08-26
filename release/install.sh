@@ -287,13 +287,17 @@ provision_infrastructure() {
         host_ip="127.0.0.1"
     fi
     
-    # Get cached image path
-    local fedora_image_path
-    if [[ -f "$HOME/.cache/${PROJECT_NAME}/fedora_image_path" ]]; then
-        fedora_image_path=$(cat "$HOME/.cache/${PROJECT_NAME}/fedora_image_path")
+    # Get cached image path (skip if we're not creating a VM)
+    local fedora_image_path=""
+    if [[ "${SKIP_VM_CREATION:-}" != "1" ]]; then
+        if [[ -f "$HOME/.cache/${PROJECT_NAME}/fedora_image_path" ]]; then
+            fedora_image_path=$(cat "$HOME/.cache/${PROJECT_NAME}/fedora_image_path")
+        else
+            error "❌ Fedora image path not found"
+            exit 1
+        fi
     else
-        error "❌ Fedora image path not found"
-        exit 1
+        fedora_image_path="/dev/null"  # Placeholder when skipping VM creation
     fi
     
     cat > "$vars_file" << EOF
@@ -506,7 +510,12 @@ main() {
         install_dependencies
         install_opentofu
         setup_networking
-        cache_fedora_image
+        
+        # Skip VM creation if we're already inside a VM
+        if [[ "${SKIP_VM_CREATION:-}" != "1" ]]; then
+            cache_fedora_image
+        fi
+        
         provision_infrastructure
         wait_for_services
         show_completion

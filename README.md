@@ -13,19 +13,41 @@ A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit buil
 
 ## 🚀 Quick Installation
 
-**One-command installation (recommended):**
+### Step 1: Create a Fedora VM
+Create a Fedora virtual machine using your preferred platform:
+- **Proxmox**: Create new VM with Fedora template
+- **TrueNAS**: Use VM manager to create Fedora VM
+- **Boxes (Fedora)**: Create new Fedora virtual machine
+- **VirtualBox**: Create new Fedora VM
+- **VMware**: Create new Fedora virtual machine
+- **Any other platform**: Any Fedora VM will work
+
+**VM Requirements:**
+- **OS**: Fedora Linux (latest stable recommended)
+- **RAM**: 8+ GB (16+ GB recommended for better performance)
+- **CPU**: 4+ cores
+- **Disk**: 50+ GB free space
+- **Network**: Internet access
+- **Graphics**: Hardware acceleration recommended
+
+### Step 2: Run Setup Inside VM
+SSH into your VM or open a terminal, then run:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/setup.sh | bash
 ```
 
-Then start the server:
-```bash
-./run.sh
-```
+### Step 3: Access Your System
+- **Web Interface**: `http://[VM-IP]:8080`
+- **MCP Server**: `http://[VM-IP]:8080/mcp`
+- **Management API**: `http://[VM-IP]:8080/api`
 
-Visit `http://localhost:3000/setup` to configure your AI client.
+**What gets installed:**
+- **Single unified container** with both MCP server and web interface
+- C# overlay functionality for AI screen interaction
+- Web-based management and annotation interface
+- All services managed by supervisor in one container
 
-**Alternative methods:** See [DEPLOYMENT.md](DEPLOYMENT.md) for Docker, cloud deployment, and other options.
+**That's it!** Same powerful containerized infrastructure, your choice of VM platform.
 
 ## Installation (Web-first)
 

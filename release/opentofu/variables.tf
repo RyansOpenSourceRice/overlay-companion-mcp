@@ -4,6 +4,12 @@ variable "project_name" {
   default     = "overlay-companion-mcp"
 }
 
+variable "skip_vm_creation" {
+  description = "Skip VM creation (for when running inside an existing VM)"
+  type        = bool
+  default     = false
+}
+
 variable "vm_memory" {
   description = "Memory allocation for VM in MB"
   type        = number

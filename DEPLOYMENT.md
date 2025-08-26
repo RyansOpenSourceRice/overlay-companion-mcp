@@ -2,34 +2,37 @@
 
 Multiple ways to deploy and run Overlay Companion MCP, from simple local installation to cloud deployment.
 
-## 🚀 Option 1: One-Command Installation (Recommended)
+## 🚀 Option 1: VM-Based Installation (Recommended)
 
-**Simplest option - Download and run everything automatically:**
+**Create a Fedora VM, then run the setup script inside it:**
 
+### Step 1: Create Fedora VM
+Use your preferred platform:
+- **Proxmox**: Create VM with Fedora template
+- **TrueNAS**: VM manager with Fedora ISO
+- **Boxes**: Create new Fedora virtual machine
+- **VirtualBox/VMware**: Standard Fedora VM
+
+**VM Requirements:**
+- Fedora Linux (latest stable)
+- 8+ GB RAM, 4+ CPU cores, 50+ GB disk
+- Internet access, hardware acceleration
+
+### Step 2: Run Setup Inside VM
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/setup.sh | bash
 ```
 
-Or download and run manually:
-```bash
-wget https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/install.sh
-chmod +x install.sh
-./install.sh
-```
-
-**What it does:**
-- ✅ Installs .NET 8.0 if missing
-- ✅ Clones the repository
-- ✅ Builds the project
-- ✅ Creates a simple `run.sh` script
-- ✅ Creates systemd service file
-- ✅ Ready to use in 2-3 minutes
+**What it installs:**
+- ✅ Single unified container with both MCP server and web interface
+- ✅ C# overlay functionality for AI screen interaction
+- ✅ Web-based management and annotation interface
+- ✅ Supervisor-managed services in one container
+- ✅ Ready to use in 5-10 minutes
 
 **After installation:**
-```bash
-./run.sh  # Start the server
-# Visit http://localhost:3000/setup
-```
+- Web Interface: `http://[VM-IP]:8080`
+- MCP Server: `http://[VM-IP]:8080/mcp`
 
 ---
 
