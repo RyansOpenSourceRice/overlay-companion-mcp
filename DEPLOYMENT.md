@@ -33,78 +33,52 @@ chmod +x install.sh
 
 ---
 
-## 🐳 Option 2: Docker (Containerized)
+## 🐳 Option 2: Podman (OCI Containers - Existing Infrastructure)
 
-**For isolated deployment and easy management:**
+**The project already has Podman infrastructure with Guacamole integration!**
 
-### Quick Start with Docker
+### Simple MCP-Only Deployment
 ```bash
 # Clone repository
 git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 
-# Build Docker image
-docker build -t overlay-companion-mcp .
-
-# Run container
-docker run -d \
-  --name overlay-companion \
-  -p 3000:3000 \
-  -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  -e DISPLAY=$DISPLAY \
-  overlay-companion-mcp
+# Build and run just the MCP server
+podman build -t overlay-companion-mcp -f infra/Dockerfile.mcp .
+podman run -d --name overlay-companion -p 3000:3000 overlay-companion-mcp
 ```
 
-### Docker Compose (Recommended)
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  overlay-companion:
-    build: .
-    ports:
-      - "3000:3000"
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    environment:
-      - DISPLAY=${DISPLAY}
-      - ASPNETCORE_ENVIRONMENT=Production
-    restart: unless-stopped
-```
+### Full Stack with Guacamole (Advanced)
+**For remote desktop integration with web-based overlays:**
 
 ```bash
-docker-compose up -d
+cd overlay-companion-mcp/infra
+
+# Set environment variables for Guacamole
+export GUAC_ADMIN_USER=admin
+export GUAC_ADMIN_PASS=yourpassword
+export GUAC_CONN_NAME=my-desktop
+export GUAC_RDP_HOST=your-vm-ip
+export GUAC_RDP_USERNAME=your-username
+export GUAC_RDP_PASSWORD=your-password
+
+# Start the full stack
+podman-compose up -d
 ```
 
-### Dockerfile (create if missing)
-```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /app
+**What this gives you:**
+- ✅ MCP server on port 3000
+- ✅ Guacamole web interface on port 8081
+- ✅ Caddy reverse proxy on port 8080
+- ✅ PostgreSQL database for Guacamole
+- ✅ Remote desktop integration
 
-# Copy project files
-COPY src/*.csproj ./src/
-RUN dotnet restore src/OverlayCompanion.csproj
-
-# Copy source code
-COPY . .
-RUN dotnet publish src/OverlayCompanion.csproj -c Release -o out
-
-# Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
-WORKDIR /app
-COPY --from=build /app/out .
-
-# Install system dependencies for screen capture
-RUN apt-get update && apt-get install -y \
-    grim \
-    wl-clipboard \
-    xclip \
-    scrot \
-    && rm -rf /var/lib/apt/lists/*
-
-EXPOSE 3000
-ENTRYPOINT ["dotnet", "overlay-companion-mcp.dll"]
-```
+### Podman vs Docker Benefits
+- ✅ **Rootless**: Runs without root privileges
+- ✅ **Systemd integration**: Better service management
+- ✅ **OCI compliant**: Uses same container images
+- ✅ **No daemon**: More secure architecture
+- ✅ **Drop-in replacement**: Same commands as Docker
 
 ---
 
@@ -350,12 +324,16 @@ sudo systemctl status overlay-companion-mcp
 
 ## 🚀 Quick Comparison
 
-| Method | Complexity | Time | Best For |
-|--------|------------|------|----------|
-| **install.sh** | ⭐ | 2-3 min | Local use, quick start |
-| **Docker** | ⭐⭐ | 5 min | Isolation, consistency |
-| **Cloud (Railway)** | ⭐⭐ | 10 min | Remote access, scaling |
-| **VPS/Server** | ⭐⭐⭐ | 15 min | Production, control |
-| **Manual Build** | ⭐⭐⭐⭐ | 10 min | Development, customization |
+| Method | Complexity | Time | Best For | GUI Access |
+|--------|------------|------|----------|------------|
+| **install.sh** | ⭐ | 2-3 min | Local use, quick start | ✅ Full |
+| **Podman (MCP only)** | ⭐⭐ | 5 min | Isolation, local containers | ❌ Limited |
+| **Podman (Full stack)** | ⭐⭐⭐ | 15 min | Remote desktop integration | ✅ Via Guacamole |
+| **Cloud (Railway)** | ⭐⭐ | 10 min | Remote access, scaling | ❌ None |
+| **VPS/Server** | ⭐⭐⭐ | 15 min | Production, control | ❌ None |
+| **Manual Build** | ⭐⭐⭐⭐ | 10 min | Development, customization | ✅ Full |
 
-**Recommendation**: Start with `install.sh` for local use, then move to Docker or cloud for production.
+**Recommendation**: 
+- **Local GUI use**: `install.sh` (simplest)
+- **Remote desktop**: Podman full stack with Guacamole
+- **Development**: Manual build
