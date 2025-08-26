@@ -10,7 +10,7 @@
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
-[Rr]elease/
+# [Rr]elease/ - commented out to allow our release/ directory
 [Rr]eleases/
 x64/
 x86/
