@@ -8,6 +8,6 @@
 
 4. ✅ Set up pre-commit hook to detect project-breaking conflicts
 
-5. 🔄 Commit the resolved conflicts and pre-commit hook
+5. ✅ Commit the resolved conflicts and pre-commit hook
 
 
