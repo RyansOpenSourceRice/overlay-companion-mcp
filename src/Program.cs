@@ -11,6 +11,7 @@ using OverlayCompanion.MCP.Tools;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.IO;
+using OverlayCompanion.Web;
 
 namespace OverlayCompanion;
 
@@ -110,6 +111,7 @@ public class Program
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
         builder.Services.AddSingleton<UpdateService>();
+        builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();
 
         // Add MCP server with native HTTP transport using official SDK
@@ -167,6 +169,33 @@ public class Program
         // Enable CORS
         app.UseCors();
 
+        // WebSocket for overlay events
+        app.MapOverlayWebSockets();
+
+        // Serve static web client
+        app.MapGet("/", async context =>
+        {
+            context.Response.ContentType = "text/html";
+            await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
+        });
+
+	        // Simple test endpoint for CI/manual verification
+	        app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
+	        {
+	            var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);
+	            var overlay = new OverlayCompanion.Models.OverlayElement
+	            {
+	                Bounds = bounds,
+	                Color = "#ff0000",
+	                Opacity = 0.4,
+	                Label = "test",
+	                TemporaryMs = 1500,
+	                ClickThrough = true
+	            };
+	            var id = await overlaySvc.DrawOverlayAsync(overlay);
+	            return Results.Json(new { ok = true, overlay_id = id });
+	        });
+
         // Map MCP endpoints (native HTTP transport with streaming support)
         // Preferred root path "/" for MCP per current policy
         app.MapMcp("/");
@@ -211,9 +240,6 @@ public class Program
             var hub = context.RequestServices.GetRequiredService<OverlayWebSocketHub>();
             var cts = new CancellationTokenSource();
             await hub.HandleClientAsync(socket, cts.Token);
-        });
-
-            
         });
 
         // Token mint endpoint (dev aid): returns short-lived token if OC_OVERLAY_WS_SECRET is set

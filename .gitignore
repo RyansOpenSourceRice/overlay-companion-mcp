@@ -66,3 +66,9 @@ tests/ai-gui/artifacts/
 *.log
 server.log
 /src/server.log
+
+# OpenTofu generated artifacts
+/deploy/opentofu/modules/*/generated/
+/deploy/opentofu/envs/*/.terraform/
+/deploy/opentofu/envs/*/.terraform.lock.hcl
+

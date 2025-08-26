@@ -115,6 +115,17 @@ When the application is running with HTTP transport, it provides helpful configu
 
 These endpoints include proper metadata (description, tags, provider info) for better integration with MCP clients.
 
+---
+
+## Modes and Safety
+
+- Modes: passive (read‑only), assist (confirmation required), autopilot (guard‑railed automation)
+- Input simulation is gated by mode and can require explicit user confirmation
+- CORS configured; TLS terminates at reverse proxy (Caddy)
+- Planned: per‑viewer JWTs for overlay WS and session scoping
+
+---
+
 ### Claude Desktop Configuration (HTTP Transport - Recommended)
 ```json
 {
