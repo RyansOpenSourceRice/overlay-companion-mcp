@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Overlay Companion MCP - Container Setup Script
-# This script sets up the containerized overlay companion infrastructure
-# Run this inside any Fedora VM created with your preferred platform
+# Overlay Companion MCP - Host Container Setup Script
+# This script sets up the container infrastructure on your HOST Fedora Linux system
+# The containers will connect to VMs you create separately
 
 set -euo pipefail
 
@@ -203,9 +203,10 @@ show_completion() {
     echo "🤖 MCP Server: http://$vm_ip:$DEFAULT_CONTAINER_PORT/mcp"
     echo ""
     echo "📋 Next Steps:"
-    echo "1. Access the web interface to verify everything is working"
-    echo "2. Configure your AI client (Cherry Studio, etc.) to use the MCP server"
-    echo "3. Start using overlay functionality through your AI assistant"
+    echo "1. Create a Fedora Silverblue VM on your preferred platform"
+    echo "2. Run vm-setup.sh inside the VM to install RDP services"
+    echo "3. Add the VM to this management interface using its IP address"
+    echo "4. Configure your AI client to use the MCP server"
     echo ""
     echo "📊 Service Management:"
     echo "• Check status: podman ps"
@@ -221,9 +222,13 @@ show_completion() {
 # Main installation function
 main() {
     echo -e "${BLUE}"
-    echo "🚀 Overlay Companion MCP - Container Setup"
+    echo "🚀 Overlay Companion MCP - Host Container Setup"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "${NC}"
+    echo ""
+    echo "This sets up containers on your HOST Fedora Linux system."
+    echo "Create VMs separately and connect them via the web interface."
+    echo ""
     
     # Initialize log file
     echo "Starting Overlay Companion MCP setup at $(date)" > "$LOG_FILE"

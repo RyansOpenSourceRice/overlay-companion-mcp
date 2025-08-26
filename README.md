@@ -1,177 +1,157 @@
-# overlay-companion-mcp
+# Overlay Companion MCP
 
-[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-FF6B35?style=for-the-badge&logo=anthropic)](https://modelcontextprotocol.io/)
-[![Platform](https://img.shields.io/badge/platform-Web%20(HTTP%20MCP)-00ADD8?style=for-the-badge&logo=google-chrome)](https://modelcontextprotocol.io/)
-[![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
-[![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
-[![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
-[![Status](https://img.shields.io/badge/status-development-yellow?style=for-the-badge&logo=github)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
-[![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Docs](https://img.shields.io/badge/docs-specification-green?style=for-the-badge&logo=markdown)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/blob/main/SPECIFICATION.md)
+AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through containerized infrastructure.
 
-A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
+## Architecture
 
-## 🚀 Quick Installation
+**Host OS (Fedora Linux)**: Runs 4 podman containers
+- **MCP Server Container**: C# overlay functionality for AI screen interaction
+- **Management Web Container**: Node.js web interface for system management
+- **PostgreSQL Container**: Database for Guacamole
+- **Guacamole Container**: Web-based RDP client for VM access
 
-### Step 1: Create a Fedora VM
-Create a Fedora virtual machine using your preferred platform:
+**Separate VM (Fedora)**: Target for RDP connections
+- Runs RDP server (xrdp, VNC)
+- Accessed through Guacamole container on host
+- No containers needed in VM
+
+**Connection Flow**: Host containers → Guacamole → RDP → VM
+
+## Installation
+
+### Step 1: Set up containers on your HOST Fedora Linux
+Run this on your main Fedora Linux system:
+```bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
+```
+
+**What gets installed on HOST:**
+- MCP server container (C# overlay functionality)
+- Management web interface container (Node.js)
+- PostgreSQL container (database)
+- Guacamole container (web-based RDP client)
+
+### Step 2: Create a Fedora VM separately
+Create a VM using your preferred platform:
 - **Proxmox**: Create new VM with Fedora template
-- **TrueNAS**: Use VM manager to create Fedora VM
-- **Boxes (Fedora)**: Create new Fedora virtual machine
 - **VirtualBox**: Create new Fedora VM
 - **VMware**: Create new Fedora virtual machine
-- **Any other platform**: Any Fedora VM will work
+- **Any platform**: Any Fedora VM will work
 
 **VM Requirements:**
-- **OS**: Fedora Linux (latest stable recommended)
-- **RAM**: 8+ GB (16+ GB recommended for better performance)
-- **CPU**: 4+ cores
-- **Disk**: 50+ GB free space
+- **OS**: Fedora Silverblue or Fedora Workstation
+- **RAM**: 4+ GB
 - **Network**: Internet access
-- **Graphics**: Hardware acceleration recommended
+- **Platform**: Any (VMware, VirtualBox, Proxmox, etc.)
 
-### Step 2: Run Setup Inside VM
+### Step 3: Set up RDP services in your VM
 SSH into your VM or open a terminal, then run:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup.sh | bash
 ```
 
-### Step 3: Access Your System
-- **Web Interface**: `http://[VM-IP]:8080`
-- **MCP Server**: `http://[VM-IP]:8080/mcp`
-- **Management API**: `http://[VM-IP]:8080/api`
+**What gets installed in VM:**
+- XRDP server (primary RDP access)
+- VNC server (backup access)
+- GNOME desktop environment
+- Basic desktop applications
 
-**What gets installed:**
-- **Unified MCP + Management container** (C# overlay server + Node.js web interface)
-- **PostgreSQL container** (database for Guacamole)
-- **Guacamole containers** (web-based remote desktop access)
-- All containers managed by podman-compose
-
-**That's it!** Same powerful containerized infrastructure, your choice of VM platform.
-
-## Installation (Web-first)
-
-Run as a headless HTTP MCP server that serves a browser overlay viewer.
-
-### From source (for development)
-```bash
-dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
-./build/publish/overlay-companion-mcp
-```
-
-Environment:
-- PORT or OC_PORT to change port (default 3000)
-- OC_SMOKE_TEST=1 to run smoke/startup check and exit
-
-
-
-**Architecture**: Full HTTP MCP server with web-only viewer. Overlays render in the browser and the server runs headless by default.
-- **Default operation**: HTTP server on port 3000
-- **Native GUI**: Removed. All interaction is via the web UI and MCP over HTTP
-
-### System Requirements
-- **Runtime**: .NET 8, Linux
-- **Web-first**: Browser overlay renders via /ws/overlays events from server
-- **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
-- **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
-
-### Current Notes
-- **Transport**: HTTP is the primary transport at "/" with SSE. STDIO is deprecated and retained only for legacy/testing.
-- **GUI**: No native GUI. GTK/Avalonia paths have been removed; web-only experience.
+### Step 4: Connect them together
+1. Access management interface: `http://localhost:8080`
+2. Add your VM using its IP address
+3. Configure RDP connection settings
+4. Start using AI overlay functionality
 
 ## Usage
 
-### MCP Integration
-Configure with Cherry Studio or other MCP-compatible AI clients using HTTP transport (recommended):
+### Web Interface
+- **Management**: `http://localhost:8080`
+- **RDP Access**: Through Guacamole web interface
+- **System Status**: Container health and VM connections
 
-```json
-{
-  "mcpServers": {
-    "overlay_companion": {
-      "url": "http://localhost:3000/",
-      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
-      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
-      "provider": "Overlay Companion",
-      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
-    }
-  }
-}
+### MCP Server
+- **Endpoint**: `http://localhost:8080/mcp`
+- **Protocol**: Model Context Protocol
+- **Features**: Screen capture, overlay annotations, AI interaction
+
+### AI Client Configuration
+Configure your AI client (Cherry Studio, etc.) to use:
+```
+MCP Server URL: http://localhost:8080/mcp
 ```
 
-> Note: STDIO transport is deprecated. Use HTTP above. If you must use STDIO, start the binary with `--stdio` and configure your client accordingly.
+## Service Management
 
-### Easy Configuration Setup
+### Container Management (on HOST)
+```bash
+# Check container status
+podman ps
 
-For a better user experience, the application provides configuration endpoints when running:
+# View logs
+podman logs overlay-companion
+podman logs overlay-companion-postgres
+podman logs overlay-companion-guacamole
 
-- **Web UI**: Visit `http://localhost:3000/setup` for an interactive configuration interface
-- **JSON Config**: Get ready-to-use configuration from `http://localhost:3000/config`
-- **MCP Endpoint**: POST JSON-RPC to `http://localhost:3000/` with header `Accept: application/json, text/event-stream` (SSE)
-- **Copy & Paste**: One-click copy functionality for easy setup in Cherry Studio
+# Restart services
+cd ~/.config/overlay-companion-mcp
+podman-compose restart
 
-The configuration includes proper metadata (description, tags, provider info) for better integration with MCP clients.
+# Stop all services
+podman-compose down
+```
 
-### Available Tools
-- Screen capture, overlays, multi-monitor info
-- Input simulation and clipboard tools
-- Human-in-the-loop confirmations
+### VM Management
+```bash
+# Check RDP service in VM
+sudo systemctl status xrdp
 
-Note: Wayland is preferred with X11 fallback. See SPECIFICATION.md for platform integration details.
+# Restart RDP service in VM
+sudo systemctl restart xrdp
 
-For complete tool documentation, see [MCP_SPECIFICATION.md](MCP_SPECIFICATION.md).
-
-## Development
-
-**Contributors and AI agents:** See [DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md) for development environment setup.
+# Check VNC service in VM
+sudo systemctl status vncserver@1
+```
 
 ## Troubleshooting
 
-### HTTP Usage
-- Default port: 3000
-- MCP endpoint: POST to `http://localhost:3000/` with `Accept: application/json, text/event-stream`
-- Setup page: `http://localhost:3000/setup`
-- Config JSON: `http://localhost:3000/config`
+### Container Issues
+- Check logs: `podman logs [container-name]`
+- Restart containers: `podman-compose restart`
+- Rebuild containers: Re-run host-setup.sh
 
-### Transport Issues
+### VM Connection Issues
+- Verify VM IP address
+- Check firewall settings in VM
+- Test RDP connection directly: `xfreerdp /v:[VM-IP] /u:[username]`
 
-#### HTTP Transport (Recommended)
-- Default port: 3000
-- Check firewall settings if connection fails
-- Use `netstat -tlnp | grep 3000` to verify server is listening
+### Network Issues
+- Ensure VM and host can communicate
+- Check firewall rules on both systems
+- Verify RDP port 3389 is open
 
-#### STDIO Transport (Deprecated)
-- Use `--stdio` flag for legacy compatibility
-- Ensure MCP client supports STDIO transport
-- Consider migrating to HTTP transport for better features
+## Development
 
-## Documentation Quality
-
-This repository maintains high documentation standards with automated quality checks:
-
-### Markdown Linting
-
-All markdown files are automatically checked for:
-- **Style consistency** using markdownlint
-- **Spelling accuracy** using cspell
-- **Link validity** using markdown-link-check
-- **Table of contents** synchronization
-
-### Running Checks Locally
-
+### Building from Source
 ```bash
-# Run all markdown quality checks
-./scripts/lint-markdown.sh
-
-# Or run individual tools
-markdownlint "**/*.md"
-cspell "**/*.md"
+git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+cd overlay-companion-mcp
+./host-setup.sh
 ```
 
-### GitHub Actions
+### Container Architecture
+- **Dockerfile.unified**: Combined MCP server + Management web interface
+- **podman-compose.yml**: Multi-container orchestration
+- **PostgreSQL**: Separate container for database isolation
+- **Guacamole**: Separate containers for RDP functionality
 
-Quality checks run automatically on:
-- All pull requests
-- Pushes to main/develop branches
-- Changes to markdown files
+## Contributing
 
-See `.github/workflows/` for complete automation setup.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with both host containers and VM setup
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
