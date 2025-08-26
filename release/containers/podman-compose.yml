@@ -1,20 +1,62 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database for Guacamole
+  postgres:
+    image: docker.io/postgres:15-alpine
+    container_name: overlay-companion-postgres
+    environment:
+      POSTGRES_DB: guacamole
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: guacamole-dev-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guacamole"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Guacamole daemon
+  guacd:
+    image: docker.io/guacamole/guacd:1.5.4
+    container_name: overlay-companion-guacd
+    restart: unless-stopped
+
+  # Guacamole web interface
+  guacamole:
+    image: docker.io/guacamole/guacamole:1.5.4
+    container_name: overlay-companion-guacamole
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOSTNAME: overlay-companion-postgres
+      POSTGRES_DATABASE: guacamole
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: guacamole-dev-password
+      GUACD_HOSTNAME: overlay-companion-guacd
+    volumes:
+      - guacamole_data:/config
+    restart: unless-stopped
+
+  # Unified MCP server + Management web interface
   overlay-companion:
     image: overlay-companion:latest
     container_name: overlay-companion
+    depends_on:
+      - guacamole
     ports:
       - "8080:8080"
     volumes:
-      # Mount for persistent data if needed
       - overlay-companion-data:/app/data
-      # Mount for X11 socket (if needed for advanced display features)
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
       - DISPLAY=:99
       - PORT=8080
       - MCP_SERVER_URL=http://localhost:8081
+      - GUACAMOLE_URL=http://overlay-companion-guacamole:8080
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -24,5 +66,9 @@ services:
       start_period: 60s
 
 volumes:
+  postgres_data:
+    driver: local
+  guacamole_data:
+    driver: local
   overlay-companion-data:
     driver: local

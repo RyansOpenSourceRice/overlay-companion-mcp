@@ -24,11 +24,11 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 ```
 
 **What it installs:**
-- ✅ Single unified container with both MCP server and web interface
-- ✅ C# overlay functionality for AI screen interaction
-- ✅ Web-based management and annotation interface
-- ✅ Supervisor-managed services in one container
-- ✅ Ready to use in 5-10 minutes
+- ✅ Unified MCP + Management container (C# overlay + Node.js web interface)
+- ✅ PostgreSQL container (database for Guacamole)
+- ✅ Guacamole containers (web-based remote desktop)
+- ✅ All containers managed by podman-compose
+- ✅ Ready to use in 10-15 minutes
 
 **After installation:**
 - Web Interface: `http://[VM-IP]:8080`

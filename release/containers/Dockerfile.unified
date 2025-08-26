@@ -1,6 +1,6 @@
-# Unified Overlay Companion MCP Container
-# This container includes both the C# MCP server and the web management interface
-# Simpler deployment: one container, one service, one port
+# Unified MCP + Management Container
+# This container combines the C# MCP server and Node.js management web interface
+# Database (PostgreSQL) and Guacamole remain as separate containers
 
 # Stage 1: Build web frontend
 FROM node:20-alpine AS web-builder

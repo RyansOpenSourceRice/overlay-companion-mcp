@@ -42,10 +42,10 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 - **Management API**: `http://[VM-IP]:8080/api`
 
 **What gets installed:**
-- **Single unified container** with both MCP server and web interface
-- C# overlay functionality for AI screen interaction
-- Web-based management and annotation interface
-- All services managed by supervisor in one container
+- **Unified MCP + Management container** (C# overlay server + Node.js web interface)
+- **PostgreSQL container** (database for Guacamole)
+- **Guacamole containers** (web-based remote desktop access)
+- All containers managed by podman-compose
 
 **That's it!** Same powerful containerized infrastructure, your choice of VM platform.
 

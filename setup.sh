@@ -122,7 +122,43 @@ start_services() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     cd "$config_dir"
     
-    # Start containers with podman-compose
+    # Start database first
+    log "Starting PostgreSQL database..."
+    podman-compose up -d postgres >> "$LOG_FILE" 2>&1
+    
+    # Wait for database to be ready
+    log "Waiting for PostgreSQL to be ready..."
+    local max_attempts=30
+    local attempt=1
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        if podman exec overlay-companion-postgres pg_isready -U guacamole >/dev/null 2>&1; then
+            log "✅ PostgreSQL is ready"
+            break
+        fi
+        
+        if [[ $attempt -eq $max_attempts ]]; then
+            error "❌ PostgreSQL failed to start"
+            return 1
+        fi
+        
+        sleep 2
+        ((attempt++))
+    done
+    
+    # Initialize Guacamole database schema
+    log "Initializing Guacamole database schema..."
+    podman run --rm --network container:overlay-companion-postgres \
+        docker.io/guacamole/guacamole:1.5.4 \
+        /opt/guacamole/bin/initdb.sh --postgresql > /tmp/guacamole-schema.sql 2>>"$LOG_FILE"
+    
+    podman exec -i overlay-companion-postgres \
+        psql -U guacamole -d guacamole < /tmp/guacamole-schema.sql >> "$LOG_FILE" 2>&1 || true
+    
+    rm -f /tmp/guacamole-schema.sql
+    
+    # Start all services
+    log "Starting all services..."
     podman-compose up -d >> "$LOG_FILE" 2>&1
     
     log "✅ Services started"
