@@ -52,9 +52,9 @@ resource "null_resource" "configure_firewall" {
     when = destroy
     command = <<-EOT
       echo "Cleaning up firewall rules..."
-      sudo firewall-cmd --permanent --zone=public --remove-service="${local.service_name}" || true
-      sudo firewall-cmd --permanent --zone=internal --remove-service="${local.service_name}" || true
-      sudo firewall-cmd --permanent --delete-service="${local.service_name}" || true
+      sudo firewall-cmd --permanent --zone=public --remove-service="${var.project_name}-management" || true
+      sudo firewall-cmd --permanent --zone=internal --remove-service="${var.project_name}-management" || true
+      sudo firewall-cmd --permanent --delete-service="${var.project_name}-management" || true
       sudo firewall-cmd --reload || true
     EOT
   }

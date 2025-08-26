@@ -166,8 +166,8 @@ resource "null_resource" "create_vm_disk" {
   provisioner "local-exec" {
     when = destroy
     command = <<-EOT
-      echo "Removing VM disk: ${local.vm_disk_path}"
-      rm -f "${local.vm_disk_path}"
+      echo "Removing VM disk: ${var.user_home}/.local/share/libvirt/images/${var.vm_name}.qcow2"
+      rm -f "${var.user_home}/.local/share/libvirt/images/${var.vm_name}.qcow2"
     EOT
   }
   

@@ -279,7 +279,7 @@ resource "null_resource" "start_services" {
   provisioner "local-exec" {
     when = destroy
     command = <<-EOT
-      cd "${local.config_dir}"
+      cd "${var.user_home}/.config/${var.project_name}"
       echo "Stopping management container services..."
       podman-compose down || true
     EOT
