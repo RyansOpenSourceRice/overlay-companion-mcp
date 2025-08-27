@@ -106,6 +106,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+          outputs: type=registry
+          provenance: false
 
       - name: Create Git tag
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

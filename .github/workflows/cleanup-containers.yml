@@ -73,6 +73,8 @@ jobs:
     needs: [cleanup-images, cleanup-untagged]
     runs-on: ubuntu-latest
     if: always()
+    permissions:
+      contents: read
     
     steps:
       - name: Report cleanup results
