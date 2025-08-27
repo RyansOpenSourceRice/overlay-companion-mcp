@@ -6,9 +6,18 @@
 FROM node:20-alpine AS web-builder
 
 WORKDIR /app/web
-COPY infra/web/package*.json ./
-RUN npm ci
+
+# Copy package files first for better caching
+COPY infra/web/package.json ./
+COPY infra/web/package-lock.json* ./
+
+# Install dependencies (fallback to npm install if npm ci fails)
+RUN npm ci --verbose || npm install
+
+# Copy source code
 COPY infra/web/ ./
+
+# Build the application
 RUN npm run build
 
 # Stage 2: Production web server
