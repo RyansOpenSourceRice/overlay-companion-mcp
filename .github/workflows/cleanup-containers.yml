@@ -1,0 +1,97 @@
+name: Cleanup Old Container Images
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Keep images newer than X days'
+        required: false
+        default: '30'
+        type: string
+      min_versions:
+        description: 'Minimum versions to keep'
+        required: false
+        default: '10'
+        type: string
+      dry_run:
+        description: 'Dry run (do not actually delete)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  cleanup-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        image: [mcp-server, web-interface]
+
+    steps:
+      - name: Cleanup old container versions
+        uses: snok/container-retention-policy@v3.0.0
+        with:
+          image-names: ${{ github.repository }}/${{ matrix.image }}
+          cut-off: ${{ github.event.inputs.retention_days || '30' }}d
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          keep-at-least: ${{ github.event.inputs.min_versions || '10' }}
+          untagged-only: false
+          skip-tags: latest,main,develop
+          dry-run: ${{ github.event.inputs.dry_run || 'false' }}
+
+  cleanup-untagged:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    strategy:
+      matrix:
+        image: [mcp-server, web-interface]
+
+    steps:
+      - name: Delete untagged container versions
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.repository }}/${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  report-cleanup:
+    needs: [cleanup-images, cleanup-untagged]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Report cleanup results
+        run: |
+          echo "## Container Cleanup Report" >> $GITHUB_STEP_SUMMARY
+          echo "- **Date**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Retention Policy**: ${{ github.event.inputs.retention_days || '30' }} days" >> $GITHUB_STEP_SUMMARY
+          echo "- **Minimum Versions**: ${{ github.event.inputs.min_versions || '10' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry Run**: ${{ github.event.inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Images Processed**: mcp-server, web-interface" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.cleanup-images.result }}" = "success" ]; then
+            echo "- **Tagged Images Cleanup**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Tagged Images Cleanup**: ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.cleanup-untagged.result }}" = "success" ]; then
+            echo "- **Untagged Images Cleanup**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Untagged Images Cleanup**: ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
