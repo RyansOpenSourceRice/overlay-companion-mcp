@@ -34,6 +34,10 @@ jobs:
       contents: read
       packages: write
     
+    outputs:
+      version-tag: ${{ steps.version.outputs.version }}
+      pr-tag: ${{ steps.version.outputs.pr_tag }}
+    
     strategy:
       matrix:
         include:
@@ -152,10 +156,19 @@ jobs:
         image: [mcp-server, web-interface]
 
     steps:
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tag=${{ needs.build-and-push.outputs.pr-tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ needs.build-and-push.outputs.version-tag }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
