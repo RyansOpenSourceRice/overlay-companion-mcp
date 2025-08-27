@@ -37,9 +37,15 @@ RUN addgroup -g 1001 appuser && \
 
 WORKDIR /app
 
-# Copy Node.js server
+# Copy Node.js server package files first
+COPY infra/server/package.json ./server/
+COPY infra/server/package-lock.json* ./server/
+
+# Install server dependencies
+RUN cd server && (npm ci --omit=dev --verbose || npm install --omit=dev)
+
+# Copy server source code
 COPY infra/server/ ./server/
-RUN cd server && npm ci --production
 
 # Copy built web frontend to the location expected by server.js
 COPY --from=web-builder /app/web/dist ./public/
