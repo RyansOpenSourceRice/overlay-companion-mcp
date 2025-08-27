@@ -111,6 +111,17 @@ export default class GuacamoleClient {
         this.container.appendChild(desktop);
     }
     
+    // Helper to escape HTML for app names to prevent XSS
+    escapeHTML(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+    
     simulateAppLaunch(appName) {
         // Create a simple app window simulation
         const appWindow = document.createElement('div');
@@ -133,15 +144,15 @@ export default class GuacamoleClient {
         
         appWindow.innerHTML = `
             <div style="padding: 1rem; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 0.5rem 0.5rem 0 0;">
-                <h3 style="margin: 0; font-size: 1rem;">${appName}</h3>
+                <h3 style="margin: 0; font-size: 1rem;">${this.escapeHTML(appName)}</h3>
                 <button onclick="this.closest('[style*=\"position: absolute\"]').remove()" style="background: #ff5f56; border: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer;"></button>
             </div>
             <div style="flex: 1; padding: 1rem; display: flex; align-items: center; justify-content: center; text-align: center;">
                 <div>
                     <div style="font-size: 2rem; margin-bottom: 1rem;">📱</div>
                     <p style="margin: 0; opacity: 0.7;">
-                        ${appName} application simulation<br>
-                        <small>In a real deployment, this would be the actual ${appName} application running in the Fedora VM</small>
+                        ${this.escapeHTML(appName)} application simulation<br>
+                        <small>In a real deployment, this would be the actual ${this.escapeHTML(appName)} application running in the Fedora VM</small>
                     </p>
                 </div>
             </div>

@@ -361,14 +361,25 @@ class OverlayCompanionApp {
             info: 'ℹ️'
         }[type] || 'ℹ️';
         
-        notification.innerHTML = `
-            <span class="notification-icon">${icon}</span>
-            <span class="notification-message">${message}</span>
-            <button class="notification-close">&times;</button>
-        `;
+        // Instead of using innerHTML, construct elements to safely insert dynamic text
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'notification-icon';
+        iconSpan.textContent = icon;
+
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'notification-message';
+        messageSpan.textContent = message;
+
+        const closeButton = document.createElement('button');
+        closeButton.className = 'notification-close';
+        closeButton.innerHTML = '&times;';
+
+        notification.appendChild(iconSpan);
+        notification.appendChild(messageSpan);
+        notification.appendChild(closeButton);
         
         // Add close functionality
-        notification.querySelector('.notification-close').addEventListener('click', () => {
+        closeButton.addEventListener('click', () => {
             notification.remove();
         });
         
@@ -384,17 +395,34 @@ class OverlayCompanionApp {
     
     showError(title, message) {
         const app = document.getElementById('app');
-        app.innerHTML = `
-            <div class="error-screen">
-                <div class="error-content">
-                    <h1>❌ ${title}</h1>
-                    <p>${message}</p>
-                    <button onclick="location.reload()" class="btn btn-primary">
-                        🔄 Reload Application
-                    </button>
-                </div>
-            </div>
-        `;
+        
+        // Clear previous content
+        app.innerHTML = '';
+        
+        // Create error screen elements safely
+        const errorScreen = document.createElement('div');
+        errorScreen.className = 'error-screen';
+        
+        const errorContent = document.createElement('div');
+        errorContent.className = 'error-content';
+        
+        const errorTitle = document.createElement('h1');
+        errorTitle.textContent = '❌ ' + title;
+        
+        const errorMsg = document.createElement('p');
+        errorMsg.textContent = message;
+        
+        const reloadBtn = document.createElement('button');
+        reloadBtn.className = 'btn btn-primary';
+        reloadBtn.textContent = '🔄 Reload Application';
+        reloadBtn.onclick = () => location.reload();
+        
+        // Assemble the error screen
+        errorContent.appendChild(errorTitle);
+        errorContent.appendChild(errorMsg);
+        errorContent.appendChild(reloadBtn);
+        errorScreen.appendChild(errorContent);
+        app.appendChild(errorScreen);
     }
 }
 

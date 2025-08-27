@@ -16,6 +16,7 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs').promises;
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const rateLimit = require('express-rate-limit');
 
 // Configuration
 const config = {
@@ -269,8 +270,19 @@ app.use(express.static(path.join(__dirname, '../public'), {
   lastModified: true
 }));
 
+// Rate limiter for SPA route to prevent abuse
+const spaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
+  }
+});
+
 // Catch-all route for SPA
-app.get('*', (req, res) => {
+app.get('*', spaLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
