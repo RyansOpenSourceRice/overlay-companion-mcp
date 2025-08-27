@@ -21,9 +21,34 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 
 ### Step 1: Set up containers on your HOST Fedora Linux
 Run this on your main Fedora Linux system:
+
+**Default installation (port 8080):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
 ```
+
+**Custom port installation:**
+```bash
+# Method 1: Download and run with port argument (recommended)
+wget https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh
+chmod +x host-setup.sh
+./host-setup.sh 8081
+
+# Method 2: Use environment variable
+OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
+
+# Method 3: Explicit port flag
+./host-setup.sh --port 8081
+
+# Method 4: Get help
+./host-setup.sh --help
+```
+
+**Interactive port selection:**
+If port 8080 is in use, the script will automatically detect this and offer options:
+- Auto-select next available port
+- Specify custom port interactively
+- Exit to resolve port conflict manually
 
 **What gets installed on HOST:**
 - MCP server container (C# overlay functionality)
@@ -57,28 +82,31 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 - Basic desktop applications
 
 ### Step 4: Connect them together
-1. Access management interface: `http://localhost:8080`
+1. Access management interface: `http://localhost:PORT` (where PORT is the port you configured)
 2. Add your VM using its IP address
 3. Configure RDP connection settings
 4. Start using AI overlay functionality
 
+**Note:** If you used a custom port, replace `8080` with your chosen port in all URLs below.
+
 ## Usage
 
 ### Web Interface
-- **Management**: `http://localhost:8080`
+- **Management**: `http://localhost:PORT` (replace PORT with your configured port)
 - **RDP Access**: Through Guacamole web interface
 - **System Status**: Container health and VM connections
 
 ### MCP Server
-- **Endpoint**: `http://localhost:8080/mcp`
+- **Endpoint**: `http://localhost:PORT/mcp` (replace PORT with your configured port)
 - **Protocol**: Model Context Protocol
 - **Features**: Screen capture, overlay annotations, AI interaction
 
 ### AI Client Configuration
 Configure your AI client (Cherry Studio, etc.) to use:
 ```
-MCP Server URL: http://localhost:8080/mcp
+MCP Server URL: http://localhost:PORT/mcp
 ```
+(Replace PORT with your configured port, e.g., `http://localhost:8081/mcp` if using port 8081)
 
 ## Service Management
 

@@ -94,3 +94,6 @@ server.log
 /deploy/opentofu/envs/*/.terraform/
 /deploy/opentofu/envs/*/.terraform.lock.hcl
 
+# AI trajectory files
+trajectory-*.json
+
