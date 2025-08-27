@@ -3,6 +3,17 @@
 # Overlay Companion MCP - Host Container Setup Script
 # This script sets up the container infrastructure on your HOST Fedora Linux system
 # The containers will connect to VMs you create separately
+#
+# Usage:
+#   ./host-setup.sh                           # Interactive port selection
+#   ./host-setup.sh 8081                      # Use specific port
+#   ./host-setup.sh --port 8081               # Use specific port (explicit)
+#   OVERLAY_COMPANION_PORT=8081 ./host-setup.sh  # Environment variable
+#
+# Port Configuration:
+#   Default port: 8080
+#   If port is in use, script will offer alternatives
+#   Command line argument takes precedence over environment variable
 
 set -euo pipefail
 
@@ -17,6 +28,110 @@ NC='\033[0m' # No Color
 PROJECT_NAME="overlay-companion-mcp"
 DEFAULT_CONTAINER_PORT=8080
 LOG_FILE="/tmp/${PROJECT_NAME}-setup.log"
+
+# Parse command line arguments
+parse_arguments() {
+    local port_from_args=""
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --port)
+                if [[ -n "${2:-}" ]] && [[ "$2" =~ ^[0-9]+$ ]]; then
+                    port_from_args="$2"
+                    shift 2
+                else
+                    error "❌ --port requires a numeric argument"
+                    echo "   Usage: $0 --port 8081"
+                    exit 1
+                fi
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            -*)
+                error "❌ Unknown option: $1"
+                echo "   Use --help for usage information"
+                exit 1
+                ;;
+            *)
+                # Assume it's a port number
+                if [[ "$1" =~ ^[0-9]+$ ]]; then
+                    port_from_args="$1"
+                    shift
+                else
+                    error "❌ Invalid argument: $1"
+                    echo "   Expected port number or --port option"
+                    exit 1
+                fi
+                ;;
+        esac
+    done
+    
+    # Validate port if provided
+    if [[ -n "$port_from_args" ]]; then
+        if [[ $port_from_args -lt 1024 ]] || [[ $port_from_args -gt 65535 ]]; then
+            error "❌ Invalid port number: $port_from_args"
+            echo "   Port must be between 1024 and 65535"
+            exit 1
+        fi
+        echo "$port_from_args"
+    fi
+}
+
+# Show help information
+show_help() {
+    cat << 'EOF'
+Overlay Companion MCP - Host Container Setup Script
+
+USAGE:
+  ./host-setup.sh                    # Interactive port selection
+  ./host-setup.sh 8081               # Use port 8081
+  ./host-setup.sh --port 8081        # Use port 8081 (explicit)
+  ./host-setup.sh --help             # Show this help
+
+ENVIRONMENT VARIABLES:
+  OVERLAY_COMPANION_PORT=8081 ./host-setup.sh    # Set port via environment
+
+PORT CONFIGURATION:
+  • Default port: 8080
+  • Valid range: 1024-65535
+  • Command line argument takes precedence over environment variable
+  • If port is in use, script offers interactive alternatives
+
+EXAMPLES:
+  ./host-setup.sh                    # Use default port 8080 (interactive if conflict)
+  ./host-setup.sh 8081               # Use port 8081 specifically
+  ./host-setup.sh --port 8082        # Use port 8082 specifically
+
+INTERACTIVE FEATURES:
+  • Automatic port conflict detection
+  • Clear prompts with labeled options
+  • Input validation with helpful error messages
+  • Auto-suggestion of available ports
+  • Process identification for port conflicts
+
+WHAT THIS SCRIPT DOES:
+  1. Checks system compatibility (Fedora Linux)
+  2. Detects and resolves port conflicts
+  3. Installs required packages (podman, podman-compose, etc.)
+  4. Downloads and configures container setup
+  5. Builds and starts all required containers
+  6. Provides access URLs and next steps
+
+CONTAINERS INSTALLED:
+  • PostgreSQL database (for Guacamole)
+  • Guacamole web-based RDP client
+  • MCP server (AI overlay functionality)
+  • Management web interface
+
+ACCESS AFTER INSTALLATION:
+  • Web Interface: http://localhost:PORT
+  • MCP Server: http://localhost:PORT/mcp
+  • Management API: http://localhost:PORT/api
+
+EOF
+}
 
 # Logging functions
 log() {
@@ -34,11 +149,127 @@ error() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$LOG_FILE"
 }
 
+# Handle --help before any other checks
+for arg in "$@"; do
+    if [[ "$arg" == "--help" ]] || [[ "$arg" == "-h" ]]; then
+        show_help
+        exit 0
+    fi
+done
+
 # Check if running as root
 if [[ $EUID -eq 0 ]]; then
-    error "This script should not be run as root. Please run as a regular user."
+    echo -e "\033[0;31m[ERROR]\033[0m This script should not be run as root. Please run as a regular user."
     exit 1
 fi
+
+# Parse command line arguments
+CONTAINER_PORT_FROM_ARGS=$(parse_arguments "$@")
+CONTAINER_PORT=${CONTAINER_PORT_FROM_ARGS:-${OVERLAY_COMPANION_PORT:-$DEFAULT_CONTAINER_PORT}}
+
+# Check if port is in use
+check_port() {
+    local port=$1
+    if ss -tuln | grep -q ":$port "; then
+        return 0  # Port is in use
+    else
+        return 1  # Port is free
+    fi
+}
+
+# Get available port
+get_available_port() {
+    local start_port=${1:-$DEFAULT_CONTAINER_PORT}
+    local port=$start_port
+    
+    while check_port "$port"; do
+        log "Port $port is already in use, trying $((port + 1))..."
+        ((port++))
+        if [[ $port -gt 65535 ]]; then
+            error "❌ No available ports found"
+            exit 1
+        fi
+    done
+    
+    echo "$port"
+}
+
+# Interactive port selection
+select_port() {
+    log "Checking port availability..."
+    
+    # If user specified a port via command line or environment variable, use it
+    if [[ -n "${CONTAINER_PORT_FROM_ARGS:-}" ]] || [[ -n "${OVERLAY_COMPANION_PORT:-}" ]]; then
+        local specified_port="$CONTAINER_PORT"
+        local source="command line"
+        [[ -z "${CONTAINER_PORT_FROM_ARGS:-}" ]] && source="environment variable"
+        
+        if check_port "$specified_port"; then
+            error "❌ Specified port $specified_port (from $source) is already in use"
+            echo "   Processes using port $specified_port:"
+            ss -tulnp | grep ":$specified_port " || true
+            echo ""
+            echo "   You can:"
+            echo "   1. Stop the service using that port"
+            echo "   2. Choose a different port by running: $0 8081"
+            echo "   3. Let the script auto-select an available port"
+            echo ""
+            read -p "   Auto-select available port? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+            CONTAINER_PORT=$(get_available_port)
+        else
+            CONTAINER_PORT=$specified_port
+            log "Using port $specified_port (from $source)"
+        fi
+    else
+        # Check if default port is available
+        if check_port "$DEFAULT_CONTAINER_PORT"; then
+            warn "⚠️  Default port $DEFAULT_CONTAINER_PORT is already in use"
+            echo "   Processes using port $DEFAULT_CONTAINER_PORT:"
+            ss -tulnp | grep ":$DEFAULT_CONTAINER_PORT " || true
+            echo ""
+            echo "   Options:"
+            echo "   1. Auto-select next available port"
+            echo "   2. Specify custom port"
+            echo "   3. Exit and stop conflicting service"
+            echo ""
+            read -p "   Choose option (1/2/3): " -n 1 -r
+            echo
+            
+            case $REPLY in
+                1)
+                    CONTAINER_PORT=$(get_available_port)
+                    ;;
+                2)
+                    read -p "   Enter port number (1024-65535): " custom_port
+                    if [[ ! "$custom_port" =~ ^[0-9]+$ ]] || [[ $custom_port -lt 1024 ]] || [[ $custom_port -gt 65535 ]]; then
+                        error "❌ Invalid port number"
+                        exit 1
+                    fi
+                    if check_port "$custom_port"; then
+                        error "❌ Port $custom_port is already in use"
+                        exit 1
+                    fi
+                    CONTAINER_PORT=$custom_port
+                    ;;
+                3)
+                    exit 1
+                    ;;
+                *)
+                    error "❌ Invalid option"
+                    exit 1
+                    ;;
+            esac
+        else
+            CONTAINER_PORT=$DEFAULT_CONTAINER_PORT
+        fi
+    fi
+    
+    log "✅ Using port: $CONTAINER_PORT"
+}
 
 # Check platform compatibility
 check_platform() {
@@ -108,11 +339,16 @@ setup_containers() {
     cp -r release/containers/* "$config_dir/"
     cd "$config_dir"
     
+    # Update port configuration in podman-compose.yml
+    log "Configuring port $CONTAINER_PORT in container setup..."
+    sed -i "s/\"8080:8080\"/\"$CONTAINER_PORT:8080\"/g" podman-compose.yml
+    sed -i "s/PORT=8080/PORT=8080/g" podman-compose.yml  # Internal port stays 8080
+    
     # Build unified container (includes both MCP server and web interface)
     log "Building unified overlay companion container..."
     podman build -f Dockerfile.unified -t overlay-companion . >> "$LOG_FILE" 2>&1
     
-    log "✅ Container built and configured"
+    log "✅ Container built and configured for port $CONTAINER_PORT"
 }
 
 # Start services
@@ -170,7 +406,7 @@ wait_for_services() {
     
     local vm_ip
     vm_ip=$(hostname -I | awk '{print $1}' || echo "localhost")
-    local management_url="http://$vm_ip:$DEFAULT_CONTAINER_PORT"
+    local management_url="http://$vm_ip:$CONTAINER_PORT"
     local max_attempts=30
     local attempt=1
     
@@ -198,9 +434,9 @@ show_completion() {
     echo "🎉 Installation Complete!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "${NC}"
-    echo "🌐 Web Interface: http://$vm_ip:$DEFAULT_CONTAINER_PORT"
-    echo "🔧 Management API: http://$vm_ip:$DEFAULT_CONTAINER_PORT/api"
-    echo "🤖 MCP Server: http://$vm_ip:$DEFAULT_CONTAINER_PORT/mcp"
+    echo "🌐 Web Interface: http://$vm_ip:$CONTAINER_PORT"
+    echo "🔧 Management API: http://$vm_ip:$CONTAINER_PORT/api"
+    echo "🤖 MCP Server: http://$vm_ip:$CONTAINER_PORT/mcp"
     echo ""
     echo "📋 Next Steps:"
     echo "1. Create a Fedora Silverblue VM on your preferred platform"
@@ -234,6 +470,7 @@ main() {
     echo "Starting Overlay Companion MCP setup at $(date)" > "$LOG_FILE"
     
     check_platform
+    select_port
     install_dependencies
     setup_project
     setup_containers
