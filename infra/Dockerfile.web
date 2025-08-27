@@ -1,0 +1,76 @@
+# Custom Overlay Web Interface Container
+# This container provides the custom overlay website with Guacamole integration
+# and MCP-powered icons on the display
+
+# Stage 1: Build web frontend
+FROM node:20-alpine AS web-builder
+
+WORKDIR /app/web
+COPY infra/web/ ./
+RUN npm ci && npm run build
+
+# Stage 2: Production web server
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    # Process management
+    supervisor \
+    # Network tools
+    curl \
+    jq
+
+# Create app user
+RUN addgroup -g 1001 appuser && \
+    adduser -D -u 1001 -G appuser appuser
+
+WORKDIR /app
+
+# Copy Node.js server
+COPY infra/server/ ./server/
+RUN cd server && npm ci --production
+
+# Copy built web frontend to the location expected by server.js
+COPY --from=web-builder /app/web/dist ./public/
+
+# Create supervisor configuration
+RUN mkdir -p /etc/supervisor/conf.d
+
+# Main supervisor config
+COPY <<EOF /etc/supervisor/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[include]
+files = /etc/supervisor/conf.d/*.conf
+EOF
+
+# Web server program config
+COPY <<EOF /etc/supervisor/conf.d/web-server.conf
+[program:web-server]
+command=node server.js
+directory=/app/server
+user=appuser
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/supervisor/web-server.log
+stderr_logfile=/var/log/supervisor/web-server.log
+environment=PORT=8080,MCP_SERVER_URL=http://mcp-server:3000
+EOF
+
+# Set permissions
+RUN chown -R appuser:appuser /app
+RUN mkdir -p /var/log/supervisor && chown -R appuser:appuser /var/log/supervisor
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose web server port
+EXPOSE 8080
+
+# Start supervisor to manage web server
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
