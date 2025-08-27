@@ -335,18 +335,19 @@ setup_containers() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     mkdir -p "$config_dir"
     
-    # Copy container configurations
-    cp -r release/containers/* "$config_dir/"
+    # Copy container configurations from infra directory (simpler approach)
+    cp -r infra/* "$config_dir/"
     cd "$config_dir"
     
     # Update port configuration in podman-compose.yml
     log "Configuring port $CONTAINER_PORT in container setup..."
-    sed -i "s/\"8080:8080\"/\"$CONTAINER_PORT:8080\"/g" podman-compose.yml
-    sed -i "s/PORT=8080/PORT=8080/g" podman-compose.yml  # Internal port stays 8080
+    sed -i "s/\"8080:80\"/\"$CONTAINER_PORT:80\"/g" podman-compose.yml  # Caddy proxy port
     
-    # Build unified container (includes both MCP server and web interface)
-    log "Building unified overlay companion container..."
-    podman build -f Dockerfile.unified -t overlay-companion . >> "$LOG_FILE" 2>&1
+    # Build only the C# MCP server container (much simpler)
+    log "Building MCP server container..."
+    cd "$project_dir"  # Build from project root where src/ directory exists
+    podman build -f infra/Dockerfile.mcp -t overlay-companion-mcp . >> "$LOG_FILE" 2>&1
+    cd "$config_dir"  # Return to config directory
     
     log "✅ Container built and configured for port $CONTAINER_PORT"
 }
