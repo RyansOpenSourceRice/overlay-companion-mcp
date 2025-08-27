@@ -3,9 +3,9 @@ services:
   postgres:
     image: docker.io/library/postgres:16-alpine
     environment:
-      POSTGRES_USER: guacamole
-      POSTGRES_PASSWORD: guacpass
-      POSTGRES_DB: guacamole_db
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guacpass}
+      POSTGRES_DB: ${POSTGRES_DB:-guacamole_db}
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -21,17 +21,17 @@ services:
     environment:
       PGPASSWORD: guacpass
     entrypoint: ["/bin/sh","-c"]
-    command: >-
+    command: |
       apk add --no-cache curl tar postgresql-client >/dev/null &&
       echo "Waiting for Postgres..." &&
-      for i in $(seq 1 60); do psql -h postgres -U guacamole -d guacamole_db -c 'SELECT 1' && break || sleep 2; done &&
-      EXISTS=$(psql -tA -h postgres -U guacamole -d guacamole_db -c "SELECT to_regclass('public.guacamole_user')") &&
-      if [ "$EXISTS" = "guacamole_user" ]; then echo 'Guacamole DB schema already present'; exit 0; fi &&
+      for i in $$(seq 1 60); do psql -h postgres -U guacamole -d guacamole_db -c 'SELECT 1' && break || sleep 2; done &&
+      EXISTS=$$(psql -tA -h postgres -U guacamole -d guacamole_db -c "SELECT to_regclass('public.guacamole_user')") &&
+      if [ "$$EXISTS" = "guacamole_user" ]; then echo 'Guacamole DB schema already present'; exit 0; fi &&
       echo 'Fetching Guacamole JDBC auth schema...' &&
       curl -fsSL -o /tmp/guac-client.tar.gz https://github.com/apache/guacamole-client/archive/refs/tags/1.5.5.tar.gz &&
       tar -xzf /tmp/guac-client.tar.gz -C /tmp &&
       SCHEMA_DIR=/tmp/guacamole-client-1.5.5/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema &&
-      for f in $(ls -1 "$SCHEMA_DIR"/*.sql | sort); do echo "Applying $f"; psql -v ON_ERROR_STOP=1 -h postgres -U guacamole -d guacamole_db -f "$f"; done &&
+      for f in $$(ls -1 "$$SCHEMA_DIR"/*.sql | sort); do echo "Applying $$f"; psql -v ON_ERROR_STOP=1 -h postgres -U guacamole -d guacamole_db -f "$$f"; done &&
       echo 'Guacamole DB schema initialized'
     restart: "no"
 
@@ -44,11 +44,11 @@ services:
       GUACD_HOSTNAME: guacd
       POSTGRES_HOSTNAME: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DATABASE: guacamole_db
-      POSTGRES_USER: guacamole
-      POSTGRES_PASSWORD: guacpass
+      POSTGRES_DATABASE: ${POSTGRES_DB:-guacamole_db}
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guacpass}
     ports:
-      - "8081:8080" # Expose Guacamole web (Tomcat) on 8081 locally
+      - "${GUACAMOLE_PORT:-8081}:8080" # Expose Guacamole web (Tomcat)
     restart: unless-stopped
 
   guac-init:
@@ -83,7 +83,7 @@ services:
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:3000
     ports:
-      - "3000:3000"
+      - "${MCP_PORT:-3000}:3000"
     depends_on:
       - guacamole
     restart: unless-stopped
@@ -97,7 +97,7 @@ services:
       MCP_SERVER_URL: http://mcp-server:3000
       GUACAMOLE_URL: http://guacamole:8080/guacamole
     ports:
-      - "8082:8080"  # Custom overlay web interface
+      - "${WEB_PORT:-8082}:8080"  # Custom overlay web interface
     depends_on:
       - mcp-server
       - guacamole
@@ -106,7 +106,7 @@ services:
   caddy:
     image: docker.io/library/caddy:2.8.4
     ports:
-      - "8080:80"
+      - "${CONTAINER_PORT:-8080}:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:

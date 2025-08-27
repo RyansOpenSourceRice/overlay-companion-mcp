@@ -39,13 +39,15 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
 - **Name**: `overlay-companion-mcp`
 - **Version**: `1.0.0`
 - **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
-- **Protocol**: MCP server with native HTTP transport (default)
+- **Protocol**: MCP server with native HTTP transport (production-ready)
 - **Primary Transport**: Native HTTP transport using ModelContextProtocol.AspNetCore
-  - **Port**: 3000 (configurable)
+  - **Port**: 3000 (configurable via PORT environment variable)
   - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled, **image handling**
   - **Benefits**: Web integration, session management, real-time streaming, concurrent clients, binary data support
+  - **Endpoints**: Root path `/` and backward-compatible `/mcp` alias
 - **Legacy Transport**: Standard I/O (stdio) - **DEPRECATED** (use `--stdio` flag)
   - **Limitations**: No image support, single client only, legacy compatibility only
+- **Container Integration**: Deployed as part of 6-container stack with Caddy proxy
 - **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
 - **Protocol Version**: 2024-11-05
@@ -79,6 +81,23 @@ The server implements standard MCP error responses:
 - **Mode-based permissions** control automation level
 - **No network access** - purely local operations
 - **Clipboard access** requires explicit user permission
+
+### Authentication & Credentials
+
+**Guacamole Database:**
+- **Database**: PostgreSQL 16-alpine
+- **Default Credentials**: guacamole/guacpass (database user)
+- **Schema**: Automatically initialized with Guacamole 1.5.5 schema
+
+**Guacamole Web Interface:**
+- **Default Admin**: guacadmin/guacadmin
+- **Access**: http://localhost:8080/guac/
+- **Future Enhancement**: Dynamic credential generation with secure random passwords
+
+**MCP Server:**
+- **No authentication required** for local access
+- **CORS enabled** for web integration
+- **WebSocket tokens** available for overlay event subscriptions
 
 ### Operational Modes
 

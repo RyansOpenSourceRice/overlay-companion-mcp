@@ -6,8 +6,8 @@
 FROM node:20-alpine AS web-builder
 
 WORKDIR /app/web
-COPY web/ ./
-RUN npm ci --production && npm run build
+COPY release/containers/web/ ./
+RUN npm ci && npm run build
 
 # Stage 2: Build C# MCP server
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
@@ -57,7 +57,7 @@ WORKDIR /app
 COPY --from=web-builder /app/web/dist ./web/
 
 # Copy Node.js server
-COPY server/ ./server/
+COPY release/containers/server/ ./server/
 RUN cd server && npm ci --production
 
 # Copy built C# MCP server

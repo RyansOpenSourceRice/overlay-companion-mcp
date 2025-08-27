@@ -31,15 +31,18 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 ```
 
 **What gets installed:**
-- ✅ **Host**: 4 containers (MCP server, Management web, PostgreSQL, Guacamole)
+- ✅ **Host**: 6 containers (MCP server, Web interface, PostgreSQL, Guacamole, guacd, Caddy proxy)
 - ✅ **VM**: RDP services (xrdp, VNC, GNOME desktop)
 - ✅ **Connection**: Guacamole connects to VM via RDP
+- ✅ **Database**: PostgreSQL with Guacamole schema and admin user
 - ✅ Ready to use in 15-20 minutes
 
 **After installation:**
-- Management Interface: `http://localhost:8080`
-- MCP Server: `http://localhost:8080/mcp`
-- Add VM via web interface using its IP address
+- **Main Interface**: `http://localhost:8080` (Caddy proxy)
+- **MCP Server**: `http://localhost:3000` (direct) or `http://localhost:8080/mcp` (via proxy)
+- **Guacamole**: `http://localhost:8080/guac/` (login: guacadmin/guacadmin)
+- **Web Interface**: `http://localhost:8080/` (overlay management)
+- Add VM via Guacamole interface using its IP address
 
 **Benefits:**
 - ✅ Proper separation: containers on host, VMs separate
@@ -57,14 +60,27 @@ If you already have Podman/Docker infrastructure and want to integrate:
 
 ```bash
 git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
-cd overlay-companion-mcp/release/containers
+cd overlay-companion-mcp/infra
 podman-compose up -d
 ```
+
+**Container Stack (6 containers):**
+- **postgres**: PostgreSQL 16-alpine with Guacamole schema
+- **guacd**: Guacamole daemon for RDP/VNC connections
+- **guacamole**: Guacamole web application
+- **mcp-server**: C# MCP server with HTTP transport
+- **overlay-web**: Node.js web interface for overlay management
+- **caddy**: Reverse proxy routing all services
 
 **Requirements:**
 - Existing Podman/Docker setup
 - Fedora Linux host
 - Network access to target VMs
+
+**Access Points:**
+- **Main**: http://localhost:8080 (Caddy proxy)
+- **MCP**: http://localhost:3000 (direct MCP server)
+- **Database**: PostgreSQL on port 5432 (internal)
 
 ---
 

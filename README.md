@@ -22,7 +22,7 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 ### Step 1: Set up containers on your HOST Fedora Linux
 Run this on your main Fedora Linux system:
 
-**Default installation (port 8080):**
+**Default installation (interactive port configuration):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
 ```
@@ -53,8 +53,10 @@ If port 8080 is in use, the script will automatically detect this and offer opti
 **What gets installed on HOST:**
 - MCP server container (C# overlay functionality)
 - Management web interface container (Node.js)
-- PostgreSQL container (database)
-- Guacamole container (web-based RDP client)
+- PostgreSQL container (database with secure credentials)
+- Guacamole container (web-based RDP client with generated admin account)
+- **Security**: Cryptographically secure passwords generated and stored in `~/.credentials`
+- **Ports**: All service ports configurable with automatic conflict resolution
 
 ### Step 2: Create a Fedora VM separately
 Create a VM using your preferred platform:
@@ -92,21 +94,30 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 ## Usage
 
 ### Web Interface
-- **Management**: `http://localhost:PORT` (replace PORT with your configured port)
-- **RDP Access**: Through Guacamole web interface
+- **Main Interface**: `http://localhost:8080` (Caddy proxy - configurable port)
+- **Management**: `http://localhost:8080/` (overlay management interface)
+- **Guacamole**: `http://localhost:8080/guac/` (RDP access with generated credentials)
 - **System Status**: Container health and VM connections
 
 ### MCP Server
-- **Endpoint**: `http://localhost:PORT/mcp` (replace PORT with your configured port)
-- **Protocol**: Model Context Protocol
+- **Direct Access**: `http://localhost:3000` (configurable port)
+- **Via Proxy**: `http://localhost:8080/mcp` (through Caddy)
+- **Protocol**: Model Context Protocol over HTTP
 - **Features**: Screen capture, overlay annotations, AI interaction
+
+### Generated Credentials
+After installation, find your secure credentials in:
+- **File**: `~/.credentials` (owner-only readable)
+- **Guacamole Login**: `admin_[8-char-hex]` with 32-character password
+- **Database**: Secure PostgreSQL credentials
 
 ### AI Client Configuration
 Configure your AI client (Cherry Studio, etc.) to use:
 ```
-MCP Server URL: http://localhost:PORT/mcp
+MCP Server URL: http://localhost:3000
 ```
-(Replace PORT with your configured port, e.g., `http://localhost:8081/mcp` if using port 8081)
+Or via proxy: `http://localhost:8080/mcp`
+(Ports are configurable during installation)
 
 ## Service Management
 

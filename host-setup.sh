@@ -27,6 +27,10 @@ NC='\033[0m' # No Color
 # Configuration
 PROJECT_NAME="overlay-companion-mcp"
 DEFAULT_CONTAINER_PORT=8080
+DEFAULT_MCP_PORT=3000
+DEFAULT_GUACAMOLE_PORT=8081
+DEFAULT_WEB_PORT=8082
+DEFAULT_POSTGRES_PORT=5432
 LOG_FILE="/tmp/${PROJECT_NAME}-setup.log"
 
 # Parse command line arguments
@@ -91,13 +95,19 @@ USAGE:
   ./host-setup.sh --help             # Show this help
 
 ENVIRONMENT VARIABLES:
-  OVERLAY_COMPANION_PORT=8081 ./host-setup.sh    # Set port via environment
+  OVERLAY_COMPANION_PORT=8081 ./host-setup.sh    # Set main port via environment
+  MCP_PORT=3001 ./host-setup.sh                  # Set MCP server port
+  GUACAMOLE_PORT=8082 ./host-setup.sh            # Set Guacamole port
+  WEB_PORT=8083 ./host-setup.sh                  # Set web interface port
 
 PORT CONFIGURATION:
-  • Default port: 8080
-  • Valid range: 1024-65535
-  • Command line argument takes precedence over environment variable
-  • If port is in use, script offers interactive alternatives
+  • Main Interface (Caddy): 8080 (default)
+  • MCP Server: 3000 (default)
+  • Guacamole: 8081 (default)
+  • Web Interface: 8082 (default)
+  • PostgreSQL: 5432 (internal only)
+  • All ports are configurable during installation
+  • Interactive conflict resolution available
 
 EXAMPLES:
   ./host-setup.sh                    # Use default port 8080 (interactive if conflict)
@@ -113,11 +123,12 @@ INTERACTIVE FEATURES:
 
 WHAT THIS SCRIPT DOES:
   1. Checks system compatibility (Fedora Linux)
-  2. Detects and resolves port conflicts
+  2. Detects and resolves port conflicts for all services
   3. Installs required packages (podman, podman-compose, etc.)
   4. Downloads and configures container setup
-  5. Builds and starts all required containers
-  6. Provides access URLs and next steps
+  5. Generates cryptographically secure credentials
+  6. Builds and starts all required containers
+  7. Provides access URLs, credentials, and next steps
 
 CONTAINERS INSTALLED:
   • PostgreSQL database (for Guacamole)
@@ -126,9 +137,11 @@ CONTAINERS INSTALLED:
   • Management web interface
 
 ACCESS AFTER INSTALLATION:
-  • Web Interface: http://localhost:PORT
-  • MCP Server: http://localhost:PORT/mcp
-  • Management API: http://localhost:PORT/api
+  • Main Interface: http://localhost:8080 (Caddy proxy)
+  • MCP Server: http://localhost:3000 (direct access)
+  • Guacamole: http://localhost:8080/guac/ (with generated credentials)
+  • Web Interface: http://localhost:8080/ (overlay management)
+  • All ports are configurable during installation
 
 EOF
 }
@@ -271,6 +284,98 @@ select_port() {
     log "✅ Using port: $CONTAINER_PORT"
 }
 
+# Configure all service ports
+configure_service_ports() {
+    log "Configuring service ports..."
+    
+    # Set defaults if not already set
+    MCP_PORT=${MCP_PORT:-$DEFAULT_MCP_PORT}
+    GUACAMOLE_PORT=${GUACAMOLE_PORT:-$DEFAULT_GUACAMOLE_PORT}
+    WEB_PORT=${WEB_PORT:-$DEFAULT_WEB_PORT}
+    POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
+    
+    # Check for port conflicts and offer alternatives
+    local ports_to_check=("$CONTAINER_PORT:Main Interface" "$MCP_PORT:MCP Server" "$GUACAMOLE_PORT:Guacamole" "$WEB_PORT:Web Interface")
+    local conflicts=()
+    
+    for port_info in "${ports_to_check[@]}"; do
+        local port="${port_info%%:*}"
+        local service="${port_info##*:}"
+        
+        if check_port "$port"; then
+            conflicts+=("$port:$service")
+        fi
+    done
+    
+    if [[ ${#conflicts[@]} -gt 0 ]]; then
+        warn "⚠️  Port conflicts detected:"
+        for conflict in "${conflicts[@]}"; do
+            local port="${conflict%%:*}"
+            local service="${conflict##*:}"
+            echo "   • Port $port ($service) is already in use"
+        done
+        echo ""
+        
+        echo "Options:"
+        echo "1. Auto-resolve conflicts (recommended)"
+        echo "2. Manually specify ports"
+        echo "3. Exit and resolve conflicts manually"
+        echo ""
+        read -p "Choose option (1-3): " -n 1 -r choice
+        echo ""
+        
+        case $choice in
+            1)
+                log "Auto-resolving port conflicts..."
+                for conflict in "${conflicts[@]}"; do
+                    local port="${conflict%%:*}"
+                    local service="${conflict##*:}"
+                    local new_port=$(find_available_port $((port + 1)))
+                    
+                    case $service in
+                        "Main Interface") CONTAINER_PORT=$new_port ;;
+                        "MCP Server") MCP_PORT=$new_port ;;
+                        "Guacamole") GUACAMOLE_PORT=$new_port ;;
+                        "Web Interface") WEB_PORT=$new_port ;;
+                    esac
+                    
+                    log "   $service: $port → $new_port"
+                done
+                ;;
+            2)
+                echo "Enter custom ports (press Enter for default):"
+                read -p "Main Interface [$CONTAINER_PORT]: " custom_main
+                read -p "MCP Server [$MCP_PORT]: " custom_mcp
+                read -p "Guacamole [$GUACAMOLE_PORT]: " custom_guac
+                read -p "Web Interface [$WEB_PORT]: " custom_web
+                
+                [[ -n "$custom_main" ]] && CONTAINER_PORT="$custom_main"
+                [[ -n "$custom_mcp" ]] && MCP_PORT="$custom_mcp"
+                [[ -n "$custom_guac" ]] && GUACAMOLE_PORT="$custom_guac"
+                [[ -n "$custom_web" ]] && WEB_PORT="$custom_web"
+                ;;
+            3)
+                error "❌ Installation cancelled. Please resolve port conflicts and try again."
+                exit 1
+                ;;
+            *)
+                error "❌ Invalid choice. Exiting."
+                exit 1
+                ;;
+        esac
+    fi
+    
+    log "✅ Service ports configured:"
+    log "   🌐 Main Interface (Caddy): $CONTAINER_PORT"
+    log "   🤖 MCP Server: $MCP_PORT"
+    log "   🖥️  Guacamole: $GUACAMOLE_PORT"
+    log "   📱 Web Interface: $WEB_PORT"
+    log "   🗄️  PostgreSQL: $POSTGRES_PORT (internal)"
+    
+    # Export for use in other functions
+    export CONTAINER_PORT MCP_PORT GUACAMOLE_PORT WEB_PORT POSTGRES_PORT
+}
+
 # Check platform compatibility
 check_platform() {
     log "Checking platform compatibility..."
@@ -327,6 +432,80 @@ setup_project() {
     log "✅ Project directory ready: $project_dir"
 }
 
+# Generate cryptographically secure credentials
+generate_credentials() {
+    log "Generating cryptographically secure credentials..."
+    
+    local project_dir="$HOME/$PROJECT_NAME"
+    local creds_file="$project_dir/.credentials"
+    local env_file="$project_dir/infra/.env"
+    
+    # Generate secure random passwords (32 characters, alphanumeric + special chars)
+    local db_password=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+    local guac_admin_password=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+    local guac_admin_user="admin_$(openssl rand -hex 4)"
+    
+    # Create credentials file (readable only by owner)
+    cat > "$creds_file" << EOF
+# Overlay Companion MCP - Generated Credentials
+# Generated on: $(date)
+# Keep this file secure and do not commit to version control
+
+# PostgreSQL Database Credentials
+DB_USER=guacamole
+DB_PASSWORD=$db_password
+DB_NAME=guacamole_db
+
+# Guacamole Web Interface Credentials  
+GUAC_ADMIN_USER=$guac_admin_user
+GUAC_ADMIN_PASSWORD=$guac_admin_password
+
+# Access URLs (after installation)
+MAIN_INTERFACE=http://localhost:$CONTAINER_PORT
+MCP_SERVER=http://localhost:$MCP_PORT
+GUACAMOLE_WEB=http://localhost:$CONTAINER_PORT/guac/
+WEB_INTERFACE=http://localhost:$CONTAINER_PORT/
+EOF
+    
+    # Set secure permissions (owner read/write only)
+    chmod 600 "$creds_file"
+    
+    # Create .env file for docker-compose
+    cat > "$env_file" << EOF
+# Auto-generated environment variables for Overlay Companion MCP
+# Generated on: $(date)
+
+# PostgreSQL Configuration
+POSTGRES_USER=guacamole
+POSTGRES_PASSWORD=$db_password
+POSTGRES_DB=guacamole_db
+
+# Guacamole Configuration
+GUAC_ADMIN_USER=$guac_admin_user
+GUAC_ADMIN_PASSWORD=$guac_admin_password
+
+# Port Configuration
+CONTAINER_PORT=$CONTAINER_PORT
+MCP_PORT=$MCP_PORT
+GUACAMOLE_PORT=$GUACAMOLE_PORT
+WEB_PORT=$WEB_PORT
+POSTGRES_PORT=$POSTGRES_PORT
+EOF
+    
+    # Set secure permissions for .env file
+    chmod 600 "$env_file"
+    
+    log "✅ Secure credentials generated:"
+    log "   📁 Credentials file: $creds_file"
+    log "   📁 Environment file: $env_file"
+    log "   🔒 Files secured with 600 permissions (owner only)"
+    
+    # Store credentials for later display
+    export GENERATED_DB_PASSWORD="$db_password"
+    export GENERATED_GUAC_USER="$guac_admin_user"
+    export GENERATED_GUAC_PASSWORD="$guac_admin_password"
+}
+
 # Setup containers
 setup_containers() {
     log "Setting up containers..."
@@ -337,11 +516,17 @@ setup_containers() {
     
     # Copy container configurations from infra directory (separate containers with custom web interface)
     cp -r infra/* "$config_dir/"
-    cd "$config_dir"
     
-    # Update port configuration in podman-compose.yml
-    log "Configuring port $CONTAINER_PORT in container setup..."
-    sed -i "s/\"8080:80\"/\"$CONTAINER_PORT:80\"/g" podman-compose.yml  # Caddy proxy port
+    # Copy the generated .env file to the config directory
+    local project_dir="$HOME/$PROJECT_NAME"
+    if [[ -f "$project_dir/infra/.env" ]]; then
+        cp "$project_dir/infra/.env" "$config_dir/.env"
+        log "✅ Environment configuration copied"
+    else
+        warn "⚠️  .env file not found, using defaults"
+    fi
+    
+    cd "$config_dir"
     
     # Build MCP server container
     log "Building MCP server container..."
@@ -439,9 +624,15 @@ show_completion() {
     echo "🎉 Installation Complete!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo -e "${NC}"
-    echo "🌐 Web Interface: http://$vm_ip:$CONTAINER_PORT"
-    echo "🔧 Management API: http://$vm_ip:$CONTAINER_PORT/api"
-    echo "🤖 MCP Server: http://$vm_ip:$CONTAINER_PORT/mcp"
+    echo "🌐 Main Interface (Caddy): http://$vm_ip:$CONTAINER_PORT"
+    echo "🤖 MCP Server (Direct): http://$vm_ip:$MCP_PORT"
+    echo "🖥️  Guacamole Web: http://$vm_ip:$CONTAINER_PORT/guac/"
+    echo "📱 Web Interface: http://$vm_ip:$CONTAINER_PORT/"
+    echo ""
+    echo "🔐 Generated Credentials:"
+    echo "• Guacamole Login: $GENERATED_GUAC_USER"
+    echo "• Guacamole Password: $GENERATED_GUAC_PASSWORD"
+    echo "• Database Password: [stored in ~/.credentials]"
     echo ""
     echo "📋 Next Steps:"
     echo "1. Create a Fedora Silverblue VM on your preferred platform"
@@ -456,6 +647,7 @@ show_completion() {
     echo "• Stop: cd ~/.config/$PROJECT_NAME && podman-compose down"
     echo ""
     echo "🔧 Configuration files are in: ~/.config/$PROJECT_NAME"
+    echo "🔐 Credentials file: ~/$PROJECT_NAME/.credentials"
     echo "📋 Setup log file: $LOG_FILE"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 }
@@ -476,8 +668,10 @@ main() {
     
     check_platform
     select_port
+    configure_service_ports
     install_dependencies
     setup_project
+    generate_credentials
     setup_containers
     start_services
     wait_for_services

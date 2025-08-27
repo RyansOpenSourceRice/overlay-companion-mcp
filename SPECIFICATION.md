@@ -6,33 +6,37 @@ _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ## Architecture Overview
 
-The Overlay Companion MCP is a single-user, web-first system that provides AI-assisted screen interaction through a virtualized desktop environment. The system is built using the **official ModelContextProtocol C# SDK** and deployed via OpenTofu + Podman for automated infrastructure provisioning.
+The Overlay Companion MCP is a containerized system that provides AI-assisted screen interaction through a multi-container architecture. The system is built using the **official ModelContextProtocol C# SDK** with HTTP transport and deployed via Docker Compose/Podman for reliable container orchestration.
 
 ### System Components
 
 ```text
-Cherry Studio → HTTP/WS → Management Container → Guacamole → Fedora Silverblue VM
-                              ↓
-                         Web Interface (guacamole-common-js + overlays)
+AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, Guacamole} → VM
+                           ↓
+                    PostgreSQL Database
 ```
 
 #### Core Architecture
 
-1. **Management Container** (Podman/OCI):
-   - Guacamole stack (guacd + webapp + postgres)
-   - MCP server with WebSocket overlay broadcasting
-   - Web frontend with guacamole-common-js client
-   - Landing page with "Copy MCP Config" functionality
+1. **Container Stack** (Docker/Podman):
+   - **MCP Server Container**: C# application with HTTP transport, overlay tools, screen capture
+   - **Web Interface Container**: Node.js frontend with overlay visualization and management
+   - **Guacamole Stack**: guacd daemon + webapp + PostgreSQL database
+   - **Caddy Proxy**: Unified access point routing to all services
 
-2. **Fedora Silverblue VM** (KVM/libvirt):
-   - Wayland desktop environment (future-proof)
-   - XRDP for remote desktop compatibility
-   - Isolated execution environment
+2. **Database Layer**:
+   - PostgreSQL 16-alpine with Guacamole schema
+   - **Secure credential generation**: Cryptographically secure passwords using OpenSSL
+   - **Unique admin accounts**: Format `admin_[8-char-hex]` with 32-character passwords
+   - Connection and user management storage
 
-3. **OpenTofu Infrastructure**:
-   - Automated container and VM provisioning
-   - Network configuration (host-only or LAN exposure)
-   - Resource management and lifecycle
+3. **Network Architecture**:
+   - **Configurable ports**: All service ports configurable during installation
+   - **Default ports**: Main interface (8080), MCP server (3000), Guacamole (8081), Web interface (8082)
+   - **Port conflict resolution**: Automatic detection with interactive alternatives
+   - Caddy proxy as unified access point routing to all services
+   - Internal container networking with service discovery
+   - WebSocket support for real-time overlay events
 
 #### Network Architecture
 
@@ -40,28 +44,37 @@ Cherry Studio → HTTP/WS → Management Container → Guacamole → Fedora Silv
 - **Optional**: LAN exposure with security warnings
 - **Output**: Non-localhost IP URL (e.g., http://192.168.1.42:8080)
 
-### Deployment Architectures
+### Deployment Architecture
 
-#### Single-User Lightweight Release (Primary)
-
-```text
-install.sh → OpenTofu → Management Container + Fedora VM → Web Interface
-```
-
-- **Target Platform**: Fedora Linux only (Windows/Mac explicitly out of scope)
-- **Installation**: Automated via install.sh script
-- **Dependencies**: Podman + OpenTofu + libvirt/KVM (auto-installed)
-- **VM Caching**: Fedora Silverblue images cached locally to avoid re-downloads
-
-#### Legacy HTTP Transport (Deprecated)
+#### Container-Based Deployment (Primary)
 
 ```text
-Cherry Studio → HTTP → MCP Server (OverlayCompanion)
+host-setup.sh → Docker Compose → {6 Containers} → Web Interface + MCP Server
 ```
 
-- **Use Case**: Development and testing only
-- **Limitations**: No VM integration, limited overlay capabilities
-- **Command**: `dotnet run` or `./overlay-companion-mcp`
+**Container Stack:**
+- **postgres**: PostgreSQL 16-alpine database
+- **guacd**: Guacamole daemon for RDP/VNC connections  
+- **guacamole**: Guacamole web application
+- **mcp-server**: C# MCP server with HTTP transport
+- **overlay-web**: Node.js web interface
+- **caddy**: Reverse proxy and load balancer
+
+**Deployment Process:**
+1. `host-setup.sh` installs Docker/Podman and dependencies
+2. **Port configuration**: Interactive setup with conflict resolution
+3. **Credential generation**: Cryptographically secure passwords using OpenSSL
+4. Builds custom MCP server and web interface containers
+5. Downloads and configures Guacamole stack
+6. Initializes PostgreSQL with Guacamole schema and secure admin account
+7. Starts all containers with proper networking and environment variables
+
+**Access Points:**
+- **Main Interface**: http://localhost:8080 (Caddy proxy) - *configurable*
+- **MCP Server**: http://localhost:3000 (direct access) - *configurable*
+- **Guacamole**: http://localhost:8080/guac/ (via proxy) - *with generated credentials*
+- **Web Interface**: http://localhost:8080/ (default route) - *configurable*
+- **All ports configurable during installation with conflict resolution**
 
 ### HTTP Transport Benefits
 

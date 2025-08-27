@@ -96,6 +96,12 @@ server.log
 
 # AI trajectory files
 trajectory-*.json
+trajectory.json
+
+# Generated credentials and environment files
+.credentials
+.env
+infra/.env
 
 # Node.js dependencies
 node_modules/
