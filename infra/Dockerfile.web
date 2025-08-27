@@ -7,7 +7,7 @@ FROM node:20-alpine AS web-builder
 
 WORKDIR /app/web
 COPY infra/web/package*.json ./
-RUN npm ci --only=production=false
+RUN npm ci
 COPY infra/web/ ./
 RUN npm run build
 
