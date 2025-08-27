@@ -19,6 +19,19 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 
 ## Installation
 
+### Option A: Use Pre-built Containers (Recommended)
+
+Pull pre-built containers from GitHub Container Registry:
+```bash
+# Quick start with pre-built images
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash -s -- --use-registry
+```
+
+**Benefits**: Faster installation, no build time, automatically updated images.
+See [GitHub Container Registry Guide](docs/GITHUB_CONTAINER_REGISTRY.md) for details.
+
+### Option B: Build from Source
+
 ### Step 1: Set up containers on your HOST Fedora Linux
 Run this on your main Fedora Linux system:
 

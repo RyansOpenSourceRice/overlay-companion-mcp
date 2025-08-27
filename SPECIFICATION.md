@@ -76,6 +76,32 @@ host-setup.sh → Docker Compose → {6 Containers} → Web Interface + MCP Serv
 - **Web Interface**: http://localhost:8080/ (default route) - *configurable*
 - **All ports configurable during installation with conflict resolution**
 
+#### Container Build Considerations
+
+**Build Context & File Transfer:**
+- **Docker Context**: All builds use root directory (`.`) as context for consistency
+- **Multi-stage Builds**: Separate build and runtime stages for optimal image size
+- **Layer Caching**: Package files copied separately from source code for better cache utilization
+- **Fallback Mechanisms**: `npm ci || npm install` pattern handles missing package-lock.json gracefully
+
+**Cross-Platform Compatibility:**
+- **Multi-architecture**: AMD64 and ARM64 builds for broad compatibility
+- **Alpine Linux Base**: Minimal attack surface with apk package manager
+- **Node.js LTS**: Stable Node.js 20-alpine for web interface builds
+- **.NET 8**: Latest LTS runtime for MCP server container
+
+**Build Robustness:**
+- **Explicit File Copying**: Individual package.json and package-lock.json copies prevent context issues
+- **Verbose Logging**: `--verbose` flags for debugging build failures in CI/CD
+- **Error Handling**: Graceful fallbacks when npm ci fails (falls back to npm install)
+- **Security Scanning**: Trivy integration for vulnerability detection
+
+**GitHub Actions Integration:**
+- **Build Matrix**: Parallel builds for both MCP server and web interface containers
+- **Cache Optimization**: GitHub Actions cache for Docker layers and npm packages
+- **Registry Publishing**: Automated publishing to GitHub Container Registry (GHCR)
+- **Version Tagging**: Date-based versioning (YYYY.MM.DD.quantity) with Git tag creation
+
 ### HTTP Transport Benefits
 
 The native HTTP transport provides critical advantages for modern MCP deployments:

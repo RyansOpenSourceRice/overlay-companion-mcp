@@ -6,8 +6,19 @@
 FROM node:20-alpine AS web-builder
 
 WORKDIR /app/web
+
+# Copy package files first for better caching
+COPY infra/web/package.json ./
+COPY infra/web/package-lock.json* ./
+
+# Install dependencies (fallback to npm install if npm ci fails)
+RUN npm ci --verbose || npm install
+
+# Copy source code
 COPY infra/web/ ./
-RUN npm ci && npm run build
+
+# Build the application
+RUN npm run build
 
 # Stage 2: Production web server
 FROM node:20-alpine
@@ -26,9 +37,15 @@ RUN addgroup -g 1001 appuser && \
 
 WORKDIR /app
 
-# Copy Node.js server
+# Copy Node.js server package files first
+COPY infra/server/package.json ./server/
+COPY infra/server/package-lock.json* ./server/
+
+# Install server dependencies
+RUN cd server && (npm ci --omit=dev --verbose || npm install --omit=dev)
+
+# Copy server source code
 COPY infra/server/ ./server/
-RUN cd server && npm ci --production
 
 # Copy built web frontend to the location expected by server.js
 COPY --from=web-builder /app/web/dist ./public/
