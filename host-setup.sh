@@ -335,7 +335,7 @@ setup_containers() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     mkdir -p "$config_dir"
     
-    # Copy container configurations from infra directory (simpler approach)
+    # Copy container configurations from infra directory (separate containers with custom web interface)
     cp -r infra/* "$config_dir/"
     cd "$config_dir"
     
@@ -343,10 +343,14 @@ setup_containers() {
     log "Configuring port $CONTAINER_PORT in container setup..."
     sed -i "s/\"8080:80\"/\"$CONTAINER_PORT:80\"/g" podman-compose.yml  # Caddy proxy port
     
-    # Build only the C# MCP server container (much simpler)
+    # Build MCP server container
     log "Building MCP server container..."
     cd "$project_dir"  # Build from project root where src/ directory exists
     podman build -f infra/Dockerfile.mcp -t overlay-companion-mcp . >> "$LOG_FILE" 2>&1
+    
+    # Build custom overlay web interface container
+    log "Building custom overlay web interface with MCP-powered icons..."
+    podman build -f infra/Dockerfile.web -t overlay-companion-web . >> "$LOG_FILE" 2>&1
     cd "$config_dir"  # Return to config directory
     
     log "✅ Container built and configured for port $CONTAINER_PORT"

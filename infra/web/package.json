@@ -1,0 +1,28 @@
+{
+  "name": "overlay-companion-mcp-web",
+  "version": "1.0.0",
+  "description": "Web frontend for Overlay Companion MCP with Guacamole integration",
+  "private": true,
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development",
+    "watch": "webpack --mode development --watch"
+  },
+  "dependencies": {
+    "guacamole-common-js": "^1.5.0"
+  },
+  "devDependencies": {
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1",
+    "html-webpack-plugin": "^5.5.3",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3",
+    "copy-webpack-plugin": "^11.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}

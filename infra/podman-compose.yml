@@ -76,7 +76,7 @@ services:
     command: "apk add --no-cache curl >/dev/null && /bin/sh /scripts/guac-init.sh"
     restart: "no"
 
-  mcp:
+  mcp-server:
     build:
       context: ..
       dockerfile: infra/Dockerfile.mcp
@@ -88,6 +88,21 @@ services:
       - guacamole
     restart: unless-stopped
 
+  overlay-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    environment:
+      PORT: 8080
+      MCP_SERVER_URL: http://mcp-server:3000
+      GUACAMOLE_URL: http://guacamole:8080/guacamole
+    ports:
+      - "8082:8080"  # Custom overlay web interface
+    depends_on:
+      - mcp-server
+      - guacamole
+    restart: unless-stopped
+
   caddy:
     image: docker.io/library/caddy:2.8.4
     ports:
@@ -95,7 +110,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      - mcp
+      - mcp-server
+      - overlay-web
       - guacamole
     restart: unless-stopped
 

@@ -1,19 +1,21 @@
 :80 {
   encode gzip
 
-  # Serve the static viewer from the MCP container or this repo directly later
-  @static path_regexp static ^/($|index\.html|setup|config|config/json|config/stdio)$
-  handle @static {
-    reverse_proxy mcp:3000
+  # Custom Overlay Web Interface (main interface with MCP-powered icons)
+  @overlay path_regexp overlay ^/($|index\.html|app|overlay|static|assets)
+  handle @overlay {
+    reverse_proxy overlay-web:8080
   }
 
-  # MCP SSE at root and WebSocket
-  @mcp path_regexp mcp ^/$
-  handle @mcp {
-    reverse_proxy mcp:3000
+  # MCP Server API endpoints
+  @mcp_api path_regexp mcp_api ^/(api|mcp|health)
+  handle @mcp_api {
+    reverse_proxy mcp-server:3000
   }
+
+  # MCP WebSocket connections
   handle_path /ws/* {
-    reverse_proxy mcp:3000
+    reverse_proxy mcp-server:3000
   }
 
   # Guacamole web app (Tomcat); rewrite /guac/* -> /guacamole/*
@@ -22,6 +24,13 @@
     reverse_proxy guacamole:8080
   }
 
-  # Default: 404
-  respond 404
+  # Direct Guacamole access (for debugging)
+  handle_path /guacamole/* {
+    reverse_proxy guacamole:8080
+  }
+
+  # Default: route to custom overlay web interface
+  handle {
+    reverse_proxy overlay-web:8080
+  }
 }
