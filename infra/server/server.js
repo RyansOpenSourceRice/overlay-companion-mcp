@@ -219,29 +219,46 @@ app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
       });
     }
 
-    // SECURITY: Sanitize input fields
-    const sanitizedConnection = {
-      host: typeof connection.host === 'string' ? connection.host.trim() : '',
-      port: parseInt(connection.port),
-      protocol: typeof connection.protocol === 'string' ? connection.protocol.toLowerCase() : '',
-      ssl: Boolean(connection.ssl)
-    };
+    // SECURITY: Sanitize/allow only expected fields
+    let sanitizedConnection;
+    if (typeof connection.protocol === 'string' && connection.protocol.toLowerCase() === 'kasmvnc') {
+      // Only allow client to specify a known targetId
+      sanitizedConnection = {
+        targetId: typeof connection.targetId === 'string' ? connection.targetId : '',
+        protocol: 'kasmvnc'
+      };
+    } else {
+      sanitizedConnection = {
+        host: typeof connection.host === 'string' ? connection.host.trim() : '',
+        port: parseInt(connection.port),
+        protocol: typeof connection.protocol === 'string' ? connection.protocol.toLowerCase() : '',
+        ssl: Boolean(connection.ssl)
+      };
+    }
     
-    // Validate connection configuration
-    const validation = connectionManager.validateConnection(sanitizedConnection);
-    if (!validation.valid) {
-      log.warn(`🚫 SECURITY: Invalid connection attempt from ${req.ip}:`, validation.errors);
-      return res.status(400).json({
-        success: false,
-        errors: validation.errors
-      });
+    // Validate connection configuration (for non-kasmvnc only)
+    if (sanitizedConnection.protocol !== 'kasmvnc') {
+      const validation = connectionManager.validateConnection(sanitizedConnection);
+      if (!validation.valid) {
+        log.warn(`🚫 SECURITY: Invalid connection attempt from ${req.ip}:`, validation.errors);
+        return res.status(400).json({
+          success: false,
+          errors: validation.errors
+        });
+      }
     }
 
     // Test the connection (includes SSRF protection)
     const result = await connectionManager.testConnection(sanitizedConnection);
     
     // SECURITY: Log connection test attempts for monitoring
-    log.info(`Connection test: ${sanitizedConnection.protocol}://${sanitizedConnection.host}:${sanitizedConnection.port} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
+    let logTarget;
+    if (sanitizedConnection.protocol === 'kasmvnc') {
+      logTarget = sanitizedConnection.targetId;
+    } else {
+      logTarget = `${sanitizedConnection.host}:${sanitizedConnection.port}`;
+    }
+    log.info(`Connection test: ${sanitizedConnection.protocol} - ${logTarget} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
     
     res.json(result);
   } catch (error) {

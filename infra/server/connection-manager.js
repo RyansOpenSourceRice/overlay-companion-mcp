@@ -17,8 +17,12 @@ const securityConfig = require('./security-config');
 class ConnectionManager {
     constructor() {
         this.activeConnections = new Map();
+
+        // SECURITY: Load explicit KasmVNC allowlist
+        // Example format: { kasm1: { host: 'kasm1.example.com', port: 6901, ssl: true }, ... }
+        this.kasmVncAllowlist = securityConfig.kasmVncAllowlist || {};
         
-        // SECURITY: Load security configuration
+        // SECURITY: Load security configuration (legacy patterns, still used for other protocols)
         this.allowedHostPatterns = securityConfig.allowedHostPatterns;
         this.blockedHostPatterns = securityConfig.blockedHostPatterns;
         this.limits = securityConfig.limits;
@@ -26,7 +30,8 @@ class ConnectionManager {
         this.portRestrictions = securityConfig.portRestrictions;
         this.logging = securityConfig.logging;
         
-        console.log('🔒 SECURITY: Connection manager initialized with SSRF protection');
+        console.log('🔒 SECURITY: Connection manager initialized with explicit KasmVNC allowlist for SSRF protection');
+        console.log(`🔒 SECURITY: ${Object.keys(this.kasmVncAllowlist).length} allowed KasmVNC targets configured`);
         console.log(`🔒 SECURITY: ${this.allowedHostPatterns.length} allowed host patterns configured`);
         console.log(`🔒 SECURITY: ${this.blockedHostPatterns.length} blocked host patterns configured`);
     }
@@ -118,29 +123,46 @@ class ConnectionManager {
      * @returns {Promise<Object>} Test result
      */
     async testConnection(connection) {
-        const { host, port, protocol, ssl } = connection;
+        const { protocol } = connection;
         
         try {
-            // SECURITY: Validate host before making any network requests
-            if (!this.validateHost(host)) {
-                throw new Error('Host not allowed - potential security risk detected');
-            }
-
-            // SECURITY: Validate port range
-            if (!port || port < 1 || port > 65535) {
-                throw new Error('Invalid port number');
-            }
-
             switch (protocol) {
-                case 'kasmvnc':
-                    return await this.testKasmVNC(host, port, ssl);
-                case 'vnc':
+                case 'kasmvnc': {
+                    // SECURITY: Only accept connection.targetId and map from allowlist
+                    const { targetId } = connection;
+                    if (!targetId || typeof targetId !== 'string' || !(targetId in this.kasmVncAllowlist)) {
+                        throw new Error('KasmVNC target not allowed');
+                    }
+                    const target = this.kasmVncAllowlist[targetId];
+                    // Optionally: Validate further (host/port non-falsy, correct types)
+                    return await this.testKasmVNC(target.host, target.port, !!target.ssl);
+                }
+                case 'vnc': {
+                    // Legacy: Still allow host/port, but require host pattern validation
+                    const { host, port } = connection;
+                    if (!this.validateHost(host)) {
+                        throw new Error('Host not allowed - potential security risk detected');
+                    }
+                    if (!port || port < 1 || port > 65535) {
+                        throw new Error('Invalid port number');
+                    }
                     return await this.testVNC(host, port);
-                case 'rdp':
+                }
+                case 'rdp': {
+                    const { host, port } = connection;
+                    if (!this.validateHost(host)) {
+                        throw new Error('Host not allowed - potential security risk detected');
+                    }
+                    if (!port || port < 1 || port > 65535) {
+                        throw new Error('Invalid port number');
+                    }
+                }
                     return await this.testRDP(host, port);
                 default:
                     throw new Error(`Unsupported protocol: ${protocol}`);
             }
+            const host = connection.host || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.host) || '(unknown)';
+            const port = connection.port || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.port) || '';
         } catch (error) {
             console.error(`🚫 Connection test failed for ${host}:${port}:`, error.message);
             return {
