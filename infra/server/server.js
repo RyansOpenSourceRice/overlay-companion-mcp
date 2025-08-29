@@ -17,6 +17,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
+const ConnectionManager = require('./connection-manager');
 
 // Configuration
 const config = {
@@ -46,6 +47,7 @@ const log = {
 // Express app setup
 const app = express();
 const server = http.createServer(app);
+const connectionManager = new ConnectionManager();
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -191,6 +193,53 @@ app.use('/mcp', createProxyMiddleware({
     log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
   }
 }));
+
+// Connection testing endpoint
+app.post('/api/test-connection', async (req, res) => {
+  try {
+    const connection = req.body;
+    
+    // Validate connection configuration
+    const validation = connectionManager.validateConnection(connection);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        errors: validation.errors
+      });
+    }
+
+    // Test the connection
+    const result = await connectionManager.testConnection(connection);
+    
+    res.json(result);
+  } catch (error) {
+    log.error('Connection test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during connection test'
+    });
+  }
+});
+
+// Protocol defaults endpoint
+app.get('/api/protocol-defaults/:protocol', (req, res) => {
+  const { protocol } = req.params;
+  const defaults = connectionManager.getProtocolDefaults(protocol);
+  
+  if (Object.keys(defaults).length === 0) {
+    return res.status(404).json({
+      error: 'Unknown protocol'
+    });
+  }
+  
+  res.json(defaults);
+});
+
+// Connection manager stats endpoint
+app.get('/api/connection-stats', (req, res) => {
+  const stats = connectionManager.getStats();
+  res.json(stats);
+});
 
 // Health check endpoint
 app.get('/health', async (req, res) => {

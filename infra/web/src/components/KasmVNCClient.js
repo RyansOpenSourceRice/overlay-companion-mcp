@@ -1,244 +1,424 @@
 /**
- * KasmVNC Client Component
- * Replaces GuacamoleClient for simplified VNC access with multi-monitor support
+ * Enhanced KasmVNC Client Component
+ * 
+ * Handles KasmVNC connections with:
+ * - Secure credential management from web UI
+ * - Multi-monitor support
+ * - Real-time overlay integration
+ * - Connection health monitoring
  */
 
 export class KasmVNCClient {
     constructor(container, options = {}) {
         this.container = container;
         this.options = {
-            url: options.url || 'http://localhost:6901',
-            autoConnect: options.autoConnect !== false,
-            multiMonitor: options.multiMonitor !== false,
+            autoScale: true,
+            showCursor: true,
+            multiMonitor: true,
+            overlaySupport: true,
             ...options
         };
-
-        this.connected = false;
-        this.displays = [];
-        this.currentDisplay = 0;
-
-        this.init();
+        
+        this.connection = null;
+        this.iframe = null;
+        this.isConnected = false;
+        this.monitors = [];
+        this.overlayCanvas = null;
+        this.healthCheckInterval = null;
+        
+        console.log('🖥️ Enhanced KasmVNC Client initialized with credential management');
     }
 
-    init() {
-        this.createUI();
-        if (this.options.autoConnect) {
-            this.connect();
-        }
-    }
-
-    createUI() {
-        this.container.innerHTML = `
-            <div class="kasmvnc-client">
-                <div class="kasmvnc-toolbar">
-                    <div class="connection-controls">
-                        <button id="connect-btn" class="btn btn-primary">Connect</button>
-                        <button id="disconnect-btn" class="btn btn-secondary" disabled>Disconnect</button>
-                        <span class="connection-status">Disconnected</span>
-                    </div>
-                    <div class="display-controls" style="display: none;">
-                        <button id="add-display-btn" class="btn btn-info">Add Display</button>
-                        <select id="display-select">
-                            <option value="0">Display 1</option>
-                        </select>
-                        <button id="fullscreen-btn" class="btn btn-secondary">Fullscreen</button>
-                    </div>
-                </div>
-                <div class="kasmvnc-container">
-                    <iframe id="kasmvnc-frame"
-                            src=""
-                            style="width: 100%; height: 600px; border: none; display: none;">
-                    </iframe>
-                    <div id="connection-message" class="connection-message">
-                        Click Connect to access the remote desktop
-                    </div>
-                </div>
-            </div>
-        `;
-
-        this.setupEventListeners();
-    }
-
-    setupEventListeners() {
-        const connectBtn = this.container.querySelector('#connect-btn');
-        const disconnectBtn = this.container.querySelector('#disconnect-btn');
-        const addDisplayBtn = this.container.querySelector('#add-display-btn');
-        const displaySelect = this.container.querySelector('#display-select');
-        const fullscreenBtn = this.container.querySelector('#fullscreen-btn');
-
-        connectBtn.addEventListener('click', () => this.connect());
-        disconnectBtn.addEventListener('click', () => this.disconnect());
-        addDisplayBtn.addEventListener('click', () => this.addDisplay());
-        displaySelect.addEventListener('change', (e) => this.switchDisplay(parseInt(e.target.value)));
-        fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
-    }
-
-    async connect() {
+    /**
+     * Connect to KasmVNC server using web UI credentials
+     * @param {Object} connectionConfig - Connection configuration from web UI
+     */
+    async connect(connectionConfig) {
         try {
-            this.updateStatus('Connecting...');
-
-            // Load KasmVNC in iframe
-            const frame = this.container.querySelector('#kasmvnc-frame');
-            const message = this.container.querySelector('#connection-message');
-
-            frame.src = this.options.url;
-            frame.style.display = 'block';
-            message.style.display = 'none';
-
-            // Wait for frame to load
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
-
-                frame.onload = () => {
-                    clearTimeout(timeout);
-                    resolve();
-                };
-
-                frame.onerror = () => {
-                    clearTimeout(timeout);
-                    reject(new Error('Failed to load KasmVNC'));
-                };
-            });
-
-            this.connected = true;
-            this.updateStatus('Connected');
-            this.updateControls();
-
-            // Enable multi-monitor controls if supported
+            console.log('🔌 Connecting to KasmVNC with secure credentials:', connectionConfig.host);
+            
+            // Validate connection config
+            this.validateConnection(connectionConfig);
+            this.connection = connectionConfig;
+            
+            // Build KasmVNC URL with authentication
+            const url = this.buildConnectionUrl(connectionConfig);
+            
+            // Create and configure iframe
+            await this.createIframe(url);
+            
+            // Setup multi-monitor support
             if (this.options.multiMonitor) {
-                this.container.querySelector('.display-controls').style.display = 'flex';
+                await this.setupMultiMonitor();
             }
-
-            // Emit connection event
-            this.emit('connected');
-
+            
+            // Setup overlay system
+            if (this.options.overlaySupport) {
+                this.setupOverlaySystem();
+            }
+            
+            // Start health monitoring
+            this.startHealthMonitoring();
+            
         } catch (error) {
-            console.error('KasmVNC connection failed:', error);
-            this.updateStatus('Connection failed: ' + error.message);
-            this.emit('error', error);
+            console.error('❌ KasmVNC connection error:', error);
+            this.onError(error);
+            throw error;
         }
     }
 
-    disconnect() {
-        const frame = this.container.querySelector('#kasmvnc-frame');
-        const message = this.container.querySelector('#connection-message');
-
-        frame.src = '';
-        frame.style.display = 'none';
-        message.style.display = 'block';
-        message.textContent = 'Disconnected';
-
-        this.connected = false;
-        this.updateStatus('Disconnected');
-        this.updateControls();
-
-        // Hide multi-monitor controls
-        this.container.querySelector('.display-controls').style.display = 'none';
-
-        this.emit('disconnected');
-    }
-
-    addDisplay() {
-        if (!this.connected) return;
-
-        // KasmVNC handles multi-monitor by opening new browser windows
-        // We'll simulate this by opening a new window with the VNC URL
-        const displayWindow = window.open(
-            this.options.url + '?display=' + (this.displays.length + 1),
-            `kasmvnc-display-${this.displays.length + 1}`,
-            'width=1920,height=1080,scrollbars=yes,resizable=yes'
-        );
-
-        if (displayWindow) {
-            this.displays.push({
-                id: this.displays.length + 1,
-                window: displayWindow
-            });
-
-            // Update display selector
-            const select = this.container.querySelector('#display-select');
-            const option = document.createElement('option');
-            option.value = this.displays.length;
-            option.textContent = `Display ${this.displays.length + 1}`;
-            select.appendChild(option);
-
-            this.emit('displayAdded', { displayId: this.displays.length });
+    /**
+     * Validate connection configuration
+     */
+    validateConnection(config) {
+        if (!config.host || !config.port) {
+            throw new Error('Host and port are required');
+        }
+        
+        if (!config.password) {
+            throw new Error('Password is required for KasmVNC connection');
+        }
+        
+        if (config.port < 1 || config.port > 65535) {
+            throw new Error('Port must be between 1 and 65535');
         }
     }
 
-    switchDisplay(displayIndex) {
-        if (displayIndex === 0) {
-            // Main display - focus on iframe
-            this.container.querySelector('#kasmvnc-frame').focus();
-        } else if (this.displays[displayIndex - 1]) {
-            // Secondary display - focus on window
-            const display = this.displays[displayIndex - 1];
-            if (display.window && !display.window.closed) {
-                display.window.focus();
+    /**
+     * Build connection URL with embedded credentials
+     */
+    buildConnectionUrl(config) {
+        const protocol = config.ssl ? 'https' : 'http';
+        let url = `${protocol}://${config.host}:${config.port}`;
+        
+        // For KasmVNC, we can pass credentials via URL parameters
+        const params = new URLSearchParams();
+        
+        if (config.username) {
+            params.set('username', config.username);
+        }
+        
+        // Note: In production, consider using a more secure method
+        // like session tokens instead of passing passwords in URLs
+        params.set('password', config.password);
+        params.set('autoconnect', 'true');
+        params.set('resize', this.options.autoScale ? 'scale' : 'off');
+        params.set('show_cursor', this.options.showCursor ? '1' : '0');
+        
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+        
+        return url;
+    }
+
+    /**
+     * Create and configure iframe
+     */
+    async createIframe(url) {
+        return new Promise((resolve, reject) => {
+            this.iframe = document.createElement('iframe');
+            this.iframe.src = url;
+            this.iframe.style.width = '100%';
+            this.iframe.style.height = '100%';
+            this.iframe.style.border = 'none';
+            this.iframe.style.background = '#000';
+            this.iframe.allow = 'clipboard-read; clipboard-write; fullscreen';
+            
+            // Timeout handler
+            const timeout = setTimeout(() => {
+                if (!this.isConnected) {
+                    const error = new Error('Connection timeout');
+                    this.onError(error);
+                    reject(error);
+                }
+            }, 30000); // 30 second timeout
+            
+            this.iframe.onload = () => {
+                clearTimeout(timeout);
+                this.isConnected = true;
+                console.log('✅ KasmVNC connected successfully');
+                this.onConnected();
+                resolve();
+            };
+            
+            this.iframe.onerror = (error) => {
+                clearTimeout(timeout);
+                console.error('❌ KasmVNC iframe error:', error);
+                this.onError(error);
+                reject(error);
+            };
+            
+            // Clear container and add iframe
+            this.container.innerHTML = '';
+            this.container.appendChild(this.iframe);
+        });
+    }
+
+    /**
+     * Setup multi-monitor support with KasmVNC API
+     */
+    async setupMultiMonitor() {
+        try {
+            const protocol = this.connection.ssl ? 'https' : 'http';
+            const apiUrl = `${protocol}://${this.connection.host}:${this.connection.port}/api/displays`;
+            
+            // Add authentication headers if needed
+            const headers = {};
+            if (this.connection.username && this.connection.password) {
+                const auth = btoa(`${this.connection.username}:${this.connection.password}`);
+                headers['Authorization'] = `Basic ${auth}`;
             }
+            
+            const response = await fetch(apiUrl, { headers });
+            
+            if (response.ok) {
+                this.monitors = await response.json();
+                console.log(`🖥️ Detected ${this.monitors.length} monitors via KasmVNC API`);
+                this.onMonitorsDetected(this.monitors);
+            } else {
+                throw new Error(`API request failed: ${response.status}`);
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not query KasmVNC displays, using fallback:', error.message);
+            
+            // Fallback to single monitor configuration
+            this.monitors = [{
+                index: 0,
+                width: 1920,
+                height: 1080,
+                x: 0,
+                y: 0,
+                primary: true,
+                name: 'Primary Display'
+            }];
+            
+            this.onMonitorsDetected(this.monitors);
         }
-
-        this.currentDisplay = displayIndex;
-        this.emit('displaySwitched', { displayIndex });
     }
 
+    /**
+     * Setup overlay system for AI-powered screen interaction
+     */
+    setupOverlaySystem() {
+        // Create overlay canvas
+        this.overlayCanvas = document.createElement('canvas');
+        this.overlayCanvas.style.position = 'absolute';
+        this.overlayCanvas.style.top = '0';
+        this.overlayCanvas.style.left = '0';
+        this.overlayCanvas.style.width = '100%';
+        this.overlayCanvas.style.height = '100%';
+        this.overlayCanvas.style.pointerEvents = 'none';
+        this.overlayCanvas.style.zIndex = '10';
+        
+        // Add to container
+        this.container.style.position = 'relative';
+        this.container.appendChild(this.overlayCanvas);
+        
+        // Setup message listener for overlay commands
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'overlay_command') {
+                this.handleOverlayCommand(event.data.command);
+            }
+        });
+        
+        console.log('🎯 Overlay system initialized');
+    }
+
+    /**
+     * Handle overlay commands from MCP server
+     */
+    handleOverlayCommand(command) {
+        if (!this.overlayCanvas) return;
+        
+        const ctx = this.overlayCanvas.getContext('2d');
+        
+        switch (command.type) {
+            case 'create':
+                this.drawOverlay(ctx, command);
+                break;
+            case 'clear':
+                ctx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+                break;
+            case 'update':
+                this.updateOverlay(ctx, command);
+                break;
+            default:
+                console.warn('Unknown overlay command:', command.type);
+        }
+    }
+
+    /**
+     * Draw overlay on canvas
+     */
+    drawOverlay(ctx, command) {
+        ctx.save();
+        
+        // Set overlay properties
+        ctx.fillStyle = command.color || '#ff0000';
+        ctx.globalAlpha = command.opacity || 0.5;
+        
+        // Draw overlay rectangle
+        ctx.fillRect(command.x, command.y, command.width, command.height);
+        
+        // Draw border if specified
+        if (command.border) {
+            ctx.strokeStyle = command.borderColor || '#ffffff';
+            ctx.lineWidth = command.borderWidth || 2;
+            ctx.strokeRect(command.x, command.y, command.width, command.height);
+        }
+        
+        // Draw label if provided
+        if (command.label) {
+            ctx.fillStyle = command.textColor || '#ffffff';
+            ctx.font = `${command.fontSize || 14}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(
+                command.label,
+                command.x + command.width / 2,
+                command.y + command.height / 2
+            );
+        }
+        
+        ctx.restore();
+    }
+
+    /**
+     * Update existing overlay
+     */
+    updateOverlay(ctx, command) {
+        // For now, just redraw - could be optimized for specific updates
+        this.drawOverlay(ctx, command);
+    }
+
+    /**
+     * Start health monitoring
+     */
+    startHealthMonitoring() {
+        this.healthCheckInterval = setInterval(async () => {
+            try {
+                const isHealthy = await this.checkHealth();
+                if (!isHealthy && this.isConnected) {
+                    console.warn('⚠️ KasmVNC health check failed');
+                    this.onHealthCheckFailed();
+                }
+            } catch (error) {
+                console.error('❌ Health check error:', error);
+            }
+        }, 30000); // Check every 30 seconds
+    }
+
+    /**
+     * Check connection health
+     */
+    async checkHealth() {
+        if (!this.connection) return false;
+        
+        try {
+            const protocol = this.connection.ssl ? 'https' : 'http';
+            const healthUrl = `${protocol}://${this.connection.host}:${this.connection.port}/api/health`;
+            
+            const response = await fetch(healthUrl, {
+                method: 'GET',
+                timeout: 5000
+            });
+            
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Disconnect from KasmVNC
+     */
+    disconnect() {
+        // Stop health monitoring
+        if (this.healthCheckInterval) {
+            clearInterval(this.healthCheckInterval);
+            this.healthCheckInterval = null;
+        }
+        
+        // Remove iframe
+        if (this.iframe) {
+            this.iframe.remove();
+            this.iframe = null;
+        }
+        
+        // Remove overlay canvas
+        if (this.overlayCanvas) {
+            this.overlayCanvas.remove();
+            this.overlayCanvas = null;
+        }
+        
+        // Reset state
+        this.isConnected = false;
+        this.connection = null;
+        this.monitors = [];
+        
+        console.log('🔌 KasmVNC disconnected');
+        this.onDisconnected();
+    }
+
+    /**
+     * Get current connection status
+     */
+    getStatus() {
+        return {
+            connected: this.isConnected,
+            connection: this.connection ? {
+                name: this.connection.name,
+                host: this.connection.host,
+                port: this.connection.port,
+                protocol: this.connection.protocol,
+                ssl: this.connection.ssl
+            } : null,
+            monitors: this.monitors,
+            client: 'KasmVNC Enhanced',
+            features: {
+                multiMonitor: this.options.multiMonitor,
+                overlaySupport: this.options.overlaySupport,
+                credentialManagement: true
+            }
+        };
+    }
+
+    /**
+     * Toggle fullscreen mode
+     */
     toggleFullscreen() {
-        const frame = this.container.querySelector('#kasmvnc-frame');
+        if (!this.iframe) return;
 
         if (!document.fullscreenElement) {
-            frame.requestFullscreen().catch(err => {
-                console.error('Error attempting to enable fullscreen:', err);
+            this.container.requestFullscreen().catch(err => {
+                console.error('Failed to enter fullscreen:', err);
             });
         } else {
             document.exitFullscreen();
         }
     }
 
-    updateStatus(status) {
-        const statusElement = this.container.querySelector('.connection-status');
-        statusElement.textContent = status;
-        statusElement.className = `connection-status ${status.toLowerCase().replace(/[^a-z]/g, '-')}`;
+    /**
+     * Event handlers (can be overridden)
+     */
+    onConnected() {
+        // Override in implementation
     }
 
-    updateControls() {
-        const connectBtn = this.container.querySelector('#connect-btn');
-        const disconnectBtn = this.container.querySelector('#disconnect-btn');
-
-        connectBtn.disabled = this.connected;
-        disconnectBtn.disabled = !this.connected;
+    onDisconnected() {
+        // Override in implementation
     }
 
-    // Simple event emitter
-    emit(event, data) {
-        const customEvent = new CustomEvent(`kasmvnc:${event}`, { detail: data });
-        this.container.dispatchEvent(customEvent);
+    onError(error) {
+        // Override in implementation
     }
 
-    // Public API methods
-    isConnected() {
-        return this.connected;
+    onMonitorsDetected(monitors) {
+        // Override in implementation
     }
 
-    getDisplays() {
-        return this.displays;
-    }
-
-    getCurrentDisplay() {
-        return this.currentDisplay;
-    }
-
-    // Cleanup method
-    destroy() {
-        this.disconnect();
-
-        // Close all secondary display windows
-        this.displays.forEach(display => {
-            if (display.window && !display.window.closed) {
-                display.window.close();
-            }
-        });
-
-        this.displays = [];
-        this.container.innerHTML = '';
+    onHealthCheckFailed() {
+        // Override in implementation
     }
 }
