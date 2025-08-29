@@ -10,8 +10,8 @@
 const net = require('net');
 const http = require('http');
 const https = require('https');
-const { URL } = require('url');
-const ipaddr = require('ipaddr.js');
+// const { URL } = require('url'); // Reserved for future URL validation
+// const ipaddr = require('ipaddr.js'); // Reserved for future IP validation
 const securityConfig = require('./security-config');
 
 class ConnectionManager {
@@ -91,9 +91,9 @@ class ConnectionManager {
      * @returns {boolean} True if valid external host
      */
     isValidExternalHost(host) {
-        // Basic hostname/IP validation
-        const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+        // Basic hostname/IP validation - simplified for security
+        const hostnameRegex = /^[a-zA-Z0-9.-]+$/; // Simple character validation
+        const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/; // Simple IP format
         
         if (!hostnameRegex.test(host) && !ipRegex.test(host)) {
             return false;
@@ -192,23 +192,21 @@ class ConnectionManager {
                         throw new Error('Invalid port number');
                     }
                 }
-                    return await this.testRDP(host, port);
+                    return await this.testRDP(connection.host, connection.port);
                 default:
                     throw new Error(`Unsupported protocol: ${protocol}`);
             }
-            const host = connection.host || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.host) || '(unknown)';
-            const port = connection.port || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.port) || '';
         } catch (error) {
             // SECURITY: Sanitize user-controlled values for logging to prevent format string attacks
-            const sanitizedHost = String(host).replace(/[^\w\.-]/g, '');
-            const sanitizedPort = parseInt(port) || 0;
+            const sanitizedHost = String(connection.host || '(unknown)').replace(/[^\w.-]/g, '');
+            const sanitizedPort = parseInt(connection.port) || 0;
             console.error(`🚫 Connection test failed for ${sanitizedHost}:${sanitizedPort}:`, error.message);
             return {
                 success: false,
                 error: error.message,
                 protocol,
-                host,
-                port
+                host: connection.host,
+                port: connection.port
             };
         }
     }
@@ -464,7 +462,8 @@ class ConnectionManager {
      * through a WebSocket proxy
      */
     createProxyUrl(connection) {
-        const { host, port, protocol, ssl } = connection;
+        const { host, port, protocol } = connection;
+        // Note: ssl parameter available but not used in current implementation
         const proxyId = `${protocol}-${host}-${port}-${Date.now()}`;
         
         this.activeConnections.set(proxyId, {

@@ -14,7 +14,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs').promises;
+// const fs = require('fs').promises; // Reserved for future file operations
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
 const ConnectionManager = require('./connection-manager');
@@ -150,7 +150,8 @@ if (config.mcpWsEnabled) {
 }
 
 // Broadcast overlay command to all connected clients
-function broadcastOverlay(payload, excludeClientId = null) {
+function broadcastOverlay(payload) {
+  // Note: excludeClientId parameter removed as it's not currently used
   const message = JSON.stringify({
     type: 'overlay_broadcast',
     payload,
@@ -189,7 +190,8 @@ app.use('/mcp', createProxyMiddleware({
       message: 'The C# MCP server is not responding. It may not be running or configured.'
     });
   },
-  onProxyReq: (proxyReq, req, res) => {
+  onProxyReq: (proxyReq, req) => {
+    // Note: res parameter removed as it's not used in this context
     log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
   }
 }));
