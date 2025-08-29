@@ -11,6 +11,7 @@ const net = require('net');
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const ipaddr = require('ipaddr.js');
 const securityConfig = require('./security-config');
 
 class ConnectionManager {
