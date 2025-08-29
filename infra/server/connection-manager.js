@@ -118,6 +118,41 @@ class ConnectionManager {
     }
 
     /**
+     * SECURITY: Sanitize and normalize host for safe network operations
+     * @param {string} host - Host to sanitize
+     * @returns {string|null} Sanitized host or null if invalid
+     */
+    sanitizeHost(host) {
+        if (!host || typeof host !== 'string') {
+            return null;
+        }
+
+        // Normalize host (remove protocol, port, path)
+        let sanitizedHost = host.toLowerCase().trim();
+        
+        // Remove protocol if present
+        sanitizedHost = sanitizedHost.replace(/^https?:\/\//, '');
+        
+        // Remove port if present
+        sanitizedHost = sanitizedHost.split(':')[0];
+        
+        // Remove path if present
+        sanitizedHost = sanitizedHost.split('/')[0];
+
+        // Additional sanitization - only allow alphanumeric, dots, and hyphens
+        if (!/^[a-zA-Z0-9.-]+$/.test(sanitizedHost)) {
+            return null;
+        }
+
+        // Ensure it's not empty after sanitization
+        if (!sanitizedHost || sanitizedHost.length === 0) {
+            return null;
+        }
+
+        return sanitizedHost;
+    }
+
+    /**
      * Test connection to a remote desktop server
      * @param {Object} connection - Connection configuration
      * @returns {Promise<Object>} Test result
@@ -180,7 +215,7 @@ class ConnectionManager {
 
     /**
      * Test KasmVNC connection with SSRF protection
-     * SECURITY: Host validation performed before network operations
+     * SECURITY: Uses POST with fixed URL to avoid user-controlled URL construction
      */
     async testKasmVNC(host, port, ssl = false) {
         // SECURITY: Re-validate host immediately before network operation
@@ -188,26 +223,42 @@ class ConnectionManager {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
         
-        const protocol = ssl ? 'https:' : 'http:';
-        const url = `${protocol}//${host}:${port}/api/health`;
+        // SECURITY: Create validated host variable to prevent SSRF
+        const validatedHost = this.sanitizeHost(host);
+        if (!validatedHost) {
+            throw new Error('Host sanitization failed - invalid host format');
+        }
         
         return new Promise((resolve) => {
             const client = ssl ? https : http;
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
             
-            // SECURITY: Additional request options for safety
+            // SECURITY: Use POST with fixed URL path - no user data in URL
+            const postData = JSON.stringify({
+                target_host: validatedHost,
+                target_port: port,
+                check_type: 'health'
+            });
+            
+            // SECURITY: Fixed URL path prevents SSRF via URL manipulation
             const options = {
+                hostname: validatedHost,
+                port: port,
+                path: '/api/health',  // Fixed path - no user input
+                method: 'POST',
                 timeout,
                 headers: {
                     'User-Agent': 'OverlayCompanion-HealthCheck/1.0',
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
                 },
                 // SECURITY: Prevent following redirects that could lead to SSRF
                 maxRedirects: 0
             };
             
-            // SECURITY: URL constructed from validated host - safe for HTTP request
-            const req = client.get(url, options, (res) => {
+            // SECURITY: POST request with validated host in options, not URL
+            const req = client.request(options, (res) => {
                 // SECURITY: Limit response size to prevent memory exhaustion
                 let data = '';
                 const maxResponseSize = 1024; // 1KB limit for health check
@@ -262,6 +313,10 @@ class ConnectionManager {
                     error: error.message
                 });
             });
+
+            // SECURITY: Write POST data and end request
+            req.write(postData);
+            req.end();
         });
     }
 
@@ -275,6 +330,12 @@ class ConnectionManager {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
         
+        // SECURITY: Create validated host variable to prevent SSRF
+        const validatedHost = this.sanitizeHost(host);
+        if (!validatedHost) {
+            throw new Error('Host sanitization failed - invalid host format');
+        }
+        
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -285,8 +346,8 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
-            // SECURITY: Host validated immediately above - safe to connect
-            socket.connect(port, host, () => {
+            // SECURITY: Use sanitized host to prevent SSRF attacks
+            socket.connect(port, validatedHost, () => {
                 socket.destroy();
                 resolve({
                     success: true,
@@ -338,6 +399,12 @@ class ConnectionManager {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
         
+        // SECURITY: Create validated host variable to prevent SSRF
+        const validatedHost = this.sanitizeHost(host);
+        if (!validatedHost) {
+            throw new Error('Host sanitization failed - invalid host format');
+        }
+        
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -348,8 +415,8 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
-            // SECURITY: Host validated immediately above - safe to connect
-            socket.connect(port, host, () => {
+            // SECURITY: Use sanitized host to prevent SSRF attacks
+            socket.connect(port, validatedHost, () => {
                 socket.destroy();
                 resolve({
                     success: true,
