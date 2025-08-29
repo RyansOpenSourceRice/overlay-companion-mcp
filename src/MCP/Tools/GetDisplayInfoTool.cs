@@ -35,7 +35,7 @@ public class GetDisplayInfoTool
             try
             {
                 // This will be injected if KasmVNC service is registered
-                var kasmvncService = ServiceProvider?.GetService<IKasmVNCService>();
+                var kasmvncService = ServiceProvider?.GetService(typeof(IKasmVNCService)) as IKasmVNCService;
                 if (kasmvncService != null)
                 {
                     kasmvncConnected = await kasmvncService.IsConnectedAsync();

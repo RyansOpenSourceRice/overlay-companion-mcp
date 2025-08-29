@@ -55,7 +55,7 @@ public static class CreateOverlayTool
                 Label = label,
                 ClickThrough = clickThrough,
                 MonitorIndex = monitorIndex,
-                TemporaryMs = temporaryMs
+                TemporaryMs = temporaryMs ?? 0
             };
 
             var overlayId = await overlayService.DrawOverlayAsync(overlay);

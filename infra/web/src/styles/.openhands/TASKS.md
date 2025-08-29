@@ -11,5 +11,3 @@
 5. ⏳ Implement secure credential storage in web UI
 
 6. ⏳ Update KasmVNC integration to use web UI credentials
-
-
