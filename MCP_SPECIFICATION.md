@@ -47,7 +47,7 @@ This repository is intended to serve as a **public, reusable base tool**. Domain
   - **Endpoints**: Root path `/` and backward-compatible `/mcp` alias
 - **Legacy Transport**: Standard I/O (stdio) - **DEPRECATED** (use `--stdio` flag)
   - **Limitations**: No image support, single client only, legacy compatibility only
-- **Container Integration**: Deployed as part of 6-container stack with Caddy proxy
+- **Container Integration**: Deployed as part of 4-container KasmVNC stack with Caddy proxy
 - **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
 - **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
 - **Protocol Version**: 2024-11-05
