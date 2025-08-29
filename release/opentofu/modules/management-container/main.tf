@@ -99,7 +99,7 @@ resource "local_file" "podman_compose" {
         environment = {
           POSTGRES_DB       = "guacamole"
           POSTGRES_USER     = "guacamole"
-          POSTGRES_PASSWORD = "guacamole-dev-password"
+          POSTGRES_PASSWORD = "guacamole-dev-password"  # pragma: allowlist secret
         }
         volumes = [
           "${local.data_dir}/postgres:/var/lib/postgresql/data:Z"
@@ -133,7 +133,7 @@ resource "local_file" "podman_compose" {
           POSTGRES_HOSTNAME  = "${var.container_name}-postgres"
           POSTGRES_DATABASE  = "guacamole"
           POSTGRES_USER      = "guacamole"
-          POSTGRES_PASSWORD  = "guacamole-dev-password"
+          POSTGRES_PASSWORD  = "guacamole-dev-password"  # pragma: allowlist secret
         }
         volumes = [
           "${local.data_dir}/guacamole:/config:Z"

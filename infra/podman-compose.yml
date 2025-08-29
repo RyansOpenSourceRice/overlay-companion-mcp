@@ -19,7 +19,7 @@ services:
     depends_on:
       - postgres
     environment:
-      PGPASSWORD: guacpass
+      PGPASSWORD: guacpass  # pragma: allowlist secret
     entrypoint: ["/bin/sh","-c"]
     command: |
       apk add --no-cache curl tar postgresql-client >/dev/null &&
