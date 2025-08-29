@@ -215,7 +215,9 @@
     "Guacd",
     "Kasm",
     "KasmVNC",
-    "KASMVNC"
+    "KASMVNC",
+    "allowlist",
+    "blocklist"
   ],
   "flagWords": [],
   "ignorePaths": [

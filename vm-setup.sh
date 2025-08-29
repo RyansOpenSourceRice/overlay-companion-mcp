@@ -1,15 +1,15 @@
 #!/bin/bash
 # ⚠️ DEPRECATED: VM Setup Script for Guacamole-based Overlay Companion MCP
-# 
+#
 # This script sets up LEGACY RDP services for Guacamole connections.
-# 
+#
 # ⚠️ WARNING: This setup is DEPRECATED in favor of KasmVNC architecture.
 # Use vm-setup-kasmvnc.sh instead for:
 # ✅ No complex RDP configuration
 # ✅ Web-native VNC server
 # ✅ True multi-monitor support
 # ✅ Simpler setup process
-# 
+#
 # This script runs INSIDE a Fedora Silverblue VM to set up RDP services
 # The containers run on the HOST OS, not in this VM
 

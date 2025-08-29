@@ -1,14 +1,14 @@
 # ⚠️ DEPRECATED: Guacamole-based OpenTofu Infrastructure
-# 
+#
 # This infrastructure configuration is DEPRECATED in favor of KasmVNC architecture.
-# 
+#
 # ⚠️ WARNING: This setup provisions Guacamole-based infrastructure which is deprecated.
 # Issues with this configuration:
 # - Provisions PostgreSQL database (unnecessary complexity)
 # - Sets up 6 containers instead of 4
 # - Complex credential management
 # - Lacks true multi-monitor support
-# 
+#
 # RECOMMENDED: Create new KasmVNC-based infrastructure configuration
 
 terraform {

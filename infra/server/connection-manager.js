@@ -1,9 +1,9 @@
 /**
  * Connection Manager for Overlay Companion MCP
- * 
+ *
  * Handles secure connection testing and proxy functionality
  * for various remote desktop protocols (KasmVNC, VNC, RDP)
- * 
+ *
  * SECURITY: Implements SSRF protection with host validation
  */
 
@@ -21,7 +21,7 @@ class ConnectionManager {
         // SECURITY: Load explicit KasmVNC allowlist
         // Example format: { kasm1: { host: 'kasm1.example.com', port: 6901, ssl: true }, ... }
         this.kasmVncAllowlist = securityConfig.kasmVncAllowlist || {};
-        
+
         // SECURITY: Load security configuration (legacy patterns, still used for other protocols)
         this.allowedHostPatterns = securityConfig.allowedHostPatterns;
         this.blockedHostPatterns = securityConfig.blockedHostPatterns;
@@ -29,7 +29,7 @@ class ConnectionManager {
         this.allowedProtocols = securityConfig.allowedProtocols;
         this.portRestrictions = securityConfig.portRestrictions;
         this.logging = securityConfig.logging;
-        
+
         console.log('🔒 SECURITY: Connection manager initialized with explicit KasmVNC allowlist for SSRF protection');
         console.log(`🔒 SECURITY: ${Object.keys(this.kasmVncAllowlist).length} allowed KasmVNC targets configured`);
         console.log(`🔒 SECURITY: ${this.allowedHostPatterns.length} allowed host patterns configured`);
@@ -48,13 +48,13 @@ class ConnectionManager {
 
         // Normalize host (remove protocol, port, path)
         let normalizedHost = host.toLowerCase().trim();
-        
+
         // Remove protocol if present
         normalizedHost = normalizedHost.replace(/^https?:\/\//, '');
-        
+
         // Remove port if present
         normalizedHost = normalizedHost.split(':')[0];
-        
+
         // Remove path if present
         normalizedHost = normalizedHost.split('/')[0];
 
@@ -81,7 +81,7 @@ class ConnectionManager {
         if (!isValidExternalHost) {
             console.warn(`🚫 SECURITY: Invalid or private host rejected: ${host}`);
         }
-        
+
         return isValidExternalHost;
     }
 
@@ -94,7 +94,7 @@ class ConnectionManager {
         // Basic hostname/IP validation - simplified for security
         const hostnameRegex = /^[a-zA-Z0-9.-]+$/; // Simple character validation
         const ipRegex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/; // Simple IP format
-        
+
         if (!hostnameRegex.test(host) && !ipRegex.test(host)) {
             return false;
         }
@@ -102,12 +102,12 @@ class ConnectionManager {
         // If it's an IP, ensure it's not in private ranges (already checked in blockedHostPatterns)
         if (ipRegex.test(host)) {
             const parts = host.split('.').map(Number);
-            
+
             // Additional IP validation
             if (parts.some(part => part < 0 || part > 255)) {
                 return false;
             }
-            
+
             // Block additional dangerous ranges
             if (parts[0] === 0 || parts[0] === 255) {
                 return false;
@@ -129,13 +129,13 @@ class ConnectionManager {
 
         // Normalize host (remove protocol, port, path)
         let sanitizedHost = host.toLowerCase().trim();
-        
+
         // Remove protocol if present
         sanitizedHost = sanitizedHost.replace(/^https?:\/\//, '');
-        
+
         // Remove port if present
         sanitizedHost = sanitizedHost.split(':')[0];
-        
+
         // Remove path if present
         sanitizedHost = sanitizedHost.split('/')[0];
 
@@ -159,7 +159,7 @@ class ConnectionManager {
      */
     async testConnection(connection) {
         const { protocol } = connection;
-        
+
         try {
             switch (protocol) {
                 case 'kasmvnc': {
@@ -220,24 +220,24 @@ class ConnectionManager {
         if (!this.validateHost(host)) {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
-        
+
         // SECURITY: Create validated host variable to prevent SSRF
         const validatedHost = this.sanitizeHost(host);
         if (!validatedHost) {
             throw new Error('Host sanitization failed - invalid host format');
         }
-        
+
         return new Promise((resolve) => {
             const client = ssl ? https : http;
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
-            
+
             // SECURITY: Use POST with fixed URL path - no user data in URL
             const postData = JSON.stringify({
                 target_host: validatedHost,
                 target_port: port,
                 check_type: 'health'
             });
-            
+
             // SECURITY: Fixed URL path prevents SSRF via URL manipulation
             const options = {
                 hostname: validatedHost,
@@ -254,13 +254,13 @@ class ConnectionManager {
                 // SECURITY: Prevent following redirects that could lead to SSRF
                 maxRedirects: 0
             };
-            
+
             // SECURITY: POST request with validated host in options, not URL
             const req = client.request(options, (res) => {
                 // SECURITY: Limit response size to prevent memory exhaustion
                 let data = '';
                 const maxResponseSize = 1024; // 1KB limit for health check
-                
+
                 res.on('data', (chunk) => {
                     data += chunk;
                     if (data.length > maxResponseSize) {
@@ -275,7 +275,7 @@ class ConnectionManager {
                         });
                     }
                 });
-                
+
                 res.on('end', () => {
                     resolve({
                         success: res.statusCode === 200,
@@ -327,13 +327,13 @@ class ConnectionManager {
         if (!this.validateHost(host)) {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
-        
+
         // SECURITY: Create validated host variable to prevent SSRF
         const validatedHost = this.sanitizeHost(host);
         if (!validatedHost) {
             throw new Error('Host sanitization failed - invalid host format');
         }
-        
+
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -396,13 +396,13 @@ class ConnectionManager {
         if (!this.validateHost(host)) {
             throw new Error('Host validation failed - potential SSRF attack blocked');
         }
-        
+
         // SECURITY: Create validated host variable to prevent SSRF
         const validatedHost = this.sanitizeHost(host);
         if (!validatedHost) {
             throw new Error('Host sanitization failed - invalid host format');
         }
-        
+
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -465,7 +465,7 @@ class ConnectionManager {
         const { host, port, protocol } = connection;
         // Note: ssl parameter available but not used in current implementation
         const proxyId = `${protocol}-${host}-${port}-${Date.now()}`;
-        
+
         this.activeConnections.set(proxyId, {
             ...connection,
             createdAt: new Date(),
@@ -495,7 +495,7 @@ class ConnectionManager {
      */
     cleanupOldConnections() {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        
+
         for (const [proxyId, connection] of this.activeConnections.entries()) {
             if (connection.lastUsed < oneHourAgo) {
                 this.activeConnections.delete(proxyId);
@@ -557,7 +557,7 @@ class ConnectionManager {
         }
 
         const isValid = errors.length === 0;
-        
+
         if (this.logging.logSecurityEvents && !isValid) {
             console.warn('🚫 SECURITY: Connection validation failed:', errors);
         }

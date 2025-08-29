@@ -189,22 +189,22 @@ public class Program
             await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
         });
 
-	        // Simple test endpoint for CI/manual verification
-	        app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
-	        {
-	            var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);
-	            var overlay = new OverlayCompanion.Models.OverlayElement
-	            {
-	                Bounds = bounds,
-	                Color = "#ff0000",
-	                Opacity = 0.4,
-	                Label = "test",
-	                TemporaryMs = 1500,
-	                ClickThrough = true
-	            };
-	            var id = await overlaySvc.DrawOverlayAsync(overlay);
-	            return Results.Json(new { ok = true, overlay_id = id });
-	        });
+        // Simple test endpoint for CI/manual verification
+        app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
+        {
+            var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);
+            var overlay = new OverlayCompanion.Models.OverlayElement
+            {
+                Bounds = bounds,
+                Color = "#ff0000",
+                Opacity = 0.4,
+                Label = "test",
+                TemporaryMs = 1500,
+                ClickThrough = true
+            };
+            var id = await overlaySvc.DrawOverlayAsync(overlay);
+            return Results.Json(new { ok = true, overlay_id = id });
+        });
 
         // Map MCP endpoints (native HTTP transport with streaming support)
         // Preferred root path "/" for MCP per current policy
@@ -215,14 +215,14 @@ public class Program
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
-        
+
         // Health check endpoint with KasmVNC integration status
         app.MapGet("/health", async (IKasmVNCService kasmvnc, IOverlayService overlay, IOverlayEventBroadcaster broadcaster) =>
         {
             var kasmvncConnected = await kasmvnc.IsConnectedAsync();
             var sessionStatus = kasmvncConnected ? await kasmvnc.GetSessionStatusAsync() : "disconnected";
             var activeOverlays = await overlay.GetActiveOverlaysAsync();
-            
+
             var health = new
             {
                 status = "healthy",
@@ -246,7 +246,7 @@ public class Program
                     websocket_streaming = true
                 }
             };
-            
+
             return Results.Json(health);
         });
         // WebSocket endpoint for overlay events

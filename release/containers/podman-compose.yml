@@ -1,11 +1,11 @@
 # ⚠️ DEPRECATED: Guacamole-based Release Container Configuration
-# 
+#
 # This file defines the LEGACY Guacamole-based container stack for releases.
-# 
+#
 # ⚠️ WARNING: This configuration is DEPRECATED in favor of KasmVNC.
 # Use the KasmVNC-based configuration instead for:
 # ✅ No PostgreSQL database required
-# ✅ True multi-monitor support  
+# ✅ True multi-monitor support
 # ✅ 33% fewer containers (4 vs 6)
 # ✅ Simpler configuration
 

@@ -1,6 +1,6 @@
 /**
  * Security Configuration for Overlay Companion MCP
- * 
+ *
  * CRITICAL: This file contains SSRF protection settings.
  * Modify with extreme caution and always test changes thoroughly.
  */
@@ -13,11 +13,11 @@ module.exports = {
     /^192\.168\.1\.\d{1,3}$/,        // Local network range
     /^10\.0\.0\.\d{1,3}$/,           // Docker network range
     /^172\.17\.0\.\d{1,3}$/,         // Docker bridge network
-    
+
     // Production environments (uncomment and modify as needed)
     // /^prod-kasmvnc\.example\.com$/,  // Production KasmVNC server
     // /^staging-vm\.example\.com$/,    // Staging environment
-    
+
     // Cloud environments (be very specific)
     // /^ec2-\d+-\d+-\d+-\d+\.compute-1\.amazonaws\.com$/,  // AWS EC2 instances
     // /^vm-\w+\.cloudapp\.azure\.com$/,                     // Azure VMs

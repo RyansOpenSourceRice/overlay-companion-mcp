@@ -1,20 +1,20 @@
 /**
  * ⚠️ DEPRECATED: Guacamole Client Component
- * 
+ *
  * This component is DEPRECATED in favor of KasmVNCClient.js
- * 
+ *
  * Issues with Guacamole:
  * - Requires complex PostgreSQL database setup
  * - Single canvas limitation (no true multi-monitor support)
  * - Legacy VNC/RDP protocol bridging
  * - Complex credential management
- * 
+ *
  * Use KasmVNCClient.js instead for:
  * ✅ No database required
  * ✅ True multi-monitor support
  * ✅ Modern WebSocket/WebRTC protocols
  * ✅ Simpler configuration
- * 
+ *
  * Handles connection to the Fedora Silverblue VM via Guacamole
  */
 

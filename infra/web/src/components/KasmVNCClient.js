@@ -1,6 +1,6 @@
 /**
  * Enhanced KasmVNC Client Component
- * 
+ *
  * Handles KasmVNC connections with:
  * - Secure credential management from web UI
  * - Multi-monitor support
@@ -18,14 +18,14 @@ export class KasmVNCClient {
             overlaySupport: true,
             ...options
         };
-        
+
         this.connection = null;
         this.iframe = null;
         this.isConnected = false;
         this.monitors = [];
         this.overlayCanvas = null;
         this.healthCheckInterval = null;
-        
+
         console.log('🖥️ Enhanced KasmVNC Client initialized with credential management');
     }
 
@@ -36,30 +36,30 @@ export class KasmVNCClient {
     async connect(connectionConfig) {
         try {
             console.log('🔌 Connecting to KasmVNC with secure credentials:', connectionConfig.host);
-            
+
             // Validate connection config
             this.validateConnection(connectionConfig);
             this.connection = connectionConfig;
-            
+
             // Build KasmVNC URL with authentication
             const url = this.buildConnectionUrl(connectionConfig);
-            
+
             // Create and configure iframe
             await this.createIframe(url);
-            
+
             // Setup multi-monitor support
             if (this.options.multiMonitor) {
                 await this.setupMultiMonitor();
             }
-            
+
             // Setup overlay system
             if (this.options.overlaySupport) {
                 this.setupOverlaySystem();
             }
-            
+
             // Start health monitoring
             this.startHealthMonitoring();
-            
+
         } catch (error) {
             console.error('❌ KasmVNC connection error:', error);
             this.onError(error);
@@ -74,11 +74,11 @@ export class KasmVNCClient {
         if (!config.host || !config.port) {
             throw new Error('Host and port are required');
         }
-        
+
         if (!config.password) {
             throw new Error('Password is required for KasmVNC connection');
         }
-        
+
         if (config.port < 1 || config.port > 65535) {
             throw new Error('Port must be between 1 and 65535');
         }
@@ -90,25 +90,25 @@ export class KasmVNCClient {
     buildConnectionUrl(config) {
         const protocol = config.ssl ? 'https' : 'http';
         let url = `${protocol}://${config.host}:${config.port}`;
-        
+
         // For KasmVNC, we can pass credentials via URL parameters
         const params = new URLSearchParams();
-        
+
         if (config.username) {
             params.set('username', config.username);
         }
-        
+
         // Note: In production, consider using a more secure method
         // like session tokens instead of passing passwords in URLs
         params.set('password', config.password);
         params.set('autoconnect', 'true');
         params.set('resize', this.options.autoScale ? 'scale' : 'off');
         params.set('show_cursor', this.options.showCursor ? '1' : '0');
-        
+
         if (params.toString()) {
             url += '?' + params.toString();
         }
-        
+
         return url;
     }
 
@@ -124,7 +124,7 @@ export class KasmVNCClient {
             this.iframe.style.border = 'none';
             this.iframe.style.background = '#000';
             this.iframe.allow = 'clipboard-read; clipboard-write; fullscreen';
-            
+
             // Timeout handler
             const timeout = setTimeout(() => {
                 if (!this.isConnected) {
@@ -133,7 +133,7 @@ export class KasmVNCClient {
                     reject(error);
                 }
             }, 30000); // 30 second timeout
-            
+
             this.iframe.onload = () => {
                 clearTimeout(timeout);
                 this.isConnected = true;
@@ -141,14 +141,14 @@ export class KasmVNCClient {
                 this.onConnected();
                 resolve();
             };
-            
+
             this.iframe.onerror = (error) => {
                 clearTimeout(timeout);
                 console.error('❌ KasmVNC iframe error:', error);
                 this.onError(error);
                 reject(error);
             };
-            
+
             // Clear container and add iframe
             this.container.innerHTML = '';
             this.container.appendChild(this.iframe);
@@ -162,16 +162,16 @@ export class KasmVNCClient {
         try {
             const protocol = this.connection.ssl ? 'https' : 'http';
             const apiUrl = `${protocol}://${this.connection.host}:${this.connection.port}/api/displays`;
-            
+
             // Add authentication headers if needed
             const headers = {};
             if (this.connection.username && this.connection.password) {
                 const auth = btoa(`${this.connection.username}:${this.connection.password}`);
                 headers['Authorization'] = `Basic ${auth}`;
             }
-            
+
             const response = await fetch(apiUrl, { headers });
-            
+
             if (response.ok) {
                 this.monitors = await response.json();
                 console.log(`🖥️ Detected ${this.monitors.length} monitors via KasmVNC API`);
@@ -181,7 +181,7 @@ export class KasmVNCClient {
             }
         } catch (error) {
             console.warn('⚠️ Could not query KasmVNC displays, using fallback:', error.message);
-            
+
             // Fallback to single monitor configuration
             this.monitors = [{
                 index: 0,
@@ -192,7 +192,7 @@ export class KasmVNCClient {
                 primary: true,
                 name: 'Primary Display'
             }];
-            
+
             this.onMonitorsDetected(this.monitors);
         }
     }
@@ -210,18 +210,18 @@ export class KasmVNCClient {
         this.overlayCanvas.style.height = '100%';
         this.overlayCanvas.style.pointerEvents = 'none';
         this.overlayCanvas.style.zIndex = '10';
-        
+
         // Add to container
         this.container.style.position = 'relative';
         this.container.appendChild(this.overlayCanvas);
-        
+
         // Setup message listener for overlay commands
         window.addEventListener('message', (event) => {
             if (event.data && event.data.type === 'overlay_command') {
                 this.handleOverlayCommand(event.data.command);
             }
         });
-        
+
         console.log('🎯 Overlay system initialized');
     }
 
@@ -230,9 +230,9 @@ export class KasmVNCClient {
      */
     handleOverlayCommand(command) {
         if (!this.overlayCanvas) return;
-        
+
         const ctx = this.overlayCanvas.getContext('2d');
-        
+
         switch (command.type) {
             case 'create':
                 this.drawOverlay(ctx, command);
@@ -253,21 +253,21 @@ export class KasmVNCClient {
      */
     drawOverlay(ctx, command) {
         ctx.save();
-        
+
         // Set overlay properties
         ctx.fillStyle = command.color || '#ff0000';
         ctx.globalAlpha = command.opacity || 0.5;
-        
+
         // Draw overlay rectangle
         ctx.fillRect(command.x, command.y, command.width, command.height);
-        
+
         // Draw border if specified
         if (command.border) {
             ctx.strokeStyle = command.borderColor || '#ffffff';
             ctx.lineWidth = command.borderWidth || 2;
             ctx.strokeRect(command.x, command.y, command.width, command.height);
         }
-        
+
         // Draw label if provided
         if (command.label) {
             ctx.fillStyle = command.textColor || '#ffffff';
@@ -280,7 +280,7 @@ export class KasmVNCClient {
                 command.y + command.height / 2
             );
         }
-        
+
         ctx.restore();
     }
 
@@ -314,16 +314,16 @@ export class KasmVNCClient {
      */
     async checkHealth() {
         if (!this.connection) return false;
-        
+
         try {
             const protocol = this.connection.ssl ? 'https' : 'http';
             const healthUrl = `${protocol}://${this.connection.host}:${this.connection.port}/api/health`;
-            
+
             const response = await fetch(healthUrl, {
                 method: 'GET',
                 timeout: 5000
             });
-            
+
             return response.ok;
         } catch (error) {
             return false;
@@ -339,24 +339,24 @@ export class KasmVNCClient {
             clearInterval(this.healthCheckInterval);
             this.healthCheckInterval = null;
         }
-        
+
         // Remove iframe
         if (this.iframe) {
             this.iframe.remove();
             this.iframe = null;
         }
-        
+
         // Remove overlay canvas
         if (this.overlayCanvas) {
             this.overlayCanvas.remove();
             this.overlayCanvas = null;
         }
-        
+
         // Reset state
         this.isConnected = false;
         this.connection = null;
         this.monitors = [];
-        
+
         console.log('🔌 KasmVNC disconnected');
         this.onDisconnected();
     }

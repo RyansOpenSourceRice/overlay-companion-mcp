@@ -27,7 +27,7 @@
     "security/detect-possible-timing-attacks": "warn",
     "security/detect-pseudoRandomBytes": "error",
     "security/detect-unsafe-regex": "error",
-    
+
     "no-eval": "error",
     "no-implied-eval": "error",
     "no-new-func": "error",
@@ -35,7 +35,7 @@
     "no-proto": "error",
     "no-iterator": "error",
     "no-restricted-globals": ["error", "eval"],
-    
+
     "no-unused-vars": "warn",
     "no-undef": "error"
   },

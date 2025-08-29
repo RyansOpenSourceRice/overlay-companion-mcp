@@ -1,6 +1,6 @@
 /**
  * Overlay Companion MCP - Main Application
- * 
+ *
  * Comprehensive web UI for AI-powered screen overlay system with:
  * - Secure credential management in browser storage
  * - KasmVNC integration with multi-monitor support
@@ -16,27 +16,27 @@ class OverlayCompanionApp {
         this.currentConnection = null;
         this.websocket = null;
         this.statusInterval = null;
-        
+
         // Initialize the application
         this.init();
     }
 
     async init() {
         console.log('🚀 Initializing Overlay Companion MCP');
-        
+
         try {
             // Load stored connections
             await this.loadConnections();
-            
+
             // Setup event listeners
             this.setupEventListeners();
-            
+
             // Initialize status monitoring
             this.startStatusMonitoring();
-            
+
             // Load MCP configuration
             await this.loadMCPConfig();
-            
+
             console.log('✅ Application initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize application:', error);
@@ -45,7 +45,7 @@ class OverlayCompanionApp {
     }
 
     // ==================== Navigation ====================
-    
+
     setupEventListeners() {
         // Navigation
         document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -210,7 +210,7 @@ class OverlayCompanionApp {
 
     async handleConnectionSubmit(e) {
         e.preventDefault();
-        
+
         const formData = new FormData(e.target);
         const connection = {
             id: Date.now().toString(),
@@ -229,7 +229,7 @@ class OverlayCompanionApp {
         try {
             this.connections.set(connection.id, connection);
             await this.saveConnections();
-            
+
             this.hideConnectionModal();
             this.renderConnections();
             this.showToast('success', 'Connection Saved', `Connection "${connection.name}" has been saved successfully.`);
@@ -243,7 +243,7 @@ class OverlayCompanionApp {
         const form = document.getElementById('connection-form');
         const formData = new FormData(form);
         const testBtn = document.getElementById('test-connection-btn');
-        
+
         const connection = {
             host: formData.get('host'),
             port: parseInt(formData.get('port')),
@@ -257,7 +257,7 @@ class OverlayCompanionApp {
         try {
             const protocol = connection.ssl ? 'https' : 'http';
             const url = `${protocol}://${connection.host}:${connection.port}`;
-            
+
             // Simple connectivity test
             const response = await fetch(`/api/test-connection`, {
                 method: 'POST',
@@ -293,7 +293,7 @@ class OverlayCompanionApp {
                     </button>
                 </div>
             `;
-            
+
             // Re-attach event listener
             const addBtn = document.getElementById('add-first-connection-btn');
             if (addBtn) {
@@ -347,7 +347,7 @@ class OverlayCompanionApp {
                     <button class="btn btn-primary" data-page="connections">Add Your First Connection</button>
                 </div>
             `;
-            
+
             // Re-attach event listener
             const addBtn = container.querySelector('[data-page="connections"]');
             if (addBtn) {
@@ -402,7 +402,7 @@ class OverlayCompanionApp {
 
         this.currentConnection = connection;
         this.navigateToPage('vm-view');
-        
+
         // Update connection info in VM view
         document.getElementById('current-vm-name').textContent = connection.name;
         document.getElementById('current-vm-status').textContent = 'Connecting...';
@@ -410,15 +410,15 @@ class OverlayCompanionApp {
 
         try {
             await this.initializeKasmVNC(connection);
-            
+
             // Update last connected time
             connection.lastConnected = new Date().toISOString();
             this.connections.set(connectionId, connection);
             await this.saveConnections();
-            
+
             document.getElementById('current-vm-status').textContent = 'Connected';
             document.getElementById('current-vm-status').className = 'status-badge connected';
-            
+
             this.showToast('success', 'Connected', `Successfully connected to ${connection.name}`);
         } catch (error) {
             console.error('Failed to connect to VM:', error);
@@ -434,7 +434,7 @@ class OverlayCompanionApp {
 
         const protocol = connection.ssl ? 'https' : 'http';
         const wsProtocol = connection.ssl ? 'wss' : 'ws';
-        
+
         let url;
         if (connection.protocol === 'kasmvnc') {
             url = `${protocol}://${connection.host}:${connection.port}`;
@@ -449,7 +449,7 @@ class OverlayCompanionApp {
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';
-        
+
         container.innerHTML = '';
         container.appendChild(iframe);
 
@@ -485,7 +485,7 @@ class OverlayCompanionApp {
 
         try {
             this.websocket = new WebSocket(wsUrl);
-            
+
             this.websocket.onopen = () => {
                 console.log('✅ Overlay WebSocket connected');
             };
@@ -518,7 +518,7 @@ class OverlayCompanionApp {
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        
+
         switch (command.type) {
             case 'create_overlay':
                 this.drawOverlay(ctx, command);
@@ -533,14 +533,14 @@ class OverlayCompanionApp {
 
     drawOverlay(ctx, command) {
         ctx.save();
-        
+
         // Set overlay properties
         ctx.fillStyle = command.color || '#ff0000';
         ctx.globalAlpha = command.opacity || 0.5;
-        
+
         // Draw overlay rectangle
         ctx.fillRect(command.x, command.y, command.width, command.height);
-        
+
         // Draw label if provided
         if (command.label) {
             ctx.fillStyle = '#ffffff';
@@ -552,7 +552,7 @@ class OverlayCompanionApp {
                 command.y + command.height / 2
             );
         }
-        
+
         ctx.restore();
     }
 
@@ -576,7 +576,7 @@ class OverlayCompanionApp {
 
         this.currentConnection = null;
         this.navigateToPage('connections');
-        
+
         this.showToast('info', 'Disconnected', 'Disconnected from VM');
     }
 
@@ -623,8 +623,8 @@ class OverlayCompanionApp {
             const response = await fetch('/health');
             const health = await response.json();
 
-            this.updateStatusIndicator('mcp-status', 'mcp-status-text', 
-                health.services.mcpServer === 'healthy', 
+            this.updateStatusIndicator('mcp-status', 'mcp-status-text',
+                health.services.mcpServer === 'healthy',
                 health.services.mcpServer === 'healthy' ? 'Connected' : 'Disconnected'
             );
 
@@ -640,7 +640,7 @@ class OverlayCompanionApp {
 
         } catch (error) {
             console.error('Failed to update system status:', error);
-            
+
             // Set all indicators to error state
             ['mcp-status', 'kasmvnc-status', 'websocket-status'].forEach(id => {
                 this.updateStatusIndicator(id, `${id}-text`, false, 'Error');
@@ -651,11 +651,11 @@ class OverlayCompanionApp {
     updateStatusIndicator(indicatorId, textId, isHealthy, statusText) {
         const indicator = document.getElementById(indicatorId);
         const text = document.getElementById(textId);
-        
+
         if (indicator) {
             indicator.className = `status-indicator ${isHealthy ? 'healthy' : 'error'}`;
         }
-        
+
         if (text) {
             text.textContent = statusText;
         }
@@ -667,7 +667,7 @@ class OverlayCompanionApp {
         try {
             const response = await fetch('/mcp-config');
             const config = await response.json();
-            
+
             const configElement = document.getElementById('mcp-config-json');
             if (configElement) {
                 configElement.textContent = JSON.stringify(config, null, 2);
@@ -716,7 +716,7 @@ class OverlayCompanionApp {
     togglePasswordVisibility() {
         const passwordInput = document.getElementById('connection-password');
         const toggleBtn = document.getElementById('toggle-password');
-        
+
         if (passwordInput.type === 'password') {
             passwordInput.type = 'text';
             toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
@@ -788,7 +788,7 @@ class OverlayCompanionApp {
         if (this.statusInterval) {
             clearInterval(this.statusInterval);
         }
-        
+
         if (this.websocket) {
             this.websocket.close();
         }

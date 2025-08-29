@@ -33,7 +33,7 @@ public static class CreateOverlayTool
     {
         try
         {
-            logger.LogInformation("Creating overlay at ({X}, {Y}) with size {Width}x{Height}", 
+            logger.LogInformation("Creating overlay at ({X}, {Y}) with size {Width}x{Height}",
                 x, y, width, height);
 
             // Get available displays for validation and response

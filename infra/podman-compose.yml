@@ -1,11 +1,11 @@
 # ⚠️ DEPRECATED: Guacamole-based Container Infrastructure
-# 
+#
 # This file defines the LEGACY Guacamole-based container stack.
-# 
+#
 # ⚠️ WARNING: This configuration is DEPRECATED in favor of KasmVNC.
 # Use infra/kasmvnc-compose.yml instead for:
 # ✅ No PostgreSQL database required
-# ✅ True multi-monitor support  
+# ✅ True multi-monitor support
 # ✅ 33% fewer containers (4 vs 6)
 # ✅ Simpler configuration
 

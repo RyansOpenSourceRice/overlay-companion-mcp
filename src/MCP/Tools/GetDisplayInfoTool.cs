@@ -31,7 +31,7 @@ public class GetDisplayInfoTool
             // Try to get KasmVNC service if available
             var kasmvncConnected = false;
             string? sessionStatus = null;
-            
+
             try
             {
                 // This will be injected if KasmVNC service is registered
@@ -43,7 +43,7 @@ public class GetDisplayInfoTool
                     {
                         kasmvncConnected = await kasmvncService.ConnectAsync();
                     }
-                    
+
                     if (kasmvncConnected)
                     {
                         sessionStatus = await kasmvncService.GetSessionStatusAsync();

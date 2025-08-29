@@ -24,8 +24,8 @@ public static class GetOverlayCapabilitiesTool
             layering = new { uses_layer_shell = false, notes = "web-only viewer; native desktop layer-shell is disabled in this build" },
             coordinates = new { origin = "global", monitor_relative_under_layer_shell = true, tool_inputs = "tools accept monitor-relative coords; auto-adjust to global when not using layer-shell" }
         };
-            // Coordinate system notes: global coords everywhere; when layer-shell is active the window is per-monitor and drawing
-            // adjusts by monitor offset internally. MCP tools accept monitor-relative positions and internally convert as needed.
+        // Coordinate system notes: global coords everywhere; when layer-shell is active the window is per-monitor and drawing
+        // adjusts by monitor offset internally. MCP tools accept monitor-relative positions and internally convert as needed.
 
 
         return System.Text.Json.JsonSerializer.Serialize(payload);

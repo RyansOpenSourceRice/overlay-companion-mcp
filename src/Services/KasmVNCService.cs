@@ -69,7 +69,7 @@ public class KasmVNCService : IKasmVNCService
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
-        
+
         // Configure HTTP client timeout
         _httpClient.Timeout = TimeSpan.FromMilliseconds(_options.ConnectionTimeoutMs);
     }
@@ -98,14 +98,14 @@ public class KasmVNCService : IKasmVNCService
             {
                 var uri = new Uri(_options.WebSocketUrl);
                 _logger.LogInformation("Connecting to KasmVNC WebSocket: {Url}", uri);
-                
+
                 await _webSocket.ConnectAsync(uri, _cancellationTokenSource.Token);
-                
+
                 _logger.LogInformation("Successfully connected to KasmVNC WebSocket");
-                
+
                 // Start background message handling
                 _ = Task.Run(HandleWebSocketMessages, _cancellationTokenSource.Token);
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -137,7 +137,7 @@ public class KasmVNCService : IKasmVNCService
     private async Task DisconnectInternalAsync()
     {
         _cancellationTokenSource?.Cancel();
-        
+
         if (_webSocket != null)
         {
             try
@@ -157,7 +157,7 @@ public class KasmVNCService : IKasmVNCService
                 _webSocket = null;
             }
         }
-        
+
         _cancellationTokenSource?.Dispose();
         _cancellationTokenSource = null;
     }
@@ -168,18 +168,18 @@ public class KasmVNCService : IKasmVNCService
             return;
 
         var buffer = new byte[4096];
-        
+
         try
         {
             while (_webSocket.State == WebSocketState.Open && !_cancellationTokenSource.Token.IsCancellationRequested)
             {
                 var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
-                
+
                 if (result.MessageType == WebSocketMessageType.Text)
                 {
                     var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                     _logger.LogDebug("Received KasmVNC WebSocket message: {Message}", message);
-                    
+
                     // Handle incoming messages from KasmVNC if needed
                     await HandleKasmVNCMessage(message);
                 }
@@ -206,12 +206,12 @@ public class KasmVNCService : IKasmVNCService
         {
             using var document = JsonDocument.Parse(message);
             var root = document.RootElement;
-            
+
             if (root.TryGetProperty("type", out var typeElement))
             {
                 var messageType = typeElement.GetString();
                 _logger.LogDebug("Handling KasmVNC message type: {Type}", messageType);
-                
+
                 // Handle different message types from KasmVNC
                 switch (messageType)
                 {
@@ -259,7 +259,7 @@ public class KasmVNCService : IKasmVNCService
             {
                 var json = await response.Content.ReadAsStringAsync();
                 var displays = JsonSerializer.Deserialize<DisplayInfo[]>(json);
-                
+
                 _logger.LogDebug("Retrieved {Count} displays from KasmVNC", displays?.Length ?? 0);
                 return displays ?? Array.Empty<DisplayInfo>();
             }
@@ -272,7 +272,7 @@ public class KasmVNCService : IKasmVNCService
         {
             _logger.LogError(ex, "Error getting displays from KasmVNC");
         }
-        
+
         // Fallback to single display
         return new[]
         {
@@ -295,7 +295,7 @@ public class KasmVNCService : IKasmVNCService
         if (_webSocket?.State != WebSocketState.Open)
         {
             _logger.LogWarning("Cannot send overlay command - WebSocket not connected");
-            
+
             // Attempt to reconnect
             if (!await ConnectAsync())
             {
@@ -321,10 +321,10 @@ public class KasmVNCService : IKasmVNCService
                 click_through = command.ClickThrough,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             });
-            
+
             var buffer = Encoding.UTF8.GetBytes(message);
             await _webSocket!.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None);
-            
+
             _logger.LogDebug("Sent overlay command to KasmVNC: {Type} {Id}", command.Type, command.Id);
         }
         catch (Exception ex)
@@ -342,7 +342,7 @@ public class KasmVNCService : IKasmVNCService
             {
                 var json = await response.Content.ReadAsStringAsync();
                 using var document = JsonDocument.Parse(json);
-                
+
                 if (document.RootElement.TryGetProperty("status", out var statusElement))
                 {
                     return statusElement.GetString() ?? "unknown";
@@ -353,7 +353,7 @@ public class KasmVNCService : IKasmVNCService
         {
             _logger.LogError(ex, "Error getting session status from KasmVNC");
         }
-        
+
         return "unavailable";
     }
 
@@ -363,7 +363,7 @@ public class KasmVNCService : IKasmVNCService
         {
             var response = await _httpClient.GetAsync($"{_options.BaseUrl}/api/health");
             var isHealthy = response.IsSuccessStatusCode;
-            
+
             _logger.LogDebug("KasmVNC health check: {Status}", isHealthy ? "healthy" : "unhealthy");
             return isHealthy;
         }
@@ -380,7 +380,7 @@ public class KasmVNCService : IKasmVNCService
             return;
 
         _disposed = true;
-        
+
         try
         {
             DisconnectAsync().GetAwaiter().GetResult();
@@ -389,7 +389,7 @@ public class KasmVNCService : IKasmVNCService
         {
             _logger.LogWarning(ex, "Error during KasmVNCService disposal");
         }
-        
+
         _connectionSemaphore.Dispose();
         GC.SuppressFinalize(this);
     }

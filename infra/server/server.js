@@ -212,7 +212,7 @@ const connectionTestLimiter = rateLimit({
 app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
   try {
     const connection = req.body;
-    
+
     // SECURITY: Additional input validation
     if (!connection || typeof connection !== 'object') {
       return res.status(400).json({
@@ -237,7 +237,7 @@ app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
         ssl: Boolean(connection.ssl)
       };
     }
-    
+
     // Validate connection configuration (for non-kasmvnc only)
     if (sanitizedConnection.protocol !== 'kasmvnc') {
       const validation = connectionManager.validateConnection(sanitizedConnection);
@@ -252,7 +252,7 @@ app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
 
     // Test the connection (includes SSRF protection)
     const result = await connectionManager.testConnection(sanitizedConnection);
-    
+
     // SECURITY: Log connection test attempts for monitoring
     let logTarget;
     if (sanitizedConnection.protocol === 'kasmvnc') {
@@ -261,7 +261,7 @@ app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
       logTarget = `${sanitizedConnection.host}:${sanitizedConnection.port}`;
     }
     log.info(`Connection test: ${sanitizedConnection.protocol} - ${logTarget} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
-    
+
     res.json(result);
   } catch (error) {
     log.error('Connection test failed:', error);
@@ -276,13 +276,13 @@ app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
 app.get('/api/protocol-defaults/:protocol', (req, res) => {
   const { protocol } = req.params;
   const defaults = connectionManager.getProtocolDefaults(protocol);
-  
+
   if (Object.keys(defaults).length === 0) {
     return res.status(404).json({
       error: 'Unknown protocol'
     });
   }
-  
+
   res.json(defaults);
 });
 

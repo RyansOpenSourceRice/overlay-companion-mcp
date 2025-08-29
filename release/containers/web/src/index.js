@@ -2,7 +2,7 @@
  * ⚠️ DEPRECATED: Overlay Companion MCP - Web Frontend (Guacamole-based)
  *
  * This frontend is DEPRECATED in favor of the KasmVNC-based version.
- * 
+ *
  * ⚠️ WARNING: This frontend uses deprecated Guacamole architecture.
  * Use the KasmVNC-based frontend instead for:
  * ✅ No database required

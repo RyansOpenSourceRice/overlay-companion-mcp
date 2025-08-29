@@ -1,23 +1,23 @@
 #!/bin/bash
 
 # ⚠️  DEPRECATED: Guacamole-based Host Container Setup Script
-# 
+#
 # This script sets up the LEGACY Guacamole-based container infrastructure.
-# 
+#
 # ⚠️  WARNING: This setup is DEPRECATED in favor of KasmVNC architecture.
-# 
+#
 # Issues with Guacamole setup:
 # - Requires complex PostgreSQL database setup
 # - Lacks true multi-monitor support (single canvas limitation)
 # - Uses 6 containers instead of 4 (higher resource usage)
 # - Complex credential management
-# 
+#
 # RECOMMENDED: Use host-setup-kasmvnc.sh instead for:
 # ✅ No database required
 # ✅ True multi-monitor support
 # ✅ 33% fewer containers
 # ✅ Simpler configuration
-# 
+#
 # This script sets up the container infrastructure on your HOST Fedora Linux system
 # The containers will connect to VMs you create separately
 #
