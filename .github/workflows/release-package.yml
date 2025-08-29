@@ -22,30 +22,30 @@ permissions:
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'npm'
         cache-dependency-path: 'release/containers/web/package.json'
-        
+
     - name: Install web dependencies
       working-directory: release/containers/web
       run: npm ci
-      
+
     - name: Build web frontend
       working-directory: release/containers/web
       run: npm run build
-      
+
     - name: Install server dependencies
       working-directory: release/containers/server
       run: npm ci --production
-      
+
     - name: Determine version
       id: version
       run: |
@@ -54,19 +54,19 @@ jobs:
         else
           echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
         fi
-        
+
     - name: Create release directory structure
       run: |
         mkdir -p dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}
-        
+
         # Copy release files
         cp -r release/* dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
-        
+
         # Copy documentation
         cp README.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
         cp ARCHITECTURE.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
         cp DEPLOYMENT.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
-        
+
         # Create version info
         cat > dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/VERSION << EOF
         Package: ${{ env.PACKAGE_NAME }}
@@ -74,7 +74,7 @@ jobs:
         Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
         Git Commit: ${{ github.sha }}
         Built By: GitHub Actions
-        
+
         Components:
         - OpenTofu infrastructure modules
         - Podman container definitions
@@ -82,82 +82,82 @@ jobs:
         - Web-based management interface
         - MCP WebSocket bridge
         - Installation automation
-        
+
         Requirements:
         - Fedora Linux (recommended)
         - 4+ CPU cores, 8GB+ RAM, 80GB+ disk
         - Hardware virtualization support (VT-x/AMD-V)
         - Internet connection for initial setup
-        
+
         Installation:
         1. Extract this package
         2. Run: chmod +x install.sh && ./install.sh
         3. Access web interface at displayed URL
         4. Copy MCP config to Cherry Studio
-        
+
         For detailed instructions, see DEPLOYMENT.md
         EOF
-        
+
     - name: Create installation guide
       run: |
         cat > dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/QUICK_START.md << 'EOF'
         # Overlay Companion MCP - Quick Start Guide
-        
+
         ## 🚀 Single-Command Installation
-        
+
         ```bash
         chmod +x install.sh && ./install.sh
         ```
-        
+
         ## 📋 What This Does
-        
+
         1. **System Check**: Verifies Fedora Linux and hardware requirements
         2. **Dependencies**: Installs Podman, OpenTofu, libvirt/KVM, and utilities
         3. **VM Setup**: Downloads and caches Fedora Silverblue ISO
         4. **Infrastructure**: Provisions management containers and VM using OpenTofu
         5. **Networking**: Configures secure host-only access (or optional LAN exposure)
         6. **Services**: Starts Guacamole stack and MCP WebSocket bridge
-        
+
         ## 🌐 Access Your System
-        
+
         After installation completes:
-        
+
         1. **Web Interface**: Open the displayed URL (typically http://localhost:8080)
         2. **Copy MCP Config**: Click "Copy MCP Config" button in the web interface
         3. **Cherry Studio**: Paste the JSON configuration into Cherry Studio's MCP settings
         4. **AI Interaction**: Start using AI-assisted screen interaction!
-        
+
         ## 🔧 Management Commands
-        
+
         ```bash
         # View service status
         cd release/opentofu && tofu output
-        
+
         # View logs
         journalctl --user -u podman-overlay-companion-mcp
-        
+
         # Stop all services
         cd release/opentofu && tofu destroy
-        
+
         # Restart services
         ./install.sh
         ```
-        
+
         ## 🛡️ Security Notes
-        
+
         - **Default**: Host-only access (secure, localhost only)
         - **LAN Access**: Use `./install.sh --expose-lan` (security risk)
         - **Firewall**: Automatically configured for chosen access mode
         - **VM Isolation**: Fedora VM runs in isolated environment
-        
+
         ## 📞 Support
-        
+
         - **Documentation**: See ARCHITECTURE.md and DEPLOYMENT.md
         - **Issues**: https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues
         - **Logs**: Check /tmp/overlay-companion-mcp-install.log
-        
+
         ## 🎯 Integration with Cherry Studio
-        
+
         1. Install and run this package
         2. Copy the MCP configuration JSON from the web interface
         3. In Cherry Studio:
@@ -166,28 +166,28 @@ jobs:
            - Paste the JSON configuration
            - Save and restart Cherry Studio
         4. The AI now has screen interaction capabilities!
-        
+
         ---
-        
-        **Version**: ${{ steps.version.outputs.version }}  
-        **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+
+        **Version**: ${{ steps.version.outputs.version }}
+        **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
         **Architecture**: Single-user VM deployment with OpenTofu + Podman + Guacamole
         EOF
-        
+
     - name: Create checksums
       working-directory: dist
       run: |
         # Create checksums for verification
         find ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }} -type f -exec sha256sum {} \; > ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/CHECKSUMS.sha256
-        
+
     - name: Create tarball
       working-directory: dist
       run: |
         tar -czf ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
-        
+
         # Create checksum for the tarball
         sha256sum ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz > ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz.sha256
-        
+
     - name: Upload release artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -196,7 +196,7 @@ jobs:
           dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz
           dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz.sha256
         retention-days: 90
-        
+
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
@@ -206,63 +206,63 @@ jobs:
           dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz.sha256
         body: |
           # Overlay Companion MCP ${{ steps.version.outputs.version }}
-          
+
           ## 🎯 Single-User AI Screen Interaction Package
-          
+
           This release provides a complete, lightweight deployment package for AI-assisted screen interaction using:
-          
+
           - **OpenTofu** infrastructure automation
-          - **Podman** containerized services  
+          - **Podman** containerized services
           - **Fedora Silverblue** VM with Wayland/XRDP
           - **Guacamole** web-based remote access
           - **MCP WebSocket** bridge for AI integration
-          
+
           ## 📦 Installation
-          
+
           1. **Download**: `${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz`
           2. **Extract**: `tar -xzf ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz`
           3. **Install**: `cd ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }} && ./install.sh`
           4. **Access**: Open displayed web URL
           5. **Integrate**: Copy MCP config to Cherry Studio
-          
+
           ## 🔧 Requirements
-          
+
           - **OS**: Fedora Linux (RHEL/CentOS experimental)
           - **CPU**: 4+ cores with VT-x/AMD-V support
-          - **RAM**: 8GB+ recommended  
+          - **RAM**: 8GB+ recommended
           - **Disk**: 80GB+ free space
           - **Network**: Internet for initial setup
-          
+
           ## 🛡️ Security
-          
+
           - **Default**: Host-only access (localhost:8080)
           - **Optional**: LAN exposure with `--expose-lan` flag
           - **Isolation**: VM runs in secure, isolated environment
           - **Firewall**: Automatically configured
-          
+
           ## 📚 Documentation
-          
+
           - `QUICK_START.md` - Installation and setup
-          - `ARCHITECTURE.md` - System design and components  
+          - `ARCHITECTURE.md` - System design and components
           - `DEPLOYMENT.md` - Detailed deployment guide
           - `VERSION` - Build information and requirements
-          
+
           ## 🔍 Verification
-          
+
           ```bash
           # Verify download integrity
           sha256sum -c ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz.sha256
           ```
-          
+
           ---
-          
-          **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
-          **Commit**: ${{ github.sha }}  
+
+          **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit**: ${{ github.sha }}
           **Workflow**: GitHub Actions
         draft: false
         prerelease: false
         generate_release_notes: true
-        
+
     - name: Build summary
       run: |
         echo "## 🎉 Release Package Built Successfully" >> $GITHUB_STEP_SUMMARY

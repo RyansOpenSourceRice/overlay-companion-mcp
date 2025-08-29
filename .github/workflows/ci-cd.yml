@@ -240,20 +240,20 @@ jobs:
         if ! timeout 10s dotnet run --configuration Release -- --help --no-gui > startup_test.log 2>&1; then
           echo "📋 Startup test output:"
           cat startup_test.log
-          
+
           # In headless mode, GTK4 errors should not occur
           if grep -q "Unable to load shared library.*Gtk" startup_test.log; then
             echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
             echo "💡 Check --no-gui flag is working properly"
             exit 1
           fi
-          
+
           # Check for other critical errors
           if grep -q "Unhandled exception" startup_test.log; then
             echo "❌ CRITICAL: Unhandled exception occurred"
             exit 1
           fi
-          
+
           # Check if the application started successfully (HTTP server indicates success)
           if grep -q "Now listening on:" startup_test.log || grep -q "Application started" startup_test.log; then
             echo "✅ Application startup successful (timeout is expected)"
@@ -278,20 +278,20 @@ jobs:
         if ! timeout 10s dotnet run --configuration Release -- --mcp --test --no-gui > mcp_test.log 2>&1; then
           echo "📋 MCP test output:"
           cat mcp_test.log
-          
+
           # In headless mode, GTK4 errors should not occur
           if grep -q "Unable to load shared library.*Gtk" mcp_test.log; then
             echo "❌ CRITICAL: GTK4 initialization attempted in headless mode"
             echo "💡 Check --no-gui flag is working properly"
             exit 1
           fi
-          
+
           # Check for other critical errors
           if grep -q "Unhandled exception" mcp_test.log; then
             echo "❌ CRITICAL: Unhandled exception occurred"
             exit 1
           fi
-          
+
           # If timeout occurred but no critical errors, that's acceptable for integration tests
           if grep -q "HTTP Transport listening on" mcp_test.log; then
             echo "✅ MCP server started successfully (timeout is expected for integration test)"

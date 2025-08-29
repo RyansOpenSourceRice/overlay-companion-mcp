@@ -30,7 +30,7 @@ LOG_FILE="/tmp/${PROJECT_NAME}-kasmvnc-setup.log"
 # Parse command line arguments
 parse_arguments() {
     local port_from_args=""
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             --port)
@@ -63,7 +63,7 @@ parse_arguments() {
                 ;;
         esac
     done
-    
+
     # Determine final port (priority: args > env > default)
     if [[ -n "$port_from_args" ]]; then
         CONTAINER_PORT="$port_from_args"
@@ -155,33 +155,33 @@ is_port_in_use() {
 # Interactive port selection
 select_port_interactive() {
     local suggested_port=$1
-    
+
     if ! is_port_in_use "$suggested_port"; then
         info "Port $suggested_port is available"
         CONTAINER_PORT="$suggested_port"
         return 0
     fi
-    
+
     warning "Port $suggested_port is already in use"
-    
+
     # Find next available port
     local next_port=$((suggested_port + 1))
     while [[ $next_port -lt 65535 ]] && is_port_in_use "$next_port"; do
         ((next_port++))
     done
-    
+
     if [[ $next_port -ge 65535 ]]; then
         error "Could not find an available port"
         exit 1
     fi
-    
+
     echo
     echo "Available options:"
     echo "  1) Use port $next_port (next available)"
     echo "  2) Specify a custom port"
     echo "  3) Exit and resolve port conflict manually"
     echo
-    
+
     while true; do
         read -p "Please select an option (1-3): " choice
         case $choice in
@@ -222,7 +222,7 @@ calculate_ports() {
     MCP_PORT=$((CONTAINER_PORT + 1))
     WEB_PORT=$((CONTAINER_PORT + 2))
     KASMVNC_PORT=$((CONTAINER_PORT + 21))  # 8080 -> 6901 pattern
-    
+
     info "Port configuration:"
     info "  Main Interface: $CONTAINER_PORT"
     info "  MCP Server: $MCP_PORT"
@@ -233,31 +233,31 @@ calculate_ports() {
 # Check system requirements
 check_requirements() {
     info "Checking system requirements..."
-    
+
     # Check if running on Fedora
     if ! grep -q "Fedora" /etc/os-release 2>/dev/null; then
         warning "This script is designed for Fedora Linux. Other distributions may work but are not officially supported."
     fi
-    
+
     # Check for Podman
     if ! command -v podman >/dev/null 2>&1; then
         info "Installing Podman..."
         sudo dnf install -y podman podman-compose
     fi
-    
+
     # Check for git
     if ! command -v git >/dev/null 2>&1; then
         info "Installing Git..."
         sudo dnf install -y git
     fi
-    
+
     success "System requirements satisfied"
 }
 
 # Clone or update repository
 setup_repository() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
-    
+
     if [[ -d "$config_dir" ]]; then
         info "Updating existing repository..."
         cd "$config_dir"
@@ -268,7 +268,7 @@ setup_repository() {
         git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
         cd "$config_dir"
     fi
-    
+
     success "Repository ready at $config_dir"
 }
 
@@ -276,9 +276,9 @@ setup_repository() {
 create_environment() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     local env_file="$config_dir/.env"
-    
+
     info "Creating environment configuration..."
-    
+
     cat > "$env_file" << EOF
 # Overlay Companion MCP - KasmVNC Configuration
 # Generated on $(date)
@@ -304,7 +304,7 @@ KASMVNC_URL=http://kasmvnc:6901
 # Docker Registry (if using pre-built images)
 USE_REGISTRY=${USE_REGISTRY:-false}
 EOF
-    
+
     success "Environment file created: $env_file"
 }
 
@@ -312,7 +312,7 @@ EOF
 setup_containers() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     cd "$config_dir"
-    
+
     if [[ "${USE_REGISTRY:-false}" == "true" ]]; then
         info "Pulling pre-built containers from GitHub Container Registry..."
         podman-compose -f infra/kasmvnc-compose.yml pull
@@ -320,7 +320,7 @@ setup_containers() {
         info "Building containers from source..."
         podman-compose -f infra/kasmvnc-compose.yml build
     fi
-    
+
     success "Containers ready"
 }
 
@@ -328,14 +328,14 @@ setup_containers() {
 start_services() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
     cd "$config_dir"
-    
+
     info "Starting KasmVNC-based services..."
     podman-compose -f infra/kasmvnc-compose.yml up -d
-    
+
     # Wait for services to start
     info "Waiting for services to initialize..."
     sleep 10
-    
+
     # Check service health
     if podman-compose -f infra/kasmvnc-compose.yml ps | grep -q "Up"; then
         success "Services started successfully"
@@ -348,7 +348,7 @@ start_services() {
 # Display final information
 show_completion_info() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
-    
+
     echo
     success "🎉 Overlay Companion MCP (KasmVNC) setup complete!"
     echo
@@ -383,19 +383,19 @@ main() {
     echo -e "${BLUE}🚀 Overlay Companion MCP - KasmVNC Setup${NC}"
     echo "Setting up simplified container stack with KasmVNC..."
     echo
-    
+
     # Initialize log file
     echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Starting KasmVNC setup" > "$LOG_FILE"
-    
+
     # Parse arguments
     parse_arguments "$@"
-    
+
     # Interactive port selection if needed
     select_port_interactive "$CONTAINER_PORT"
-    
+
     # Calculate derived ports
     calculate_ports
-    
+
     # Setup steps
     check_requirements
     setup_repository
@@ -403,7 +403,7 @@ main() {
     setup_containers
     start_services
     show_completion_info
-    
+
     success "Setup completed successfully! Log file: $LOG_FILE"
 }
 

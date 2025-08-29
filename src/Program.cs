@@ -320,7 +320,7 @@ public class Program
 
 
     // Web-only: StartGtk4App removed
-    
+
 
     /// <summary>
     /// Get MCP configuration for HTTP transport (recommended)
@@ -367,9 +367,9 @@ public class Program
     /// </summary>
     public static string GetMcpConfigurationJson()
     {
-        return JsonSerializer.Serialize(GetMcpConfiguration(), new JsonSerializerOptions 
-        { 
-            WriteIndented = true 
+        return JsonSerializer.Serialize(GetMcpConfiguration(), new JsonSerializerOptions
+        {
+            WriteIndented = true
         });
     }
 
@@ -484,7 +484,7 @@ public class Program
     <div class="container">
         <h1>🎯 Overlay Companion MCP</h1>
         <p class="subtitle">AI-assisted screen interaction with overlay functionality</p>
-        
+
         <div class="status">
             <strong>✅ Server Running</strong><br>
             HTTP transport is active on <code>http://localhost:3000/</code>
@@ -528,7 +528,7 @@ public class Program
 
         <div class="status warning">
             <strong>⚠️ Transport Detection Issue</strong><br>
-            If your MCP client shows this as "STDIO" instead of "HTTP" after importing, 
+            If your MCP client shows this as "STDIO" instead of "HTTP" after importing,
             try using the HTTP configuration above or check your client's HTTP transport support.
         </div>
     </div>
@@ -551,13 +551,13 @@ public class Program
         function copyConfig(type) {
             const elementId = type === 'http' ? 'http-config' : 'stdio-config';
             const text = document.getElementById(elementId).textContent;
-            
+
             navigator.clipboard.writeText(text).then(() => {
                 const btn = event.target;
                 const originalText = btn.textContent;
                 btn.textContent = '✅ Copied!';
                 btn.classList.add('copied');
-                
+
                 setTimeout(() => {
                     btn.textContent = originalText;
                     btn.classList.remove('copied');

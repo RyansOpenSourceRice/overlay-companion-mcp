@@ -13,12 +13,12 @@ public class UpdateService
     private readonly ILogger<UpdateService> _logger;
     private readonly HttpClient _httpClient;
     private const string GITHUB_API_URL = "https://api.github.com/repos/RyansOpenSauceRice/overlay-companion-mcp/releases/latest";
-    
+
     public UpdateService(ILogger<UpdateService> logger, HttpClient httpClient)
     {
         _logger = logger;
         _httpClient = httpClient;
-        
+
         // Configure HttpClient for GitHub API
         if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
         {
@@ -51,7 +51,7 @@ public class UpdateService
         {
             _logger.LogInformation("Starting update check...");
             _logger.LogInformation("APPIMAGE environment variable: {AppImage}", Environment.GetEnvironmentVariable("APPIMAGE") ?? "null");
-            
+
             if (!IsRunningAsAppImage())
             {
                 _logger.LogInformation("Not running as AppImage, update checking disabled");
@@ -59,21 +59,21 @@ public class UpdateService
             }
 
             _logger.LogInformation("Checking for updates...");
-            
+
             // Add timeout to HTTP request
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15 second HTTP timeout
-            
+
             var response = await _httpClient.GetStringAsync(GITHUB_API_URL, timeoutCts.Token);
-            
+
             var options = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
                 PropertyNameCaseInsensitive = true
             };
-            
+
             var release = JsonSerializer.Deserialize<GitHubRelease>(response, options);
-            
+
             if (release == null)
             {
                 _logger.LogWarning("Failed to parse GitHub release information");
@@ -82,7 +82,7 @@ public class UpdateService
 
             var currentVersion = GetCurrentVersion();
             var latestVersion = release.TagName?.TrimStart('v');
-            
+
             if (string.IsNullOrEmpty(latestVersion) || string.IsNullOrEmpty(currentVersion))
             {
                 _logger.LogWarning("Could not determine version information");
@@ -90,7 +90,7 @@ public class UpdateService
             }
 
             var updateAvailable = IsNewerVersion(latestVersion, currentVersion);
-            
+
             return new UpdateInfo
             {
                 CurrentVersion = currentVersion,
@@ -141,7 +141,7 @@ public class UpdateService
             }
 
             _logger.LogInformation("Starting AppImage update...");
-            
+
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -156,18 +156,18 @@ public class UpdateService
             };
 
             process.Start();
-            
+
             // Create tasks for reading output and waiting for exit
             var outputTask = process.StandardOutput.ReadToEndAsync();
             var errorTask = process.StandardError.ReadToEndAsync();
             var waitTask = process.WaitForExitAsync(cancellationToken);
-            
+
             // Wait for all tasks to complete or cancellation
             await Task.WhenAll(outputTask, errorTask, waitTask);
-            
+
             var output = await outputTask;
             var error = await errorTask;
-            
+
             if (process.ExitCode == 0)
             {
                 _logger.LogInformation("AppImage updated successfully");
@@ -215,7 +215,7 @@ public class UpdateService
 
             process.Start();
             process.WaitForExit(5000); // 5 second timeout
-            
+
             return process.ExitCode == 0;
         }
         catch
@@ -278,16 +278,16 @@ internal class GitHubRelease
 {
     [JsonPropertyName("tag_name")]
     public string? TagName { get; set; }
-    
+
     [JsonPropertyName("name")]
     public string? Name { get; set; }
-    
+
     [JsonPropertyName("body")]
     public string? Body { get; set; }
-    
+
     [JsonPropertyName("html_url")]
     public string? HtmlUrl { get; set; }
-    
+
     [JsonPropertyName("published_at")]
     public DateTime? PublishedAt { get; set; }
 }

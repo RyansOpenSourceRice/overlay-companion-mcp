@@ -37,18 +37,18 @@ fi
 # Perform health check with retries
 for attempt in $(seq 1 $MAX_RETRIES); do
     log "Health check attempt $attempt/$MAX_RETRIES"
-    
+
     # Make HTTP request to health endpoint
     if response=$(curl -fsSL --connect-timeout $TIMEOUT --max-time $TIMEOUT "$HEALTH_URL" 2>/dev/null); then
         # Parse JSON response
         if echo "$response" | jq -e '.status == "healthy"' >/dev/null 2>&1; then
             log "✅ Health check passed"
-            
+
             # Extract and display key metrics
             uptime=$(echo "$response" | jq -r '.uptime // "unknown"')
             memory_used=$(echo "$response" | jq -r '.memory.heapUsed // 0' | awk '{print int($1/1024/1024)}')
             connected_clients=$(echo "$response" | jq -r '.services.connectedClients // 0')
-            
+
             log "📊 Uptime: ${uptime}s, Memory: ${memory_used}MB, Clients: $connected_clients"
             exit 0
         else
@@ -58,7 +58,7 @@ for attempt in $(seq 1 $MAX_RETRIES); do
     else
         warn "Failed to connect to health endpoint (attempt $attempt/$MAX_RETRIES)"
     fi
-    
+
     # Wait before retry (except on last attempt)
     if [ $attempt -lt $MAX_RETRIES ]; then
         sleep 2

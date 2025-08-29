@@ -33,24 +33,24 @@ index 2a46988..4f188fd 100644
 +++ b/APPIMAGE_VALIDATION_FIXES.md
 @@ -1,8 +1,10 @@
  # AppImage Validation and Error Detection Fixes
- 
+
 -## Problem Summary
 +## Problem Summary (Legacy)
- 
+
 -The AppImage build was failing with GTK4 dependency errors, but GitHub Actions tests were still passing (green checkmark) due to inadequate error detection. This created a false sense of success while the AppImage was actually broken.
 +Note: The project is now web-only. Native GTK/Avalonia desktop UI paths have been removed. The notes below are preserved for historical context in case AppImage packaging is reintroduced for a desktop build in the future.
 +
 +Previously, the AppImage build could fail with GTK4 dependency errors while GitHub Actions tests still passed (green checkmark) due to inadequate error detection. This created a false sense of success while the AppImage was actually broken.
- 
+
  ### Original Errors
- 
+
 @@ -36,9 +38,9 @@ if ! xvfb-run -a timeout 30 ./app.AppImage --help > appimage_help_test.log 2>&1;
  fi
  ```
- 
+
 -### 2. Added GTK4 System Dependencies
 +### 2. Added GTK4 System Dependencies (Historical)
- 
+
 -Added comprehensive GTK4 development packages to CI build:
 +This section applied to the former desktop build. With web-only delivery, GTK4 is no longer required. If reintroducing a desktop build, install comprehensive GTK4 development packages in CI:
  ```yaml
@@ -59,23 +59,23 @@ index 2a46988..4f188fd 100644
 @@ -52,7 +54,7 @@ sudo apt-get install -y \
    libepoxy-dev
  ```
- 
+
 -### 3. Created Comprehensive Validation Script
 +### 3. Created Comprehensive Validation Script (Applies to any AppImage)
- 
+
  **New file: `scripts/validate-appimage.sh`**
- 
+
 @@ -77,7 +79,7 @@ Improved `scripts/build-appimage.sh` to provide better feedback:
  - Checks system GTK4 availability
  - Provides clear warnings when GTK4 isn't bundled
- 
+
 -### 5. Added Pre-commit Validation Hooks
 +### 5. Added Pre-commit Validation Hooks (General)
- 
+
  Enhanced `.pre-commit-config.yaml` with:
  - Build script executable permission checks
 @@ -113,7 +115,7 @@ The updated workflow will now:
- 
+
  ### After Fixes
  - ✅ Critical errors cause build failures
 -- ✅ GTK4 libraries bundled in AppImage
@@ -86,7 +86,7 @@ index 2a46988..4f188fd 100644
 @@ -140,4 +142,10 @@ The updated workflow will now:
  2. Validation logs provide detailed diagnostic information
  3. AppImage artifacts are only uploaded if validation passes
- 
+
 -This comprehensive approach ensures that AppImage builds are properly validated and critical errors are caught early in the development process.
 \ No newline at end of file
 +This comprehensive approach ensures that AppImage builds are properly validated and critical errors are caught early in the development process.
@@ -119,9 +119,9 @@ index ae2bfbb..79a1735 100644
        "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
      }
 @@ -515,7 +515,7 @@ This repository uses **automated development environment setup** with:
- 
+
  ### Build and Deployment
- 
+
 -**AppImage Build**: Automated AppImage creation with proper metadata validation
 +**AppImage Build**: Legacy. Web-only delivery does not ship a desktop AppImage. This section is preserved for historical context if reintroduced.
  ```bash
@@ -133,7 +133,7 @@ index b7e3628..1d83e56 100644
 +++ b/README.md
 @@ -1,7 +1,7 @@
  # overlay-companion-mcp
- 
+
  [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-FF6B35?style=for-the-badge&logo=anthropic)](https://modelcontextprotocol.io/)
 -[![Platform](https://img.shields.io/badge/platform-Linux%20AppImage-FCC624?style=for-the-badge&logo=linux)](https://appimage.org/)
 +[![Platform](https://img.shields.io/badge/platform-Web%20(HTTP%20MCP)-00ADD8?style=for-the-badge&logo=google-chrome)](https://modelcontextprotocol.io/)
@@ -141,18 +141,18 @@ index b7e3628..1d83e56 100644
  [![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
  [![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
 @@ -11,34 +11,34 @@
- 
+
  A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
- 
+
 -## Installation
 +## Installation (Web-first)
- 
+
 -### Download AppImage (Recommended)
 -1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases)
 -2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 -3. Run: `./overlay-companion-mcp-*.AppImage`
 +Run as a headless HTTP MCP server that serves a browser overlay viewer.
- 
+
 -#### Automatic Updates
 -The AppImage supports automatic updates via AppImageUpdate:
 +### From source (recommended during development)
@@ -160,33 +160,33 @@ index b7e3628..1d83e56 100644
 +dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
 +./build/publish/overlay-companion-mcp
 +```
- 
+
 -1. **Install AppImageUpdate**: `sudo apt install appimageupdate` or download from [AppImageUpdate releases](https://github.com/AppImage/AppImageUpdate/releases)
 -2. **Check for updates**: `appimageupdate --check-for-update overlay-companion-mcp-*.AppImage`
 -3. **Update automatically**: `appimageupdate overlay-companion-mcp-*.AppImage`
 +Environment:
 +- PORT or OC_PORT to change port (default 3000)
 +- OC_SMOKE_TEST=1 to run smoke/startup check and exit
- 
- 
- 
+
+
+
  **Architecture**: Full HTTP MCP server with web-only viewer. Overlays render in the browser and the server runs headless by default.
 -- **Default operation**: HTTP server on port 3000 (HEADLESS=1)
 +- **Default operation**: HTTP server on port 3000
  - **Native GUI**: Removed. All interaction is via the web UI and MCP over HTTP
- 
+
  ### System Requirements
  - **Runtime**: .NET 8, Linux
 -- **Web-first**: Browser overlay layer renders above a viewer (stub or Guacamole)
 +- **Web-first**: Browser overlay renders via /ws/overlays events from server
  - **Recommended tools**: grim (Wayland), gnome-screenshot/spectacle; scrot/maim (X11 fallback)
  - **Clipboard**: wl-clipboard (wl-copy/wl-paste) recommended; xclip as X11 fallback
- 
+
  ### Current Notes
 -- **Transport**: HTTP is the primary transport. STDIO is deprecated and only retained for legacy testing.
 +- **Transport**: HTTP is the primary transport at "/" with SSE. STDIO is deprecated and retained only for legacy/testing.
  - **GUI**: No native GUI. GTK/Avalonia paths have been removed; web-only experience.
- 
+
  ## Usage
 diff --git a/ROADMAP.md b/ROADMAP.md
 index 20d0268..7a8619c 100644
@@ -203,21 +203,21 @@ index 20d0268..7a8619c 100644
  - **Mode Management**: 4 modes (passive, assist, autopilot, composing) with proper state management
 @@ -60,11 +60,8 @@ MonitorIndex = 0, // TODO: Implement multi-monitor detection
  **Current**: 13/15 documented tools implemented
- 
+
  ### 3. **HTTP Transport Enhancement** 🌐
--**Status**: Bridge implementation exists, needs proper HTTP transport  
+-**Status**: Bridge implementation exists, needs proper HTTP transport
 -**Impact**: Future-proofing and web integration
 -
 -**Current Implementation**: HTTP-to-STDIO bridge (functional but not optimal)
 -**Needed**: Native HTTP transport using `ModelContextProtocol.AspNetCore`
 +Status: Implemented (native HTTP transport via ModelContextProtocol.AspNetCore). Bridge removed.
 +Impact: Future-proofing and web integration
- 
+
  **Benefits of HTTP Transport**:
  - **Multi-client support**: Multiple MCP clients can connect simultaneously
 @@ -160,10 +157,9 @@ app.MapMcp();  // Registers /mcp endpoint with streaming support
  4. **Overlay positioning**: Ensure overlays appear on correct monitor
- 
+
  ### HTTP Transport Implementation:
 -1. **Keep STDIO**: Maintain existing stdio transport (it's working perfectly)
 -2. **Add HTTP**: Implement native HTTP using `ModelContextProtocol.AspNetCore`
@@ -226,7 +226,7 @@ index 20d0268..7a8619c 100644
 +1. Primary: Native HTTP using `ModelContextProtocol.AspNetCore` at root `/` with SSE
 +2. Legacy: Optional STDIO (`--stdio`) for testing/compat; not recommended
 +3. Web UI served at `/`; config endpoints at `/setup`, `/config`
- 
+
  ### Missing Tools Implementation:
  1. **`get_display_info`**: Return monitor configuration, resolutions, scaling
 diff --git a/SPECIFICATION.md b/SPECIFICATION.md
@@ -241,18 +241,18 @@ index f883239..83192c7 100644
 -- **Command**: `dotnet run` (default) or `./overlay-companion-mcp.AppImage`
 +- **Architecture**: HTTP server with web-only overlay viewer (served from wwwroot). No native desktop GUI.
 +- **Command**: `dotnet run` (default) or `./overlay-companion-mcp`
- 
+
  #### 2. Legacy STDIO Transport (Deprecated)
- 
+
 @@ -35,7 +35,7 @@ Cherry Studio → stdio → MCP Server (OverlayCompanion)
  - **Use Case**: Legacy compatibility only
  - **Limitations**: No image support, single client, deprecated
  - **Security**: Process-level isolation
 -- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp.AppImage --stdio`
 +- **Command**: `dotnet run --stdio` or `./overlay-companion-mcp --stdio`
- 
+
  ### HTTP Transport Benefits
- 
+
 @@ -681,7 +681,7 @@ To keep the repository clean and reproducible, packaging outputs are generated a
    - AppStream file path: AppDir/usr/share/metainfo/overlay-companion-mcp.appdata.xml
    - Source of truth: Variables and heredoc content inside scripts/build-appimage.sh (APP_NAME, APP_DISPLAY_NAME, APP_DESCRIPTION, APP_CATEGORY, versioning, etc.).
@@ -269,16 +269,16 @@ index bd987ea..0f177cd 100644
 @@ -1,8 +1,10 @@
 -# GearLever Integration (Future Enhancement)
 +# GearLever Integration (Legacy - Desktop AppImage)
- 
+
  ## Overview
- 
+
 -[GearLever](https://mijorus.it/posts/gearlever/update-url-info/) is an AppImage manager that provides automatic update capabilities. This document outlines the planned integration to make Overlay Companion MCP compatible with GearLever's update system.
 +Note: The project is now web-only and does not ship a desktop AppImage. This document is preserved for historical context in case a native desktop/AppImage distribution is reintroduced.
 +
 +[GearLever](https://mijorus.it/posts/gearlever/update-url-info/) is an AppImage manager that provides automatic update capabilities. This document outlines the planned integration to make a future Overlay Companion desktop AppImage compatible with GearLever's update system.
- 
+
  ## Current Status
- 
+
 diff --git a/docs/GUI_THREADING_BEST_PRACTICES.md b/docs/GUI_THREADING_BEST_PRACTICES.md
 index d47d319..4cba16a 100644
 --- a/docs/GUI_THREADING_BEST_PRACTICES.md
@@ -288,9 +288,9 @@ index d47d319..4cba16a 100644
 +# GUI Threading Best Practices (Legacy Desktop)
 +
 +Note: The project is now web-only. This document is preserved for historical context and applies only to the former GTK/Avalonia desktop UI paths.
- 
+
  This document outlines the threading best practices implemented in the Overlay Companion MCP to prevent GUI freezing and ensure responsive user interfaces.
- 
+
 diff --git a/docs/IMPLEMENTATION_GUIDE.md b/docs/IMPLEMENTATION_GUIDE.md
 index a0eea55..6deec61 100644
 --- a/docs/IMPLEMENTATION_GUIDE.md
@@ -301,7 +301,7 @@ index a0eea55..6deec61 100644
  - **C# 12** - Modern language features and performance
 -- **Avalonia UI** - Cross-platform UI framework for overlay windows
 +- **Web-only Viewer** - Static wwwroot served by ASP.NET Core; overlays rendered in browser via WebSocket events
- 
+
  ### MCP Integration
  - **ModelContextProtocol SDK** - Official Microsoft/Anthropic MCP C# SDK
 +- **ASP.NET Core** - Native HTTP transport with SSE at root "/"
@@ -310,7 +310,7 @@ index a0eea55..6deec61 100644
  - **Cherry Studio Client** - AI model integration via MCP protocol
 @@ -70,9 +71,9 @@ overlay-companion-mcp/
     - Privacy scrubbing
- 
+
  2. **Overlay System**
 -   - Transparent window management
 -   - Multi-monitor positioning
@@ -319,7 +319,7 @@ index a0eea55..6deec61 100644
 +   - Server tracks state using MockOverlayWindow only
 +   - Multi-monitor positioning (mapping logic; rendering handled in web viewer)
     - Temporary overlays
- 
+
  ### Phase 3: Input Simulation
 diff --git a/docs/SDK_INTEGRATION_SUMMARY.md b/docs/SDK_INTEGRATION_SUMMARY.md
 index 7a95c2c..8479568 100644
@@ -327,13 +327,13 @@ index 7a95c2c..8479568 100644
 +++ b/docs/SDK_INTEGRATION_SUMMARY.md
 @@ -124,7 +124,7 @@ Cherry Studio → ModelContextProtocol SDK → McpServerBuilder → Tool Registr
  - Implement batch operations
- 
+
  ### 2. **UI Framework Integration**
 -- Replace MockOverlayWindow with Avalonia implementation
 +- Maintain MockOverlayWindow for server-side state tracking; the browser renders overlays via WebSocket events
  - Port visual design from extracted components
  - Add multi-monitor overlay positioning
- 
+
 diff --git a/src/MCP/Tools/GetOverlayCapabilitiesTool.cs b/src/MCP/Tools/GetOverlayCapabilitiesTool.cs
 index 7f1284d..2a1527f 100644
 --- a/src/MCP/Tools/GetOverlayCapabilitiesTool.cs
@@ -354,7 +354,7 @@ index ac5c0dc..596440c 100644
 @@ -26,13 +26,7 @@
      <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0" />
      <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
- 
+
 -    <!-- GTK4 UI for overlay windows and GUI with true click-through support -->
 -    <PackageReference Include="GirCore.Gtk-4.0" Version="0.6.3" />
 -    <PackageReference Include="GirCore.Cairo-1.0" Version="0.6.3" />
@@ -363,7 +363,7 @@ index ac5c0dc..596440c 100644
 -    <PackageReference Include="GirCore.GLib-2.0" Version="0.6.3" />
 -    <PackageReference Include="GirCore.GObject-2.0" Version="0.6.3" />
 +    <!-- Web-only build: GTK4 desktop UI removed -->
- 
+
      <!-- System libraries (updated for security) -->
      <PackageReference Include="System.Text.Json" Version="9.0.0" />
 @@ -47,8 +41,19 @@
@@ -373,7 +373,7 @@ index ac5c0dc..596440c 100644
 +    <Compile Remove="UI\Gtk4*.cs" />
 +    <Compile Remove="UI\LayerShellInterop.cs" />
    </ItemGroup>
- 
+
 +  <!-- Ensure static web assets (wwwroot) are published -->
 +  <ItemGroup>
 +    <Content Include="wwwroot/**">
@@ -383,8 +383,8 @@ index ac5c0dc..596440c 100644
 +  </ItemGroup>
 +
 +
- 
- 
+
+
  </Project>
 diff --git a/src/Program.cs b/src/Program.cs
 index 7da9e9e..0d2e66e 100644
@@ -410,7 +410,7 @@ index 7da9e9e..0d2e66e 100644
      public static async Task Main(string[] args)
      {
 @@ -83,25 +82,9 @@ public class Program
- 
+
          try
          {
 -            // Start MCP host and (optionally) Avalonia GUI concurrently
@@ -438,7 +438,7 @@ index 7da9e9e..0d2e66e 100644
          catch (Exception ex)
          {
 @@ -207,18 +190,12 @@ public class Program
- 
+
          try
          {
 -            // Start HTTP transport and (optionally) GTK4 GUI concurrently
@@ -451,7 +451,7 @@ index 7da9e9e..0d2e66e 100644
 -            {
 -                gtk4Task = Task.Run(() => StartGtk4App(app.Services));
 -            }
- 
+
              // In smoke test mode, create ready file after HTTP server starts and exit after delay
 -            if (smoke && headless)
 +            if (smoke)
@@ -461,7 +461,7 @@ index 7da9e9e..0d2e66e 100644
 @@ -246,14 +223,7 @@ public class Program
                  return;
              }
- 
+
 -            if (gtk4Task is not null)
 -            {
 -                await gtk4Task;
@@ -477,7 +477,7 @@ index 7da9e9e..0d2e66e 100644
 @@ -262,7 +232,7 @@ public class Program
          }
      }
- 
+
 -    // Smoke-test hooks: when SMOKE_TEST is enabled, start GUI and write a ready file when window shows
 +    // Smoke-test hooks: write readiness file if requested (web-only)
      private static void ConfigureSmokeTestHooks()
@@ -486,7 +486,7 @@ index 7da9e9e..0d2e66e 100644
 @@ -274,48 +244,12 @@ public class Program
          }
          catch { /* best-effort */ }
- 
+
 -        Gtk4OverlayApplication.WindowShown += () =>
 -        {
 -            try
@@ -497,8 +497,8 @@ index 7da9e9e..0d2e66e 100644
 -        };
 +        try { File.WriteAllText(readyFile!, DateTime.UtcNow.ToString("o")); } catch { }
      }
- 
- 
+
+
 -    private static void StartGtk4App(IServiceProvider services)
 -    {
 -        lock (_gtk4Lock)
@@ -531,8 +531,8 @@ index 7da9e9e..0d2e66e 100644
 -        }
 -    }
 +    // Web-only: StartGtk4App removed
-+    
- 
++
+
      /// <summary>
      /// Get MCP configuration for HTTP transport (recommended)
 diff --git a/src/Services/OverlayService.cs b/src/Services/OverlayService.cs
@@ -540,7 +540,7 @@ index 2cd2d78..cd56f83 100644
 --- a/src/Services/OverlayService.cs
 +++ b/src/Services/OverlayService.cs
 @@ -170,19 +170,8 @@ public class OverlayService : IOverlayService
- 
+
      private IOverlayWindow CreateOverlayWindow(OverlayElement overlay)
      {
 -        // Check if running in headless mode
@@ -560,7 +560,7 @@ index 2cd2d78..cd56f83 100644
 +        return new MockOverlayWindow(overlay);
      }
  }
- 
+
 @@ -197,52 +186,3 @@ public interface IOverlayWindow : IDisposable
      Task UpdatePositionAsync(ScreenRegion bounds);
      Task UpdateAppearanceAsync(string color, string? label);
@@ -614,6 +614,5 @@ index 2cd2d78..cd56f83 100644
 -        // TODO: Implement actual cleanup
 -    }
 -}
--- 
+--
 2.39.5
-

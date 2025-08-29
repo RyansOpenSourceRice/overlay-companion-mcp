@@ -8,34 +8,34 @@ export default class MCPConfigManager {
         this.config = null;
         this.modal = null;
     }
-    
+
     initialize() {
         this.modal = document.getElementById('mcp-config-modal');
         this.loadConfiguration();
     }
-    
+
     async loadConfiguration() {
         try {
             const response = await fetch('/mcp-config');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             this.config = await response.json();
             console.log('✅ MCP configuration loaded:', this.config);
         } catch (error) {
             console.error('❌ Failed to load MCP configuration:', error);
-            
+
             // Fallback configuration
             this.config = this.generateFallbackConfig();
         }
     }
-    
+
     generateFallbackConfig() {
         const host = window.location.host;
         const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        
+
         return {
             mcp_version: '1.0',
             session_id: `overlay-companion-mcp-${Date.now()}`,
@@ -62,19 +62,19 @@ export default class MCPConfigManager {
             notes: 'Single-user dev package. Copy this JSON into Cherry Studio MCP slot.'
         };
     }
-    
+
     showConfigModal() {
         if (!this.modal) return;
-        
+
         // Update configuration display
         const configJson = document.getElementById('mcp-config-json');
         if (configJson && this.config) {
             configJson.textContent = JSON.stringify(this.config, null, 2);
         }
-        
+
         // Show modal
         this.modal.classList.add('show');
-        
+
         // Focus on the copy button
         setTimeout(() => {
             const copyButton = document.getElementById('copy-config-btn');
@@ -83,20 +83,20 @@ export default class MCPConfigManager {
             }
         }, 100);
     }
-    
+
     hideConfigModal() {
         if (!this.modal) return;
         this.modal.classList.remove('show');
     }
-    
+
     async copyConfigToClipboard() {
         if (!this.config) {
             this.showNotification('Configuration not available', 'error');
             return;
         }
-        
+
         const configText = JSON.stringify(this.config, null, 2);
-        
+
         try {
             // Try modern clipboard API first
             if (navigator.clipboard && window.isSecureContext) {
@@ -107,34 +107,34 @@ export default class MCPConfigManager {
                 this.fallbackCopyToClipboard(configText);
                 this.showNotification('✅ MCP configuration copied to clipboard!', 'success');
             }
-            
+
             // Update button text temporarily
             const copyButton = document.getElementById('copy-config-btn');
             if (copyButton) {
                 const originalText = copyButton.innerHTML;
                 copyButton.innerHTML = '✅ Copied!';
                 copyButton.disabled = true;
-                
+
                 setTimeout(() => {
                     copyButton.innerHTML = originalText;
                     copyButton.disabled = false;
                 }, 2000);
             }
-            
+
             // Hide modal after successful copy
             setTimeout(() => {
                 this.hideConfigModal();
             }, 1500);
-            
+
         } catch (error) {
             console.error('Failed to copy to clipboard:', error);
             this.showNotification('❌ Failed to copy configuration', 'error');
-            
+
             // Show manual copy instructions
             this.showManualCopyInstructions(configText);
         }
     }
-    
+
     fallbackCopyToClipboard(text) {
         // Create a temporary textarea element
         const textArea = document.createElement('textarea');
@@ -143,11 +143,11 @@ export default class MCPConfigManager {
         textArea.style.left = '-999999px';
         textArea.style.top = '-999999px';
         document.body.appendChild(textArea);
-        
+
         // Select and copy the text
         textArea.focus();
         textArea.select();
-        
+
         try {
             document.execCommand('copy');
         } catch (error) {
@@ -156,7 +156,7 @@ export default class MCPConfigManager {
             document.body.removeChild(textArea);
         }
     }
-    
+
     showManualCopyInstructions(configText) {
         // Create a modal with manual copy instructions
         const instructionsModal = document.createElement('div');
@@ -178,9 +178,9 @@ export default class MCPConfigManager {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(instructionsModal);
-        
+
         // Auto-select the text
         const textarea = instructionsModal.querySelector('textarea');
         setTimeout(() => {
@@ -188,7 +188,7 @@ export default class MCPConfigManager {
             textarea.select();
         }, 100);
     }
-    
+
     showNotification(message, type = 'info') {
         // Use the global notification system
         if (window.overlayCompanionApp) {
@@ -198,7 +198,7 @@ export default class MCPConfigManager {
             console.log(`[${type.toUpperCase()}] ${message}`);
         }
     }
-    
+
     // Generate configuration for different MCP clients
     generateCherryStudioConfig() {
         return {
@@ -215,7 +215,7 @@ export default class MCPConfigManager {
             ]
         };
     }
-    
+
     generateGenericMCPConfig() {
         return {
             ...this.config,
@@ -228,17 +228,17 @@ export default class MCPConfigManager {
             }
         };
     }
-    
+
     // Validate configuration
     validateConfiguration() {
         const required = ['mcp_version', 'session_id', 'mcp_ws_url', 'auth', 'desktop'];
         const missing = required.filter(field => !this.config[field]);
-        
+
         if (missing.length > 0) {
             console.warn('Missing required configuration fields:', missing);
             return false;
         }
-        
+
         // Validate WebSocket URL
         try {
             new URL(this.config.mcp_ws_url);
@@ -246,10 +246,10 @@ export default class MCPConfigManager {
             console.warn('Invalid WebSocket URL:', this.config.mcp_ws_url);
             return false;
         }
-        
+
         return true;
     }
-    
+
     // Get configuration status
     getConfigurationStatus() {
         return {
@@ -260,12 +260,12 @@ export default class MCPConfigManager {
             capabilities: this.config?.capabilities || {}
         };
     }
-    
+
     // Refresh configuration from server
     async refreshConfiguration() {
         console.log('🔄 Refreshing MCP configuration...');
         await this.loadConfiguration();
-        
+
         // Update modal if it's open
         if (this.modal && this.modal.classList.contains('show')) {
             const configJson = document.getElementById('mcp-config-json');
@@ -273,7 +273,7 @@ export default class MCPConfigManager {
                 configJson.textContent = JSON.stringify(this.config, null, 2);
             }
         }
-        
+
         return this.config;
     }
 }

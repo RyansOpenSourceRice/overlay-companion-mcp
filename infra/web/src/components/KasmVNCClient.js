@@ -12,11 +12,11 @@ export class KasmVNCClient {
             multiMonitor: options.multiMonitor !== false,
             ...options
         };
-        
+
         this.connected = false;
         this.displays = [];
         this.currentDisplay = 0;
-        
+
         this.init();
     }
 
@@ -45,8 +45,8 @@ export class KasmVNCClient {
                     </div>
                 </div>
                 <div class="kasmvnc-container">
-                    <iframe id="kasmvnc-frame" 
-                            src="" 
+                    <iframe id="kasmvnc-frame"
+                            src=""
                             style="width: 100%; height: 600px; border: none; display: none;">
                     </iframe>
                     <div id="connection-message" class="connection-message">
@@ -76,24 +76,24 @@ export class KasmVNCClient {
     async connect() {
         try {
             this.updateStatus('Connecting...');
-            
+
             // Load KasmVNC in iframe
             const frame = this.container.querySelector('#kasmvnc-frame');
             const message = this.container.querySelector('#connection-message');
-            
+
             frame.src = this.options.url;
             frame.style.display = 'block';
             message.style.display = 'none';
-            
+
             // Wait for frame to load
             await new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => reject(new Error('Connection timeout')), 10000);
-                
+
                 frame.onload = () => {
                     clearTimeout(timeout);
                     resolve();
                 };
-                
+
                 frame.onerror = () => {
                     clearTimeout(timeout);
                     reject(new Error('Failed to load KasmVNC'));
@@ -103,7 +103,7 @@ export class KasmVNCClient {
             this.connected = true;
             this.updateStatus('Connected');
             this.updateControls();
-            
+
             // Enable multi-monitor controls if supported
             if (this.options.multiMonitor) {
                 this.container.querySelector('.display-controls').style.display = 'flex';
@@ -111,7 +111,7 @@ export class KasmVNCClient {
 
             // Emit connection event
             this.emit('connected');
-            
+
         } catch (error) {
             console.error('KasmVNC connection failed:', error);
             this.updateStatus('Connection failed: ' + error.message);
@@ -122,25 +122,25 @@ export class KasmVNCClient {
     disconnect() {
         const frame = this.container.querySelector('#kasmvnc-frame');
         const message = this.container.querySelector('#connection-message');
-        
+
         frame.src = '';
         frame.style.display = 'none';
         message.style.display = 'block';
         message.textContent = 'Disconnected';
-        
+
         this.connected = false;
         this.updateStatus('Disconnected');
         this.updateControls();
-        
+
         // Hide multi-monitor controls
         this.container.querySelector('.display-controls').style.display = 'none';
-        
+
         this.emit('disconnected');
     }
 
     addDisplay() {
         if (!this.connected) return;
-        
+
         // KasmVNC handles multi-monitor by opening new browser windows
         // We'll simulate this by opening a new window with the VNC URL
         const displayWindow = window.open(
@@ -148,20 +148,20 @@ export class KasmVNCClient {
             `kasmvnc-display-${this.displays.length + 1}`,
             'width=1920,height=1080,scrollbars=yes,resizable=yes'
         );
-        
+
         if (displayWindow) {
             this.displays.push({
                 id: this.displays.length + 1,
                 window: displayWindow
             });
-            
+
             // Update display selector
             const select = this.container.querySelector('#display-select');
             const option = document.createElement('option');
             option.value = this.displays.length;
             option.textContent = `Display ${this.displays.length + 1}`;
             select.appendChild(option);
-            
+
             this.emit('displayAdded', { displayId: this.displays.length });
         }
     }
@@ -177,14 +177,14 @@ export class KasmVNCClient {
                 display.window.focus();
             }
         }
-        
+
         this.currentDisplay = displayIndex;
         this.emit('displaySwitched', { displayIndex });
     }
 
     toggleFullscreen() {
         const frame = this.container.querySelector('#kasmvnc-frame');
-        
+
         if (!document.fullscreenElement) {
             frame.requestFullscreen().catch(err => {
                 console.error('Error attempting to enable fullscreen:', err);
@@ -203,7 +203,7 @@ export class KasmVNCClient {
     updateControls() {
         const connectBtn = this.container.querySelector('#connect-btn');
         const disconnectBtn = this.container.querySelector('#disconnect-btn');
-        
+
         connectBtn.disabled = this.connected;
         disconnectBtn.disabled = !this.connected;
     }
@@ -230,14 +230,14 @@ export class KasmVNCClient {
     // Cleanup method
     destroy() {
         this.disconnect();
-        
+
         // Close all secondary display windows
         this.displays.forEach(display => {
             if (display.window && !display.window.closed) {
                 display.window.close();
             }
         });
-        
+
         this.displays = [];
         this.container.innerHTML = '';
     }

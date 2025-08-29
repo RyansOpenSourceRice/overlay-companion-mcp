@@ -2,7 +2,7 @@
 
 /**
  * Overlay Companion MCP - Management Server
- * 
+ *
  * This server provides:
  * - Web interface with Guacamole integration
  * - MCP WebSocket bridge for overlay broadcasting
@@ -55,7 +55,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -65,9 +65,9 @@ app.use((req, res, next) => {
 
 // Request logging
 app.use((req, res, next) => {
-  log.debug(`${req.method} ${req.path}`, { 
-    ip: req.ip, 
-    userAgent: req.get('User-Agent') 
+  log.debug(`${req.method} ${req.path}`, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
   });
   next();
 });
@@ -77,21 +77,21 @@ let wss = null;
 const overlayClients = new Set();
 
 if (config.mcpWsEnabled) {
-  wss = new WebSocket.Server({ 
+  wss = new WebSocket.Server({
     server,
     path: '/ws',
     clientTracking: true
   });
-  
+
   wss.on('connection', (ws, req) => {
     const clientId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     overlayClients.add(ws);
-    
+
     log.info(`WebSocket client connected: ${clientId}`, {
       ip: req.socket.remoteAddress,
       userAgent: req.headers['user-agent']
     });
-    
+
     // Send welcome message
     ws.send(JSON.stringify({
       type: 'welcome',
@@ -99,29 +99,29 @@ if (config.mcpWsEnabled) {
       timestamp: new Date().toISOString(),
       message: 'Connected to Overlay Companion MCP WebSocket'
     }));
-    
+
     // Handle messages from client
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
         log.debug(`WebSocket message from ${clientId}:`, message);
-        
+
         // Handle different message types
         switch (message.type) {
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
             break;
-            
+
           case 'overlay_command':
             // Broadcast overlay command to all clients
             broadcastOverlay(message.payload, clientId);
             break;
-            
+
           case 'viewport_update':
             // Handle viewport configuration updates
             handleViewportUpdate(message.payload, clientId);
             break;
-            
+
           default:
             log.warn(`Unknown message type from ${clientId}:`, message.type);
         }
@@ -129,20 +129,20 @@ if (config.mcpWsEnabled) {
         log.error(`Error processing WebSocket message from ${clientId}:`, error);
       }
     });
-    
+
     // Handle client disconnect
     ws.on('close', (code, reason) => {
       overlayClients.delete(ws);
       log.info(`WebSocket client disconnected: ${clientId}`, { code, reason: reason.toString() });
     });
-    
+
     // Handle errors
     ws.on('error', (error) => {
       log.error(`WebSocket error for ${clientId}:`, error);
       overlayClients.delete(ws);
     });
   });
-  
+
   log.info(`WebSocket server enabled on path /ws`);
 }
 
@@ -153,7 +153,7 @@ function broadcastOverlay(payload, excludeClientId = null) {
     payload,
     timestamp: new Date().toISOString()
   });
-  
+
   let broadcastCount = 0;
   overlayClients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
@@ -161,7 +161,7 @@ function broadcastOverlay(payload, excludeClientId = null) {
       broadcastCount++;
     }
   });
-  
+
   log.debug(`Broadcasted overlay command to ${broadcastCount} clients`, payload);
 }
 
@@ -196,7 +196,7 @@ app.get('/health', async (req, res) => {
   // Check MCP server health
   let mcpServerStatus = 'unknown';
   try {
-    const response = await fetch(`${config.mcpServerUrl}/health`, { 
+    const response = await fetch(`${config.mcpServerUrl}/health`, {
       timeout: 5000,
       signal: AbortSignal.timeout(5000)
     });
@@ -224,7 +224,7 @@ app.get('/health', async (req, res) => {
       connectedClients: overlayClients.size
     }
   };
-  
+
   res.json(health);
 });
 
@@ -233,7 +233,7 @@ app.get('/mcp-config', (req, res) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
   const wsProtocol = req.secure ? 'wss' : 'ws';
-  
+
   const mcpConfig = {
     mcp_version: '1.0',
     session_id: `${config.projectName}-${Date.now()}`,
@@ -259,7 +259,7 @@ app.get('/mcp-config', (req, res) => {
     },
     notes: 'Single-user dev package. Copy this JSON into Cherry Studio MCP slot.'
   };
-  
+
   res.json(mcpConfig);
 });
 

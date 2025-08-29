@@ -48,7 +48,7 @@ error() {
 # Check if running on supported OS
 check_os() {
     info "Checking operating system..."
-    
+
     if [[ -f /etc/os-release ]]; then
         source /etc/os-release
         case $ID in
@@ -74,14 +74,14 @@ check_os() {
         error "Cannot determine operating system. /etc/os-release not found."
         exit 1
     fi
-    
+
     success "Detected OS: $OS_TYPE"
 }
 
 # Install system dependencies
 install_dependencies() {
     info "Installing system dependencies..."
-    
+
     case $OS_TYPE in
         fedora)
             sudo dnf update -y
@@ -129,17 +129,17 @@ install_dependencies() {
             warning "  - Basic desktop applications (firefox, terminal, etc.)"
             ;;
     esac
-    
+
     success "System dependencies installed"
 }
 
 # Download and install KasmVNC
 install_kasmvnc() {
     info "Installing KasmVNC server..."
-    
+
     local temp_dir=$(mktemp -d)
     cd "$temp_dir"
-    
+
     # Determine architecture
     local arch=$(uname -m)
     case $arch in
@@ -154,10 +154,10 @@ install_kasmvnc() {
             exit 1
             ;;
     esac
-    
+
     # Download KasmVNC
     local download_url="https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvnc_${KASMVNC_VERSION}_${arch_suffix}.deb"
-    
+
     if [[ $OS_TYPE == "debian" ]]; then
         info "Downloading KasmVNC .deb package..."
         wget -O kasmvnc.deb "$download_url"
@@ -168,7 +168,7 @@ install_kasmvnc() {
         wget -O kasmvnc.tar.gz "https://github.com/kasmtech/KasmVNC/archive/refs/tags/v${KASMVNC_VERSION}.tar.gz"
         tar -xzf kasmvnc.tar.gz
         cd "KasmVNC-${KASMVNC_VERSION}"
-        
+
         # Install build dependencies
         case $OS_TYPE in
             fedora)
@@ -178,28 +178,28 @@ install_kasmvnc() {
                 sudo yum install -y cmake gcc-c++ libjpeg-turbo-devel libpng-devel libtiff-devel giflib-devel zlib-devel
                 ;;
         esac
-        
+
         # Build and install
         mkdir build && cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
         make -j$(nproc)
         sudo make install
     fi
-    
+
     # Cleanup
     cd /
     rm -rf "$temp_dir"
-    
+
     success "KasmVNC installed successfully"
 }
 
 # Configure KasmVNC
 configure_kasmvnc() {
     info "Configuring KasmVNC..."
-    
+
     # Create VNC directory
     mkdir -p ~/.vnc
-    
+
     # Create KasmVNC configuration
     cat > ~/.vnc/kasmvnc.yaml << EOF
 desktop:
@@ -240,20 +240,20 @@ overlay:
   click_through: true
   transparency: 0.5
 EOF
-    
+
     # Set VNC password (optional - KasmVNC can run without password for local access)
     if command -v vncpasswd >/dev/null 2>&1; then
         info "Setting VNC password (optional - press Enter to skip)..."
         vncpasswd || true
     fi
-    
+
     success "KasmVNC configuration created"
 }
 
 # Create startup script
 create_startup_script() {
     info "Creating KasmVNC startup script..."
-    
+
     cat > ~/.vnc/start-kasmvnc.sh << 'EOF'
 #!/bin/bash
 
@@ -288,16 +288,16 @@ kasmvnc -geometry 1920x1080 -depth 24 -websocket 6901 -httpd /usr/share/kasmvnc/
 # Cleanup on exit
 trap "kill $XVFB_PID" EXIT
 EOF
-    
+
     chmod +x ~/.vnc/start-kasmvnc.sh
-    
+
     success "Startup script created at ~/.vnc/start-kasmvnc.sh"
 }
 
 # Create systemd service
 create_systemd_service() {
     info "Creating systemd service for KasmVNC..."
-    
+
     cat > ~/.config/systemd/user/kasmvnc.service << EOF
 [Unit]
 Description=KasmVNC Server for Overlay Companion MCP
@@ -315,21 +315,21 @@ Environment=USER=$USER
 [Install]
 WantedBy=default.target
 EOF
-    
+
     # Create systemd user directory if it doesn't exist
     mkdir -p ~/.config/systemd/user
-    
+
     # Reload systemd and enable service
     systemctl --user daemon-reload
     systemctl --user enable kasmvnc.service
-    
+
     success "Systemd service created and enabled"
 }
 
 # Configure firewall
 configure_firewall() {
     info "Configuring firewall for KasmVNC..."
-    
+
     if command -v firewall-cmd >/dev/null 2>&1; then
         # Fedora/RHEL firewall
         sudo firewall-cmd --permanent --add-port=$KASMVNC_PORT/tcp
@@ -349,12 +349,12 @@ configure_firewall() {
 # Start KasmVNC service
 start_kasmvnc() {
     info "Starting KasmVNC service..."
-    
+
     systemctl --user start kasmvnc.service
-    
+
     # Wait for service to start
     sleep 5
-    
+
     if systemctl --user is-active --quiet kasmvnc.service; then
         success "KasmVNC service started successfully"
     else
@@ -366,7 +366,7 @@ start_kasmvnc() {
 # Get VM IP address
 get_vm_ip() {
     local vm_ip
-    
+
     # Try different methods to get IP
     if command -v hostname >/dev/null 2>&1; then
         vm_ip=$(hostname -I | awk '{print $1}')
@@ -376,14 +376,14 @@ get_vm_ip() {
         vm_ip="<VM_IP_ADDRESS>"
         warning "Could not determine VM IP address automatically"
     fi
-    
+
     echo "$vm_ip"
 }
 
 # Display completion information
 show_completion_info() {
     local vm_ip=$(get_vm_ip)
-    
+
     echo
     success "🎉 KasmVNC VM setup complete!"
     echo
@@ -415,10 +415,10 @@ main() {
     echo -e "${BLUE}🚀 KasmVNC VM Setup for Overlay Companion MCP${NC}"
     echo "Setting up KasmVNC server for remote desktop access..."
     echo
-    
+
     # Initialize log file
     echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Starting KasmVNC VM setup" > "$LOG_FILE"
-    
+
     # Setup steps
     check_os
     install_dependencies
@@ -429,7 +429,7 @@ main() {
     configure_firewall
     start_kasmvnc
     show_completion_info
-    
+
     success "VM setup completed successfully! Log file: $LOG_FILE"
 }
 

@@ -46,11 +46,11 @@ if ! "$APPIMAGE_PATH" --appimage-extract > extraction.log 2>&1; then
     echo -e "${RED}X AppImage extraction failed${NC}"
     echo -e "${YELLOW}Extraction error details:${NC}"
     cat extraction.log
-    
+
     # Check if it's a valid AppImage file
     echo -e "${YELLOW}> Checking file type...${NC}"
     file "$APPIMAGE_PATH"
-    
+
     if file "$APPIMAGE_PATH" | grep -q "ELF"; then
         echo -e "${YELLOW}> File appears to be an ELF executable, checking AppImage format...${NC}"
         # Try to get AppImage info
@@ -65,7 +65,7 @@ if ! "$APPIMAGE_PATH" --appimage-extract > extraction.log 2>&1; then
     else
         echo -e "${RED}X File is not an ELF executable${NC}"
     fi
-    
+
     rm -rf "$TEMP_DIR"
     exit 1
 fi
@@ -136,7 +136,7 @@ else
     echo -e "${YELLOW}! AppImage --help test failed or timed out${NC}"
     echo -e "${YELLOW}Output:${NC}"
     cat help_test.log
-    
+
     # Check for specific error patterns
     if grep -q "Unable to load shared library.*Gtk" help_test.log; then
         echo -e "${RED}X GTK4 dependency error detected${NC}"

@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     strategy:
       matrix:
         image: [mcp-server, web-interface]
@@ -54,7 +54,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     strategy:
       matrix:
         image: [mcp-server, web-interface]
@@ -75,7 +75,7 @@ jobs:
     if: always()
     permissions:
       contents: read
-    
+
     steps:
       - name: Report cleanup results
         run: |
@@ -85,13 +85,13 @@ jobs:
           echo "- **Minimum Versions**: ${{ github.event.inputs.min_versions || '10' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Dry Run**: ${{ github.event.inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Images Processed**: mcp-server, web-interface" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.cleanup-images.result }}" = "success" ]; then
             echo "- **Tagged Images Cleanup**: ✅ Success" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Tagged Images Cleanup**: ❌ Failed" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [ "${{ needs.cleanup-untagged.result }}" = "success" ]; then
             echo "- **Untagged Images Cleanup**: ✅ Success" >> $GITHUB_STEP_SUMMARY
           else

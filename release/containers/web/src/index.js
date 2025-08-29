@@ -1,6 +1,6 @@
 /**
  * Overlay Companion MCP - Web Frontend
- * 
+ *
  * This frontend provides:
  * - Guacamole-based remote desktop access to Fedora Silverblue VM
  * - MCP configuration management with copy-to-clipboard functionality
@@ -21,43 +21,43 @@ class OverlayCompanionApp {
         this.overlaySystem = null;
         this.statusMonitor = null;
         this.websocket = null;
-        
+
         this.init();
     }
-    
+
     async init() {
         console.log('🚀 Initializing Overlay Companion MCP');
-        
+
         try {
             // Initialize components
             await this.initializeComponents();
-            
+
             // Setup WebSocket connection
             await this.setupWebSocket();
-            
+
             // Render the application
             this.render();
-            
+
             // Start status monitoring
             this.statusMonitor.start();
-            
+
             console.log('✅ Overlay Companion MCP initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize application:', error);
             this.showError('Failed to initialize application', error.message);
         }
     }
-    
+
     async initializeComponents() {
         // Initialize status monitor first
         this.statusMonitor = new StatusMonitor();
-        
+
         // Initialize MCP configuration manager
         this.mcpConfigManager = new MCPConfigManager();
-        
+
         // Initialize overlay system
         this.overlaySystem = new OverlaySystem();
-        
+
         // Initialize Guacamole client
         this.guacamoleClient = new GuacamoleClient({
             onConnect: () => this.onGuacamoleConnect(),
@@ -65,20 +65,20 @@ class OverlayCompanionApp {
             onError: (error) => this.onGuacamoleError(error)
         });
     }
-    
+
     async setupWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws`;
-        
+
         console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
-        
+
         this.websocket = new WebSocket(wsUrl);
-        
+
         this.websocket.onopen = () => {
             console.log('✅ WebSocket connected');
             this.updateConnectionStatus('connected');
         };
-        
+
         this.websocket.onmessage = (event) => {
             try {
                 const message = JSON.parse(event.data);
@@ -87,62 +87,62 @@ class OverlayCompanionApp {
                 console.error('Error parsing WebSocket message:', error);
             }
         };
-        
+
         this.websocket.onclose = (event) => {
             console.log('🔌 WebSocket disconnected:', event.code, event.reason);
             this.updateConnectionStatus('disconnected');
-            
+
             // Attempt to reconnect after 5 seconds
             setTimeout(() => this.setupWebSocket(), 5000);
         };
-        
+
         this.websocket.onerror = (error) => {
             console.error('❌ WebSocket error:', error);
             this.updateConnectionStatus('error');
         };
     }
-    
+
     handleWebSocketMessage(message) {
         console.log('📨 WebSocket message:', message);
-        
+
         switch (message.type) {
             case 'welcome':
                 console.log('👋 Welcome message received:', message.message);
                 break;
-                
+
             case 'overlay_broadcast':
                 this.overlaySystem.handleOverlayCommand(message.payload);
                 break;
-                
+
             case 'server_shutdown':
                 this.showNotification('Server is shutting down', 'warning');
                 break;
-                
+
             default:
                 console.log('Unknown WebSocket message type:', message.type);
         }
     }
-    
+
     onGuacamoleConnect() {
         console.log('✅ Guacamole connected');
         this.updateConnectionStatus('guacamole-connected');
         this.showNotification('Connected to Fedora Silverblue VM', 'success');
     }
-    
+
     onGuacamoleDisconnect() {
         console.log('🔌 Guacamole disconnected');
         this.updateConnectionStatus('guacamole-disconnected');
         this.showNotification('Disconnected from VM', 'info');
     }
-    
+
     onGuacamoleError(error) {
         console.error('❌ Guacamole error:', error);
         this.showNotification('VM connection error', 'error');
     }
-    
+
     render() {
         const app = document.getElementById('app');
-        
+
         app.innerHTML = `
             <div class="app-container">
                 <!-- Header -->
@@ -163,7 +163,7 @@ class OverlayCompanionApp {
                         </div>
                     </div>
                 </header>
-                
+
                 <!-- Main Content -->
                 <main class="app-main">
                     <!-- VM Display Area -->
@@ -174,11 +174,11 @@ class OverlayCompanionApp {
                                 <p>Connecting to Fedora Silverblue VM...</p>
                             </div>
                         </div>
-                        
+
                         <!-- Overlay Canvas -->
                         <canvas id="overlay-canvas" class="overlay-canvas"></canvas>
                     </div>
-                    
+
                     <!-- Side Panel -->
                     <aside class="side-panel">
                         <div class="panel-section">
@@ -194,7 +194,7 @@ class OverlayCompanionApp {
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="panel-section">
                             <h3>🔌 MCP Integration</h3>
                             <div id="mcp-status" class="status-display">
@@ -207,7 +207,7 @@ class OverlayCompanionApp {
                                     <span class="value" id="overlay-status">Ready</span>
                                 </div>
                             </div>
-                            
+
                             <div class="mcp-actions">
                                 <button id="test-overlay-btn" class="btn btn-secondary">
                                     🎨 Test Overlay
@@ -217,7 +217,7 @@ class OverlayCompanionApp {
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div class="panel-section">
                             <h3>📊 System Info</h3>
                             <div id="system-info" class="status-display">
@@ -233,7 +233,7 @@ class OverlayCompanionApp {
                         </div>
                     </aside>
                 </main>
-                
+
                 <!-- Footer -->
                 <footer class="app-footer">
                     <div class="footer-content">
@@ -246,10 +246,10 @@ class OverlayCompanionApp {
                         </div>
                     </div>
                 </footer>
-                
+
                 <!-- Notification Container -->
                 <div id="notifications" class="notifications-container"></div>
-                
+
                 <!-- MCP Config Modal -->
                 <div id="mcp-config-modal" class="modal">
                     <div class="modal-content">
@@ -270,42 +270,42 @@ class OverlayCompanionApp {
                 </div>
             </div>
         `;
-        
+
         // Attach event listeners
         this.attachEventListeners();
-        
+
         // Initialize components with DOM elements
         this.guacamoleClient.initialize(document.getElementById('guacamole-display'));
         this.overlaySystem.initialize(document.getElementById('overlay-canvas'));
         this.mcpConfigManager.initialize();
     }
-    
+
     attachEventListeners() {
         // MCP Config button
         document.getElementById('mcp-config-btn').addEventListener('click', () => {
             this.mcpConfigManager.showConfigModal();
         });
-        
+
         // Test overlay button
         document.getElementById('test-overlay-btn').addEventListener('click', () => {
             this.overlaySystem.testOverlay();
         });
-        
+
         // Clear overlay button
         document.getElementById('clear-overlay-btn').addEventListener('click', () => {
             this.overlaySystem.clearOverlay();
         });
-        
+
         // Modal close
         document.querySelector('.modal-close').addEventListener('click', () => {
             this.mcpConfigManager.hideConfigModal();
         });
-        
+
         // Copy config button
         document.getElementById('copy-config-btn').addEventListener('click', () => {
             this.mcpConfigManager.copyConfigToClipboard();
         });
-        
+
         // Close modal when clicking outside
         document.getElementById('mcp-config-modal').addEventListener('click', (e) => {
             if (e.target.id === 'mcp-config-modal') {
@@ -313,15 +313,15 @@ class OverlayCompanionApp {
             }
         });
     }
-    
+
     updateConnectionStatus(status) {
         const statusElement = document.getElementById('connection-status');
         const indicator = statusElement.querySelector('.status-indicator');
         const text = statusElement.querySelector('.status-text');
-        
+
         // Remove existing status classes
         statusElement.className = 'connection-status';
-        
+
         switch (status) {
             case 'connected':
                 statusElement.classList.add('status-connected');
@@ -348,32 +348,32 @@ class OverlayCompanionApp {
                 text.textContent = 'Connecting...';
         }
     }
-    
+
     showNotification(message, type = 'info') {
         const container = document.getElementById('notifications');
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
-        
+
         const icon = {
             success: '✅',
             error: '❌',
             warning: '⚠️',
             info: 'ℹ️'
         }[type] || 'ℹ️';
-        
+
         notification.innerHTML = `
             <span class="notification-icon">${icon}</span>
             <span class="notification-message">${message}</span>
             <button class="notification-close">&times;</button>
         `;
-        
+
         // Add close functionality
         notification.querySelector('.notification-close').addEventListener('click', () => {
             notification.remove();
         });
-        
+
         container.appendChild(notification);
-        
+
         // Auto-remove after 5 seconds
         setTimeout(() => {
             if (notification.parentNode) {
@@ -381,7 +381,7 @@ class OverlayCompanionApp {
             }
         }, 5000);
     }
-    
+
     showError(title, message) {
         const app = document.getElementById('app');
         app.innerHTML = `

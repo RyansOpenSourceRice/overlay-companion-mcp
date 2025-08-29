@@ -14,7 +14,6 @@ Security and CORS
 - GET /overlay/token is a dev-only helper (omit in prod behind a proxy)
 
 
-
 Overview
 This project targets a web-first overlay viewer with an MCP backend and a remote desktop powered by Apache Guacamole.
 We prioritize backend/infrastructure so the front-end can remain thin.

@@ -220,34 +220,34 @@ fi
 # Summary of GTK bundling and create .NET-compatible symlinks
 if find "$APPDIR/usr/lib" -maxdepth 1 -name 'libgtk-4*.so*' | grep -q libgtk-4; then
     echo -e "${GREEN}  ✅ GTK4 runtime bundled into AppImage AppDir${NC}"
-    
+
     # Create .NET-compatible symlinks for GTK4 libraries
     echo -e "${YELLOW}  🔗 Creating .NET-compatible library symlinks...${NC}"
     cd "$APPDIR/usr/lib"
-    
+
     # GTK4 main library symlinks
     if [ -f "libgtk-4.so.1" ]; then
         ln -sf libgtk-4.so.1 Gtk.so 2>/dev/null || true
         ln -sf libgtk-4.so.1 libGtk.so 2>/dev/null || true
         echo -e "${GREEN}    ✅ Created GTK4 symlinks${NC}"
     fi
-    
+
     # Additional common GTK4 library symlinks that .NET might need
     if [ -f "libgobject-2.0.so.0" ]; then
         ln -sf libgobject-2.0.so.0 GObject.so 2>/dev/null || true
         ln -sf libgobject-2.0.so.0 libGObject.so 2>/dev/null || true
     fi
-    
+
     if [ -f "libglib-2.0.so.0" ]; then
         ln -sf libglib-2.0.so.0 GLib.so 2>/dev/null || true
         ln -sf libglib-2.0.so.0 libGLib.so 2>/dev/null || true
     fi
-    
+
     if [ -f "libgio-2.0.so.0" ]; then
         ln -sf libgio-2.0.so.0 Gio.so 2>/dev/null || true
         ln -sf libgio-2.0.so.0 libGio.so 2>/dev/null || true
     fi
-    
+
     cd - > /dev/null
     echo -e "${GREEN}  ✅ .NET GTK4 library symlinks created${NC}"
 else
@@ -374,7 +374,7 @@ ICON_DEST="$APPDIR/usr/share/icons/hicolor/256x256/apps/$APP_NAME.png"
 if [ -f "$ICON_SOURCE" ]; then
     cp "$ICON_SOURCE" "$ICON_DEST"
     echo -e "${GREEN}✅ Using existing icon from assets/icon.png${NC}"
-    
+
     # Generate multiple icon sizes for better desktop integration
     if command -v convert &> /dev/null; then
         echo -e "${YELLOW}  🔄 Generating multiple icon sizes for better desktop integration...${NC}"

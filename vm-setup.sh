@@ -42,24 +42,24 @@ check_os() {
 # Install RDP server and desktop environment
 install_rdp_services() {
     log "Installing RDP services and desktop environment..."
-    
+
     # Update system
     sudo dnf update -y >> "$LOG_FILE" 2>&1
-    
+
     # Install GNOME desktop (if not already installed)
     if ! rpm -q gnome-shell >/dev/null 2>&1; then
         log "Installing GNOME desktop environment..."
         sudo dnf groupinstall -y "GNOME Desktop Environment" >> "$LOG_FILE" 2>&1
     fi
-    
+
     # Install XRDP
     log "Installing XRDP server..."
     sudo dnf install -y xrdp xrdp-selinux >> "$LOG_FILE" 2>&1
-    
+
     # Install VNC server as backup
     log "Installing VNC server..."
     sudo dnf install -y tigervnc-server >> "$LOG_FILE" 2>&1
-    
+
     # Install additional tools
     log "Installing additional tools..."
     sudo dnf install -y \
@@ -71,40 +71,40 @@ install_rdp_services() {
         curl \
         wget \
         git >> "$LOG_FILE" 2>&1
-    
+
     success "RDP services and desktop installed"
 }
 
 # Configure XRDP
 configure_xrdp() {
     log "Configuring XRDP..."
-    
+
     # Enable and start XRDP
     sudo systemctl enable xrdp >> "$LOG_FILE" 2>&1
     sudo systemctl start xrdp >> "$LOG_FILE" 2>&1
-    
+
     # Configure firewall
     log "Configuring firewall for RDP..."
     sudo firewall-cmd --permanent --add-port=3389/tcp >> "$LOG_FILE" 2>&1
     sudo firewall-cmd --reload >> "$LOG_FILE" 2>&1
-    
+
     # Set SELinux context for XRDP
     sudo setsebool -P xrdp_can_network_connect 1 >> "$LOG_FILE" 2>&1
-    
+
     success "XRDP configured and started"
 }
 
 # Configure VNC as backup
 configure_vnc() {
     log "Configuring VNC server..."
-    
+
     # Create VNC user directory
     mkdir -p ~/.vnc
-    
+
     # Set VNC password (you'll be prompted)
     echo "Please set a VNC password for user $(whoami):"
     vncpasswd
-    
+
     # Create VNC service file
     sudo tee /etc/systemd/system/vncserver@.service > /dev/null << 'EOF'
 [Unit]
@@ -121,32 +121,32 @@ ExecStop=/usr/bin/vncserver -kill :%i
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     # Enable VNC for current user
     sudo systemctl daemon-reload
     sudo systemctl enable vncserver@1.service
     sudo systemctl start vncserver@1.service
-    
+
     # Configure firewall for VNC
     sudo firewall-cmd --permanent --add-port=5901/tcp >> "$LOG_FILE" 2>&1
     sudo firewall-cmd --reload >> "$LOG_FILE" 2>&1
-    
+
     success "VNC server configured"
 }
 
 # Create test user for RDP access
 create_rdp_user() {
     log "Creating RDP test user..."
-    
+
     # Create user 'rdpuser' if it doesn't exist
     if ! id "rdpuser" >/dev/null 2>&1; then
         sudo useradd -m -s /bin/bash rdpuser
         echo "Please set password for rdpuser:"
         sudo passwd rdpuser
-        
+
         # Add to necessary groups
         sudo usermod -aG wheel rdpuser
-        
+
         success "RDP user 'rdpuser' created"
     else
         log "RDP user 'rdpuser' already exists"
@@ -156,7 +156,7 @@ create_rdp_user() {
 # Display connection information
 show_connection_info() {
     local vm_ip=$(hostname -I | awk '{print $1}')
-    
+
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}🎉 VM RDP Setup Complete!${NC}"
     echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -192,7 +192,7 @@ main() {
     echo "This script sets up RDP services in your Fedora VM."
     echo "The containers will run on your HOST OS, not in this VM."
     echo ""
-    
+
     check_os
     install_rdp_services
     configure_xrdp

@@ -23,7 +23,7 @@ echo "Running pre-commit checks..."
 # Check if we're in the middle of a merge
 if [ -f .git/MERGE_HEAD ]; then
     echo "Merge in progress - checking for unresolved conflicts..."
-    
+
     # Check for conflict markers
     if git diff --cached --name-only | xargs grep -l "^<<<<<<< \|^=======$\|^>>>>>>> " 2>/dev/null; then
         echo "ERROR: Unresolved merge conflicts detected!"
