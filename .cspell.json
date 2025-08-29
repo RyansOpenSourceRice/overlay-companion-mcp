@@ -212,7 +212,12 @@
     "yourpass",
     "xfreerdp",
     "alsa",
-    "Guacd"
+    "Guacd",
+    "Kasm",
+    "KasmVNC",
+    "KASMVNC",
+    "allowlist",
+    "blocklist"
   ],
   "flagWords": [],
   "ignorePaths": [

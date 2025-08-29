@@ -114,6 +114,16 @@ public class Program
         builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();
 
+        // Register KasmVNC integration service
+        builder.Services.Configure<KasmVNCOptions>(options =>
+        {
+            options.BaseUrl = Environment.GetEnvironmentVariable("KASMVNC_URL") ?? "http://kasmvnc:6901";
+            options.WebSocketUrl = Environment.GetEnvironmentVariable("KASMVNC_WS_URL") ?? "ws://kasmvnc:6901/websockify";
+            options.ApiUrl = Environment.GetEnvironmentVariable("KASMVNC_API_URL") ?? "http://kasmvnc:6902";
+            options.AdminPort = int.Parse(Environment.GetEnvironmentVariable("KASMVNC_ADMIN_PORT") ?? "3000");
+        });
+        builder.Services.AddSingleton<IKasmVNCService, KasmVNCService>();
+
         // Add MCP server with native HTTP transport using official SDK
         builder.Services
             .AddMcpServer()
@@ -179,22 +189,22 @@ public class Program
             await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
         });
 
-	        // Simple test endpoint for CI/manual verification
-	        app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
-	        {
-	            var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);
-	            var overlay = new OverlayCompanion.Models.OverlayElement
-	            {
-	                Bounds = bounds,
-	                Color = "#ff0000",
-	                Opacity = 0.4,
-	                Label = "test",
-	                TemporaryMs = 1500,
-	                ClickThrough = true
-	            };
-	            var id = await overlaySvc.DrawOverlayAsync(overlay);
-	            return Results.Json(new { ok = true, overlay_id = id });
-	        });
+        // Simple test endpoint for CI/manual verification
+        app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
+        {
+            var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);
+            var overlay = new OverlayCompanion.Models.OverlayElement
+            {
+                Bounds = bounds,
+                Color = "#ff0000",
+                Opacity = 0.4,
+                Label = "test",
+                TemporaryMs = 1500,
+                ClickThrough = true
+            };
+            var id = await overlaySvc.DrawOverlayAsync(overlay);
+            return Results.Json(new { ok = true, overlay_id = id });
+        });
 
         // Map MCP endpoints (native HTTP transport with streaming support)
         // Preferred root path "/" for MCP per current policy
@@ -205,6 +215,40 @@ public class Program
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
+
+        // Health check endpoint with KasmVNC integration status
+        app.MapGet("/health", async (IKasmVNCService kasmvnc, IOverlayService overlay, IOverlayEventBroadcaster broadcaster) =>
+        {
+            var kasmvncConnected = await kasmvnc.IsConnectedAsync();
+            var sessionStatus = kasmvncConnected ? await kasmvnc.GetSessionStatusAsync() : "disconnected";
+            var activeOverlays = await overlay.GetActiveOverlaysAsync();
+
+            var health = new
+            {
+                status = "healthy",
+                timestamp = DateTime.UtcNow,
+                uptime = Environment.TickCount64 / 1000.0, // seconds
+                services = new
+                {
+                    mcp_server = "running",
+                    overlay_service = "running",
+                    kasmvnc_connection = kasmvncConnected,
+                    kasmvnc_session = sessionStatus,
+                    websocket_clients = broadcaster.ClientCount,
+                    active_overlays = activeOverlays.Count()
+                },
+                capabilities = new
+                {
+                    multi_monitor = true,
+                    overlay_system = true,
+                    click_through = true,
+                    kasmvnc_integration = kasmvncConnected,
+                    websocket_streaming = true
+                }
+            };
+
+            return Results.Json(health);
+        });
         // WebSocket endpoint for overlay events
         app.MapGet("/ws/overlays", async (HttpContext context) =>
         {
@@ -320,7 +364,7 @@ public class Program
 
 
     // Web-only: StartGtk4App removed
-    
+
 
     /// <summary>
     /// Get MCP configuration for HTTP transport (recommended)
@@ -367,9 +411,9 @@ public class Program
     /// </summary>
     public static string GetMcpConfigurationJson()
     {
-        return JsonSerializer.Serialize(GetMcpConfiguration(), new JsonSerializerOptions 
-        { 
-            WriteIndented = true 
+        return JsonSerializer.Serialize(GetMcpConfiguration(), new JsonSerializerOptions
+        {
+            WriteIndented = true
         });
     }
 
@@ -484,7 +528,7 @@ public class Program
     <div class="container">
         <h1>🎯 Overlay Companion MCP</h1>
         <p class="subtitle">AI-assisted screen interaction with overlay functionality</p>
-        
+
         <div class="status">
             <strong>✅ Server Running</strong><br>
             HTTP transport is active on <code>http://localhost:3000/</code>
@@ -528,7 +572,7 @@ public class Program
 
         <div class="status warning">
             <strong>⚠️ Transport Detection Issue</strong><br>
-            If your MCP client shows this as "STDIO" instead of "HTTP" after importing, 
+            If your MCP client shows this as "STDIO" instead of "HTTP" after importing,
             try using the HTTP configuration above or check your client's HTTP transport support.
         </div>
     </div>
@@ -551,13 +595,13 @@ public class Program
         function copyConfig(type) {
             const elementId = type === 'http' ? 'http-config' : 'stdio-config';
             const text = document.getElementById(elementId).textContent;
-            
+
             navigator.clipboard.writeText(text).then(() => {
                 const btn = event.target;
                 const originalText = btn.textContent;
                 btn.textContent = '✅ Copied!';
                 btn.classList.add('copied');
-                
+
                 setTimeout(() => {
                     btn.textContent = originalText;
                     btn.classList.remove('copied');

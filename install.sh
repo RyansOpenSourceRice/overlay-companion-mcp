@@ -28,7 +28,7 @@ if command_exists dotnet; then
 else
     echo -e "${RED}❌ .NET not found${NC}"
     echo -e "${YELLOW}Installing .NET 8.0...${NC}"
-    
+
     # Detect OS and install .NET
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         # Ubuntu/Debian
@@ -62,7 +62,7 @@ else
         echo -e "${YELLOW}Please install .NET 8.0 manually: https://dotnet.microsoft.com/download${NC}"
         exit 1
     fi
-    
+
     # Verify installation
     if command_exists dotnet; then
         DOTNET_VERSION=$(dotnet --version)

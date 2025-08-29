@@ -1,3 +1,14 @@
+# ⚠️ DEPRECATED: Guacamole-based Container Infrastructure
+#
+# This file defines the LEGACY Guacamole-based container stack.
+#
+# ⚠️ WARNING: This configuration is DEPRECATED in favor of KasmVNC.
+# Use infra/kasmvnc-compose.yml instead for:
+# ✅ No PostgreSQL database required
+# ✅ True multi-monitor support
+# ✅ 33% fewer containers (4 vs 6)
+# ✅ Simpler configuration
+
 version: "3.8"
 services:
   postgres:
@@ -19,7 +30,7 @@ services:
     depends_on:
       - postgres
     environment:
-      PGPASSWORD: guacpass
+      PGPASSWORD: guacpass  # pragma: allowlist secret
     entrypoint: ["/bin/sh","-c"]
     command: |
       apk add --no-cache curl tar postgresql-client >/dev/null &&

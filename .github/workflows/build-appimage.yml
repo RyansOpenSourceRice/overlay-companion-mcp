@@ -366,7 +366,7 @@ jobs:
 
         # Test basic execution with virtual display (help) - capture output for analysis
         echo "🧪 Testing AppImage help command (max 60 seconds)..."
-        
+
         # Use a more aggressive timeout and background process management
         if timeout 60s xvfb-run -a ./${{ needs.build-appimage.outputs.appimage-name }} --help > appimage_help_test.log 2>&1; then
           echo "✅ AppImage help test completed successfully"
@@ -424,7 +424,7 @@ jobs:
           echo "📋 Available libraries (sample):"
           find squashfs-root/usr/lib -name '*.so*' 2>/dev/null | head -10 || true
         fi
-        
+
         # Check for .NET-compatible symlinks
         echo "🔍 Checking for .NET-compatible library symlinks..."
         if find squashfs-root/usr/lib -name 'Gtk.so' 2>/dev/null | grep -q Gtk.so; then

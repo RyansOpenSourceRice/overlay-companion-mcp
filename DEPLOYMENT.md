@@ -2,22 +2,24 @@
 
 Multiple deployment options for different use cases and infrastructure preferences.
 
+> **📋 Important**: This guide reflects the new KasmVNC architecture. The legacy Guacamole deployment is deprecated due to database complexity and limited multi-monitor support.
+
 ---
 
 ## 🏠 Option 1: Host + VM Architecture (Recommended)
 
-**Containers on HOST Fedora Linux, VMs separate - proper separation of concerns**
+**KasmVNC containers on HOST Fedora Linux, VMs separate - simplified architecture**
 
 ### Architecture
-- **Host OS**: Runs 4 podman containers (MCP server, Management web, PostgreSQL, Guacamole)
-- **Separate VM**: Runs RDP services, accessed through Guacamole
-- **Connection**: Guacamole connects to VM via RDP, MCP provides AI overlay
+- **Host OS**: Runs 4 podman containers (MCP server, Management web, KasmVNC, Caddy proxy)
+- **Separate VM**: Runs KasmVNC server for web-native remote desktop access
+- **Connection**: Direct WebSocket/WebRTC connection to KasmVNC, MCP provides AI overlay
 
 ### Quick Start
 
 **Step 1: Set up containers on HOST Fedora Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
 **Step 2: Create Fedora VM on your preferred platform**
@@ -25,29 +27,32 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 - Install Fedora Silverblue or Workstation
 - Minimum: 4GB RAM, internet access
 
-**Step 3: Set up RDP in VM**
+**Step 3: Set up KasmVNC in VM**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
 ```
 
 **What gets installed:**
-- ✅ **Host**: 6 containers (MCP server, Web interface, PostgreSQL, Guacamole, guacd, Caddy proxy)
-- ✅ **VM**: RDP services (xrdp, VNC, GNOME desktop)
-- ✅ **Connection**: Guacamole connects to VM via RDP
-- ✅ **Database**: PostgreSQL with Guacamole schema and admin user
-- ✅ Ready to use in 15-20 minutes
+- ✅ **Host**: 4 containers (MCP server, Web interface, KasmVNC, Caddy proxy) - **33% fewer containers**
+- ✅ **VM**: KasmVNC server with GNOME desktop
+- ✅ **Connection**: Direct WebSocket/WebRTC to KasmVNC (no database required)
+- ✅ **No Database**: Eliminates PostgreSQL complexity entirely
+- ✅ Ready to use in 10-15 minutes
 
 **After installation:**
 - **Main Interface**: `http://localhost:8080` (Caddy proxy)
 - **MCP Server**: `http://localhost:3000` (direct) or `http://localhost:8080/mcp` (via proxy)
-- **Guacamole**: `http://localhost:8080/guac/` (login: guacadmin/guacadmin)
+- **KasmVNC**: `http://localhost:8080/vnc/` (web-native VNC client)
 - **Web Interface**: `http://localhost:8080/` (overlay management)
-- Add VM via Guacamole interface using its IP address
+- Add VM via web interface using its IP address and port 6901
 
 **Benefits:**
-- ✅ Proper separation: containers on host, VMs separate
-- ✅ Platform agnostic: use any VM platform
-- ✅ Scalable: add multiple VMs easily
+- ✅ **No Database**: Eliminates PostgreSQL setup and maintenance
+- ✅ **Fewer Containers**: 4 instead of 6 (33% reduction in complexity)
+- ✅ **True Multi-Monitor**: Native support with separate browser windows
+- ✅ **Web-Native**: Built for browsers, no legacy VNC clients
+- ✅ **Better Performance**: WebSocket/WebRTC protocols
+- ✅ **Simpler Configuration**: YAML-based instead of database schemas
 - ✅ Resource efficient: containers don't compete with VM resources
 
 ---

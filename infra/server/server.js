@@ -2,7 +2,7 @@
 
 /**
  * Overlay Companion MCP - Management Server
- * 
+ *
  * This server provides:
  * - Web interface with Guacamole integration
  * - MCP WebSocket bridge for overlay broadcasting
@@ -14,9 +14,10 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs').promises;
+// const fs = require('fs').promises; // Reserved for future file operations
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
+const ConnectionManager = require('./connection-manager');
 
 // Configuration
 const config = {
@@ -24,8 +25,9 @@ const config = {
   bindAddress: process.env.BIND_ADDRESS || '0.0.0.0',
   httpPort: parseInt(process.env.HTTP_PORT) || 8080,
   wsPort: parseInt(process.env.WS_PORT) || 8081,
-  guacamoleUrl: process.env.GUACAMOLE_URL || 'http://localhost:8080',
-  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:8081',
+  kasmvncUrl: process.env.KASMVNC_URL || 'http://localhost:6901',
+  kasmvncApiUrl: process.env.KASMVNC_API_URL || 'http://localhost:6902',
+  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:3001',
   mcpWsEnabled: process.env.MCP_WS_ENABLED === 'true',
   nodeEnv: process.env.NODE_ENV || 'development'
 };
@@ -45,6 +47,7 @@ const log = {
 // Express app setup
 const app = express();
 const server = http.createServer(app);
+const connectionManager = new ConnectionManager();
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -55,7 +58,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -65,9 +68,9 @@ app.use((req, res, next) => {
 
 // Request logging
 app.use((req, res, next) => {
-  log.debug(`${req.method} ${req.path}`, { 
-    ip: req.ip, 
-    userAgent: req.get('User-Agent') 
+  log.debug(`${req.method} ${req.path}`, {
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
   });
   next();
 });
@@ -77,21 +80,21 @@ let wss = null;
 const overlayClients = new Set();
 
 if (config.mcpWsEnabled) {
-  wss = new WebSocket.Server({ 
+  wss = new WebSocket.Server({
     server,
     path: '/ws',
     clientTracking: true
   });
-  
+
   wss.on('connection', (ws, req) => {
     const clientId = `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     overlayClients.add(ws);
-    
+
     log.info(`WebSocket client connected: ${clientId}`, {
       ip: req.socket.remoteAddress,
       userAgent: req.headers['user-agent']
     });
-    
+
     // Send welcome message
     ws.send(JSON.stringify({
       type: 'welcome',
@@ -99,29 +102,29 @@ if (config.mcpWsEnabled) {
       timestamp: new Date().toISOString(),
       message: 'Connected to Overlay Companion MCP WebSocket'
     }));
-    
+
     // Handle messages from client
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
         log.debug(`WebSocket message from ${clientId}:`, message);
-        
+
         // Handle different message types
         switch (message.type) {
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
             break;
-            
+
           case 'overlay_command':
             // Broadcast overlay command to all clients
             broadcastOverlay(message.payload, clientId);
             break;
-            
+
           case 'viewport_update':
             // Handle viewport configuration updates
             handleViewportUpdate(message.payload, clientId);
             break;
-            
+
           default:
             log.warn(`Unknown message type from ${clientId}:`, message.type);
         }
@@ -129,31 +132,32 @@ if (config.mcpWsEnabled) {
         log.error(`Error processing WebSocket message from ${clientId}:`, error);
       }
     });
-    
+
     // Handle client disconnect
     ws.on('close', (code, reason) => {
       overlayClients.delete(ws);
       log.info(`WebSocket client disconnected: ${clientId}`, { code, reason: reason.toString() });
     });
-    
+
     // Handle errors
     ws.on('error', (error) => {
       log.error(`WebSocket error for ${clientId}:`, error);
       overlayClients.delete(ws);
     });
   });
-  
+
   log.info(`WebSocket server enabled on path /ws`);
 }
 
 // Broadcast overlay command to all connected clients
-function broadcastOverlay(payload, excludeClientId = null) {
+function broadcastOverlay(payload) {
+  // Note: excludeClientId parameter removed as it's not currently used
   const message = JSON.stringify({
     type: 'overlay_broadcast',
     payload,
     timestamp: new Date().toISOString()
   });
-  
+
   let broadcastCount = 0;
   overlayClients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
@@ -161,7 +165,7 @@ function broadcastOverlay(payload, excludeClientId = null) {
       broadcastCount++;
     }
   });
-  
+
   log.debug(`Broadcasted overlay command to ${broadcastCount} clients`, payload);
 }
 
@@ -186,23 +190,132 @@ app.use('/mcp', createProxyMiddleware({
       message: 'The C# MCP server is not responding. It may not be running or configured.'
     });
   },
-  onProxyReq: (proxyReq, req, res) => {
+  onProxyReq: (proxyReq, req) => {
+    // Note: res parameter removed as it's not used in this context
     log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
   }
 }));
+
+// SECURITY: Rate limiting for connection testing to prevent abuse
+const connectionTestLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 connection tests per minute
+  message: {
+    success: false,
+    error: 'Too many connection test attempts. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Connection testing endpoint with SSRF protection
+app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
+  try {
+    const connection = req.body;
+
+    // SECURITY: Additional input validation
+    if (!connection || typeof connection !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid connection configuration'
+      });
+    }
+
+    // SECURITY: Sanitize/allow only expected fields
+    let sanitizedConnection;
+    if (typeof connection.protocol === 'string' && connection.protocol.toLowerCase() === 'kasmvnc') {
+      // Only allow client to specify a known targetId
+      sanitizedConnection = {
+        targetId: typeof connection.targetId === 'string' ? connection.targetId : '',
+        protocol: 'kasmvnc'
+      };
+    } else {
+      sanitizedConnection = {
+        host: typeof connection.host === 'string' ? connection.host.trim() : '',
+        port: parseInt(connection.port),
+        protocol: typeof connection.protocol === 'string' ? connection.protocol.toLowerCase() : '',
+        ssl: Boolean(connection.ssl)
+      };
+    }
+
+    // Validate connection configuration (for non-kasmvnc only)
+    if (sanitizedConnection.protocol !== 'kasmvnc') {
+      const validation = connectionManager.validateConnection(sanitizedConnection);
+      if (!validation.valid) {
+        log.warn(`🚫 SECURITY: Invalid connection attempt from ${req.ip}:`, validation.errors);
+        return res.status(400).json({
+          success: false,
+          errors: validation.errors
+        });
+      }
+    }
+
+    // Test the connection (includes SSRF protection)
+    const result = await connectionManager.testConnection(sanitizedConnection);
+
+    // SECURITY: Log connection test attempts for monitoring
+    let logTarget;
+    if (sanitizedConnection.protocol === 'kasmvnc') {
+      logTarget = sanitizedConnection.targetId;
+    } else {
+      logTarget = `${sanitizedConnection.host}:${sanitizedConnection.port}`;
+    }
+    log.info(`Connection test: ${sanitizedConnection.protocol} - ${logTarget} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
+
+    res.json(result);
+  } catch (error) {
+    log.error('Connection test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error during connection test'
+    });
+  }
+});
+
+// Protocol defaults endpoint
+app.get('/api/protocol-defaults/:protocol', (req, res) => {
+  const { protocol } = req.params;
+  const defaults = connectionManager.getProtocolDefaults(protocol);
+
+  if (Object.keys(defaults).length === 0) {
+    return res.status(404).json({
+      error: 'Unknown protocol'
+    });
+  }
+
+  res.json(defaults);
+});
+
+// Connection manager stats endpoint
+app.get('/api/connection-stats', (req, res) => {
+  const stats = connectionManager.getStats();
+  res.json(stats);
+});
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
   // Check MCP server health
   let mcpServerStatus = 'unknown';
   try {
-    const response = await fetch(`${config.mcpServerUrl}/health`, { 
+    const response = await fetch(`${config.mcpServerUrl}/health`, {
       timeout: 5000,
       signal: AbortSignal.timeout(5000)
     });
     mcpServerStatus = response.ok ? 'healthy' : 'unhealthy';
   } catch (error) {
     mcpServerStatus = 'unavailable';
+  }
+
+  // Check KasmVNC health
+  let kasmvncStatus = 'unknown';
+  try {
+    const response = await fetch(`${config.kasmvncApiUrl}/api/health`, {
+      timeout: 5000,
+      signal: AbortSignal.timeout(5000)
+    });
+    kasmvncStatus = response.ok ? 'healthy' : 'unhealthy';
+  } catch (error) {
+    kasmvncStatus = 'unavailable';
   }
 
   const health = {
@@ -215,16 +328,19 @@ app.get('/health', async (req, res) => {
       httpPort: config.httpPort,
       wsPort: config.wsPort,
       mcpWsEnabled: config.mcpWsEnabled,
-      mcpServerUrl: config.mcpServerUrl
+      mcpServerUrl: config.mcpServerUrl,
+      kasmvncUrl: config.kasmvncUrl,
+      kasmvncApiUrl: config.kasmvncApiUrl
     },
     services: {
       webServer: 'running',
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
       mcpServer: mcpServerStatus,
+      kasmvnc: kasmvncStatus,
       connectedClients: overlayClients.size
     }
   };
-  
+
   res.json(health);
 });
 
@@ -233,7 +349,7 @@ app.get('/mcp-config', (req, res) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
   const wsProtocol = req.secure ? 'wss' : 'ws';
-  
+
   const mcpConfig = {
     mcp_version: '1.0',
     session_id: `${config.projectName}-${Date.now()}`,
@@ -244,7 +360,9 @@ app.get('/mcp-config', (req, res) => {
       token: `dev-token-${Date.now()}`
     },
     desktop: {
-      target: 'fedora-silverblue',
+      target: 'kasmvnc-session',
+      kasmvnc_url: config.kasmvncUrl,
+      kasmvnc_api_url: config.kasmvncApiUrl,
       viewport: {
         w: 1920,
         h: 1080,
@@ -259,7 +377,7 @@ app.get('/mcp-config', (req, res) => {
     },
     notes: 'Single-user dev package. Copy this JSON into Cherry Studio MCP slot.'
   };
-  
+
   res.json(mcpConfig);
 });
 

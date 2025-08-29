@@ -1,5 +1,20 @@
 /**
- * Guacamole Client Component
+ * ⚠️ DEPRECATED: Guacamole Client Component
+ *
+ * This component is DEPRECATED in favor of KasmVNCClient.js
+ *
+ * Issues with Guacamole:
+ * - Requires complex PostgreSQL database setup
+ * - Single canvas limitation (no true multi-monitor support)
+ * - Legacy VNC/RDP protocol bridging
+ * - Complex credential management
+ *
+ * Use KasmVNCClient.js instead for:
+ * ✅ No database required
+ * ✅ True multi-monitor support
+ * ✅ Modern WebSocket/WebRTC protocols
+ * ✅ Simpler configuration
+ *
  * Handles connection to the Fedora Silverblue VM via Guacamole
  */
 
@@ -10,30 +25,30 @@ export default class GuacamoleClient {
             onDisconnect: options.onDisconnect || (() => {}),
             onError: options.onError || (() => {})
         };
-        
+
         this.client = null;
         this.display = null;
         this.container = null;
         this.connected = false;
     }
-    
+
     initialize(container) {
         this.container = container;
-        
+
         // For now, we'll create a placeholder since we don't have the actual Guacamole setup
         // In a real implementation, this would use guacamole-common-js
         this.createPlaceholder();
-        
+
         // Simulate connection after a delay
         setTimeout(() => {
             this.simulateConnection();
         }, 2000);
     }
-    
+
     createPlaceholder() {
         // Clear existing content
         this.container.innerHTML = '';
-        
+
         // Create a placeholder desktop environment
         const desktop = document.createElement('div');
         desktop.className = 'fedora-desktop-placeholder';
@@ -50,7 +65,7 @@ export default class GuacamoleClient {
             position: relative;
             overflow: hidden;
         `;
-        
+
         // Add Fedora logo and info
         desktop.innerHTML = `
             <div style="text-align: center; z-index: 2;">
@@ -85,12 +100,12 @@ export default class GuacamoleClient {
                     </p>
                 </div>
             </div>
-            
+
             <!-- Animated background elements -->
             <div style="position: absolute; top: 10%; left: 10%; width: 100px; height: 100px; background: rgba(255,255,255,0.05); border-radius: 50%; animation: float 6s ease-in-out infinite;"></div>
             <div style="position: absolute; top: 60%; right: 15%; width: 150px; height: 150px; background: rgba(255,255,255,0.03); border-radius: 50%; animation: float 8s ease-in-out infinite reverse;"></div>
             <div style="position: absolute; bottom: 20%; left: 20%; width: 80px; height: 80px; background: rgba(255,255,255,0.04); border-radius: 50%; animation: float 7s ease-in-out infinite;"></div>
-            
+
             <style>
                 @keyframes float {
                     0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -98,7 +113,7 @@ export default class GuacamoleClient {
                 }
             </style>
         `;
-        
+
         // Add click handlers for app icons
         const appIcons = desktop.querySelectorAll('.app-icon');
         appIcons.forEach(icon => {
@@ -107,10 +122,10 @@ export default class GuacamoleClient {
                 this.simulateAppLaunch(appName);
             });
         });
-        
+
         this.container.appendChild(desktop);
     }
-    
+
     // Helper to escape HTML for app names to prevent XSS
     escapeHTML(str) {
         if (!str) return '';
@@ -121,7 +136,7 @@ export default class GuacamoleClient {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
-    
+
     simulateAppLaunch(appName) {
         // Create a simple app window simulation
         const appWindow = document.createElement('div');
@@ -141,7 +156,7 @@ export default class GuacamoleClient {
             z-index: 10;
             animation: windowOpen 0.3s ease;
         `;
-        
+
         appWindow.innerHTML = `
             <div style="padding: 1rem; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 0.5rem 0.5rem 0 0;">
                 <h3 style="margin: 0; font-size: 1rem;">${this.escapeHTML(appName)}</h3>
@@ -157,7 +172,7 @@ export default class GuacamoleClient {
                 </div>
             </div>
         `;
-        
+
         // Add animation styles
         const style = document.createElement('style');
         style.textContent = `
@@ -167,9 +182,9 @@ export default class GuacamoleClient {
             }
         `;
         document.head.appendChild(style);
-        
+
         this.container.appendChild(appWindow);
-        
+
         // Auto-close after 5 seconds
         setTimeout(() => {
             if (appWindow.parentNode) {
@@ -178,30 +193,30 @@ export default class GuacamoleClient {
             }
         }, 5000);
     }
-    
+
     simulateConnection() {
         this.connected = true;
         this.options.onConnect();
-        
+
         // Update VM status in the UI
         const vmConnectionStatus = document.getElementById('vm-connection-status');
         if (vmConnectionStatus) {
             vmConnectionStatus.textContent = 'Connected';
             vmConnectionStatus.style.color = '#48bb78';
         }
-        
+
         // Update resolution display
         const vmResolution = document.getElementById('vm-resolution');
         if (vmResolution) {
             vmResolution.textContent = '1920x1080';
         }
     }
-    
+
     disconnect() {
         if (this.connected) {
             this.connected = false;
             this.options.onDisconnect();
-            
+
             // Update UI
             const vmConnectionStatus = document.getElementById('vm-connection-status');
             if (vmConnectionStatus) {
@@ -210,27 +225,27 @@ export default class GuacamoleClient {
             }
         }
     }
-    
+
     // Real Guacamole integration methods (for future implementation)
-    
+
     /*
     initializeRealGuacamole() {
         // This would be the actual Guacamole client initialization
         // using guacamole-common-js library
-        
+
         const tunnel = new Guacamole.WebSocketTunnel('/guacamole/websocket-tunnel');
         this.client = new Guacamole.Client(tunnel);
-        
+
         // Set up display
         this.display = this.client.getDisplay();
         this.container.appendChild(this.display.getElement());
-        
+
         // Handle connection events
         this.client.onerror = (error) => {
             console.error('Guacamole error:', error);
             this.options.onError(error);
         };
-        
+
         this.client.onstatechange = (state) => {
             if (state === Guacamole.Client.CONNECTED) {
                 this.connected = true;
@@ -240,12 +255,12 @@ export default class GuacamoleClient {
                 this.options.onDisconnect();
             }
         };
-        
+
         // Connect to VM
         this.client.connect('fedora-silverblue');
     }
     */
-    
+
     getConnectionState() {
         return {
             connected: this.connected,

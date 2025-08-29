@@ -21,7 +21,7 @@ public class Gtk4OverlayApplication : IDisposable
     private Gtk.Application? _application;
     private Gtk4MainWindow? _mainWindow;
     private bool _disposed = false;
-    
+
     public Gtk.Application? Application => _application;
 
     public Gtk4OverlayApplication()

@@ -1,3 +1,16 @@
+# ⚠️ DEPRECATED: Guacamole-based OpenTofu Infrastructure
+#
+# This infrastructure configuration is DEPRECATED in favor of KasmVNC architecture.
+#
+# ⚠️ WARNING: This setup provisions Guacamole-based infrastructure which is deprecated.
+# Issues with this configuration:
+# - Provisions PostgreSQL database (unnecessary complexity)
+# - Sets up 6 containers instead of 4
+# - Complex credential management
+# - Lacks true multi-monitor support
+#
+# RECOMMENDED: Create new KasmVNC-based infrastructure configuration
+
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -25,18 +38,18 @@ provider "libvirt" {
 locals {
   project_name = var.project_name
   timestamp    = formatdate("YYYY-MM-DD-hhmm", timestamp())
-  
+
   # Network configuration
   network_mode = var.expose_to_lan ? "bridge" : "nat"
   bind_address = var.expose_to_lan ? "0.0.0.0" : "127.0.0.1"
-  
+
   # VM configuration
   vm_name = "${local.project_name}-vm"
   vm_disk_size = 40 * 1024 * 1024 * 1024  # 40GB in bytes
-  
+
   # Container configuration
   container_name = "${local.project_name}-management"
-  
+
   # Common labels
   common_labels = {
     project     = local.project_name
@@ -48,21 +61,21 @@ locals {
 # Management container module
 module "management_container" {
   source = "./modules/management-container"
-  
+
   project_name   = local.project_name
   container_name = local.container_name
   container_port = var.container_port
   bind_address   = local.bind_address
   user_home      = var.user_home
   user_name      = var.user_name
-  
+
   labels = local.common_labels
 }
 
 # Fedora VM module
 module "fedora_vm" {
   source = "./modules/fedora-vm"
-  
+
   project_name       = local.project_name
   vm_name           = local.vm_name
   vm_memory         = var.vm_memory
@@ -70,24 +83,24 @@ module "fedora_vm" {
   vm_disk_size      = local.vm_disk_size
   fedora_image_path = var.fedora_image_path
   user_home         = var.user_home
-  
+
   labels = local.common_labels
 }
 
 # Networking module
 module "networking" {
   source = "./modules/networking"
-  
+
   project_name    = local.project_name
   network_mode    = local.network_mode
   expose_to_lan   = var.expose_to_lan
   container_port  = var.container_port
   host_ip         = var.host_ip
-  
+
   # Dependencies
   container_id = module.management_container.container_id
   vm_id        = module.fedora_vm.vm_id
-  
+
   labels = local.common_labels
 }
 
@@ -98,19 +111,19 @@ resource "null_resource" "wait_for_services" {
     module.fedora_vm,
     module.networking
   ]
-  
+
   provisioner "local-exec" {
     command = <<-EOT
       echo "Waiting for services to start..."
       sleep 30
-      
+
       # Check if management container is running
       if podman ps --format "{{.Names}}" | grep -q "${local.container_name}"; then
         echo "✅ Management container is running"
       else
         echo "⚠️  Management container not found"
       fi
-      
+
       # Check if VM is running
       if virsh list --state-running --name | grep -q "${local.vm_name}"; then
         echo "✅ VM is running"
@@ -119,7 +132,7 @@ resource "null_resource" "wait_for_services" {
       fi
     EOT
   }
-  
+
   triggers = {
     container_id = module.management_container.container_id
     vm_id        = module.fedora_vm.vm_id
@@ -129,9 +142,9 @@ resource "null_resource" "wait_for_services" {
 # Generate session configuration
 resource "local_file" "session_config" {
   depends_on = [null_resource.wait_for_services]
-  
+
   filename = "${var.user_home}/.cache/${local.project_name}/session.json"
-  
+
   content = jsonencode({
     project_name    = local.project_name
     created_at      = local.timestamp
@@ -140,7 +153,7 @@ resource "local_file" "session_config" {
     vm_name         = local.vm_name
     network_mode    = local.network_mode
     expose_to_lan   = var.expose_to_lan
-    
+
     mcp_config = {
       mcp_version = "1.0"
       session_id  = "${local.project_name}-${local.timestamp}"
@@ -161,9 +174,9 @@ resource "local_file" "session_config" {
       notes = "Single-user dev package. Copy this JSON into Cherry Studio MCP slot."
     }
   })
-  
+
   file_permission = "0600"
-  
+
   provisioner "local-exec" {
     command = "mkdir -p $(dirname ${self.filename})"
   }

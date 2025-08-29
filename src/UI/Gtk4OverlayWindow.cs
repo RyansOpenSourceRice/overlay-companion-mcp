@@ -42,7 +42,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         {
             app = (Gtk4OverlayApplication.GlobalServiceProvider.GetService(typeof(Gtk4OverlayApplication)) as Gtk4OverlayApplication)?.Application;
         }
-        
+
         if (app == null)
         {
             // Fallback to singleton instance
@@ -57,7 +57,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         _window.SetResizable(false);
         _window.SetDecorated(false);
         _window.SetModal(false);
-        
+
         // Wayland-first: use gtk-layer-shell overlay layer if available; otherwise fullscreen toplevel
         bool usedLayerShell = false;
         try
@@ -165,7 +165,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
                 background-color: transparent;
                 border: none;
             }}
-            
+
             drawingarea.overlay {{
                 background-color: transparent;
             }}
@@ -174,7 +174,7 @@ public class Gtk4OverlayWindow : IOverlayWindow
         try
         {
             cssProvider.LoadFromData(css, -1);
-            
+
             // Apply CSS to window
             var styleContext = _window.GetStyleContext();
             styleContext.AddProvider(cssProvider, 800); // GTK_STYLE_PROVIDER_PRIORITY_APPLICATION

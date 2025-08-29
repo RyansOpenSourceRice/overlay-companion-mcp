@@ -1,7 +1,15 @@
 # Task List
 
-1. ✅ Read all markdown files in the repository
-Read main documentation files including README.md, SPECIFICATION.md, MCP_SPECIFICATION.md and others
-2. ✅ Delete all trajectory.json files and add to gitignore
-No trajectory.json files found to delete. Pattern already exists in .gitignore (lines 98-99)
+1. 🔄 Analyze and fix failing GitHub Actions checks
+Multiple checks failing: container builds, C# compilation, CodeQL security, markdown lint, merge ready check
+2. ⏳ Fix container build failures for mcp-server and web-interface
+GHCR container builds are failing - need to check Dockerfile issues
+3. ⏳ Fix C# compilation and linting errors
+C# lint and build pipeline failing - may be related to CreateOverlayTool changes
+4. ⏳ Address CodeQL security vulnerabilities
+4 new alerts including 3 critical security vulnerabilities detected
+5. ⏳ Fix markdown linting and spelling issues
+Spelling check failing - need to review markdown files
+6. ⏳ Fix core functionality check for merge readiness
+Core functionality check failing - may be dependent on other fixes
 

@@ -6,37 +6,48 @@ _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ## Architecture Overview
 
-The Overlay Companion MCP is a containerized system that provides AI-assisted screen interaction through a multi-container architecture. The system is built using the **official ModelContextProtocol C# SDK** with HTTP transport and deployed via Docker Compose/Podman for reliable container orchestration.
+The Overlay Companion MCP is a containerized system that provides AI-assisted screen interaction through a **simplified multi-container architecture**. The system is built using the **official ModelContextProtocol C# SDK** with HTTP transport and deployed via Docker Compose/Podman for reliable container orchestration.
 
-### System Components
+> **📋 Important**: The system has migrated from Guacamole to **KasmVNC architecture** for improved security, performance, and multi-monitor support. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for migration details.
+
+### System Components (Current - KasmVNC Architecture)
 
 ```text
-AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, Guacamole} → VM
+AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, KasmVNC} → VM
                            ↓
-                    PostgreSQL Database
+                    Web UI Configuration (No Database)
 ```
 
-#### Core Architecture
+#### Core Architecture (Simplified)
 
-1. **Container Stack** (Docker/Podman):
-   - **MCP Server Container**: C# application with HTTP transport, overlay tools, screen capture
-   - **Web Interface Container**: Node.js frontend with overlay visualization and management
-   - **Guacamole Stack**: guacd daemon + webapp + PostgreSQL database
+1. **Container Stack** (Docker/Podman) - **4 Containers** (33% reduction):
+   - **MCP Server Container**: C# application with HTTP transport, overlay tools, screen capture, KasmVNC integration
+   - **Web Interface Container**: Node.js frontend with overlay visualization, connection management, and credential handling
+   - **KasmVNC Container**: Web-native VNC server with multi-monitor support and WebSocket/WebRTC protocols
    - **Caddy Proxy**: Unified access point routing to all services
 
-2. **Database Layer**:
-   - PostgreSQL 16-alpine with Guacamole schema
-   - **Secure credential generation**: Cryptographically secure passwords using OpenSSL
-   - **Unique admin accounts**: Format `admin_[8-char-hex]` with 32-character passwords
-   - Connection and user management storage
+2. **Configuration Layer** (No Database Required):
+   - **YAML-based configuration**: Simple file-based setup eliminates PostgreSQL complexity
+   - **Environment variable credentials**: Secure credential injection via container environment
+   - **Web UI credential management**: Browser-based connection management with encrypted localStorage
+   - **Multi-VM configuration**: Web browser UI for managing multiple VM connections (not Docker config)
 
 3. **Network Architecture**:
    - **Configurable ports**: All service ports configurable during installation
-   - **Default ports**: Main interface (8080), MCP server (3000), Guacamole (8081), Web interface (8082)
+   - **Default ports**: Main interface (8080), MCP server (3000), KasmVNC (6901), Web interface (8082)
    - **Port conflict resolution**: Automatic detection with interactive alternatives
    - Caddy proxy as unified access point routing to all services
    - Internal container networking with service discovery
-   - WebSocket support for real-time overlay events
+   - **Enhanced WebSocket support**: Real-time overlay events and KasmVNC communication
+
+#### Security Architecture (Enhanced)
+
+- **SSRF Protection**: Comprehensive Server-Side Request Forgery protection with multiple validation layers
+- **POST over GET**: Network requests use POST method with fixed URL paths to prevent URL-based attacks
+- **Host Validation**: Multi-layer host validation with allowlist/blocklist patterns
+- **Input Sanitization**: Character filtering and normalization for all user inputs
+- **Rate Limiting**: Connection testing limited to 10 requests/minute per IP
+- **No Database Attack Surface**: Elimination of PostgreSQL removes SQL injection and database compromise risks
 
 #### Network Architecture
 
@@ -46,35 +57,163 @@ AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, Guacamole
 
 ### Deployment Architecture
 
-#### Container-Based Deployment (Primary)
+#### Container-Based Deployment (Current - KasmVNC)
 
 ```text
-host-setup.sh → Docker Compose → {6 Containers} → Web Interface + MCP Server
+host-setup-kasmvnc.sh → Podman Compose → {4 Containers} → Web Interface + MCP Server
 ```
 
-**Container Stack:**
-- **postgres**: PostgreSQL 16-alpine database
-- **guacd**: Guacamole daemon for RDP/VNC connections  
-- **guacamole**: Guacamole web application
-- **mcp-server**: C# MCP server with HTTP transport
-- **overlay-web**: Node.js web interface
+**Container Stack (Simplified):**
+- **kasmvnc**: Web-native VNC server with multi-monitor support
+- **mcp-server**: C# MCP server with HTTP transport and KasmVNC integration
+- **overlay-web**: Node.js web interface with connection management
 - **caddy**: Reverse proxy and load balancer
 
 **Deployment Process:**
-1. `host-setup.sh` installs Docker/Podman and dependencies
+1. `host-setup-kasmvnc.sh` installs Podman and dependencies
 2. **Port configuration**: Interactive setup with conflict resolution
-3. **Credential generation**: Cryptographically secure passwords using OpenSSL
+3. **Environment variable credentials**: Simple VNC_PASSWORD and KASM_PASSWORD setup
 4. Builds custom MCP server and web interface containers
-5. Downloads and configures Guacamole stack
-6. Initializes PostgreSQL with Guacamole schema and secure admin account
+5. Configures KasmVNC with YAML-based settings
+6. **No database initialization required** - eliminates PostgreSQL complexity
 7. Starts all containers with proper networking and environment variables
 
 **Access Points:**
 - **Main Interface**: http://localhost:8080 (Caddy proxy) - *configurable*
 - **MCP Server**: http://localhost:3000 (direct access) - *configurable*
-- **Guacamole**: http://localhost:8080/guac/ (via proxy) - *with generated credentials*
-- **Web Interface**: http://localhost:8080/ (default route) - *configurable*
-- **All ports configurable during installation with conflict resolution**
+- **KasmVNC**: http://localhost:6901 (web-native interface) - *configurable*
+- **Web Interface**: http://localhost:8080/ (connection management) - *configurable*
+- **Multi-VM Configuration**: Web browser UI for managing connections (not Docker config)
+
+#### Quality Assurance & Security
+
+**Pre-commit Checks:**
+- **Python**: Black formatting, isort imports, flake8 linting, bandit security scanning
+- **C#**: dotnet-format code formatting and style validation
+- **JavaScript Security**: ESLint with security plugins for SSRF, injection, and vulnerability detection
+- **Multi-language Security**: Semgrep static analysis (CodeQL alternative) for JavaScript, TypeScript, and C#
+- **Markdown**: markdownlint formatting with auto-fix
+- **Spelling**: cspell spell checking for documentation
+- **Credential Security**: detect-secrets for credential scanning with allowlist for development passwords
+- **YAML/JSON**: Syntax validation for configuration files
+- **Git**: Conventional commit message validation
+
+**GitHub Actions Security:**
+- **CodeQL**: Comprehensive static analysis for security vulnerabilities (enhanced by pre-commit security checks)
+- **Container Security**: Vulnerability scanning for container images
+- **Dependency Scanning**: Automated dependency vulnerability detection
+- **SSRF Protection**: Multiple validation layers prevent Server-Side Request Forgery attacks
+
+**Security Analysis Coverage:**
+- **Pre-commit**: ESLint security rules + Semgrep static analysis for immediate feedback during development
+- **GitHub Actions**: Full CodeQL analysis for comprehensive security scanning
+- **Combined Coverage**: Local security checks catch common issues, CodeQL provides deep analysis
+- **CodeQL-like Functionality**: Semgrep provides CodeQL-equivalent security analysis in pre-commit hooks
+
+**Security Implementation:**
+- **POST over GET**: Network requests use POST method with fixed URL paths
+- **Host Validation**: Multi-layer validation with allowlist/blocklist patterns
+
+## Pre-commit Hooks Configuration
+
+The project uses comprehensive pre-commit hooks to ensure code quality, security, and consistency. Install with:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+### Python Code Quality
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **black** | Code formatting | Python 3, line length 88 |
+| **isort** | Import sorting | Black-compatible profile |
+| **flake8** | Linting | Max line 88, ignore E203/W503 |
+| **bandit** | Security scanning | JSON output, excludes tests |
+
+### File Validation
+
+| Hook | Purpose | Files |
+|------|---------|-------|
+| **trailing-whitespace** | Remove trailing spaces | All except .md |
+| **end-of-file-fixer** | Ensure newline at EOF | All except .md |
+| **check-yaml** | YAML syntax validation | .yaml, .yml |
+| **check-json** | JSON syntax validation | .json |
+| **check-toml** | TOML syntax validation | .toml |
+| **check-xml** | XML syntax validation | .xml |
+| **check-merge-conflict** | Detect merge conflicts | All files |
+| **check-case-conflict** | Case sensitivity issues | All files |
+| **check-added-large-files** | Prevent large files | Max 1MB |
+| **detect-private-key** | Prevent key commits | All files |
+
+### Language-Specific Formatting
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **dotnet-format** | C# code formatting | Minimal verbosity |
+
+### Build and Deployment Validation
+
+| Hook | Purpose | Validation |
+|------|---------|------------|
+| **check-build-scripts-executable** | Script permissions | scripts/*.sh executable |
+| **validate-appimage-if-exists** | AppImage integrity | Runs validation if AppImage exists |
+| **check-workflow-syntax** | GitHub Actions YAML | Syntax validation |
+| **check-npm-cache-config** | npm configuration | Cache/package.json consistency |
+
+### Documentation Quality
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **markdownlint** | Markdown linting | Auto-fix enabled |
+| **cspell** | Spell checking | Custom dictionary, .md files |
+
+### Security Analysis (CodeQL-like)
+
+| Hook | Purpose | Coverage |
+|------|---------|----------|
+| **eslint-security** | JavaScript security | SSRF, XSS, injection detection |
+| **semgrep-security** | Multi-language static analysis | Format strings, insecure transport, WebSocket security |
+| **detect-secrets** | Secret detection | Excludes .lock, .min.js, .min.css |
+
+### Git Commit Standards
+
+| Hook | Purpose | Format |
+|------|---------|--------|
+| **conventional-pre-commit** | Commit message format | feat, fix, docs, style, refactor, test, chore, ci |
+
+### Security Hook Details
+
+**ESLint Security Analysis:**
+- Detects SSRF vulnerabilities
+- Identifies XSS injection points
+- Validates object injection sinks
+- Checks for unsafe regex patterns
+- Monitors format string vulnerabilities
+
+**Semgrep Security Analysis:**
+- Multi-language security scanning (JS, TS, C#)
+- Detects insecure transport (HTTP vs HTTPS)
+- Identifies insecure WebSocket connections
+- Validates PostMessage origin handling
+- Checks for CSRF protection
+- Analyzes innerHTML usage for XSS risks
+
+**Installation Requirements:**
+```bash
+# ESLint security (auto-installed)
+cd infra/server
+npm install --no-save eslint@8 eslint-plugin-security
+
+# Semgrep (auto-installed)
+pip install semgrep
+
+# Spell checking
+npm install -g cspell
+```
+- **Input Sanitization**: Character filtering and normalization
+- **Rate Limiting**: Connection testing limited to 10 requests/minute per IP
 
 #### Container Build Considerations
 

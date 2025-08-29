@@ -29,7 +29,7 @@ public class Gtk4MainWindow : IDisposable
     // Services
     private IScreenCaptureService? _screenCaptureService;
     private UpdateService? _updateService;
-    
+
     // Threading and cancellation
     private CancellationTokenSource? _updateCancellationTokenSource;
     private bool _updateInProgress = false;
@@ -66,7 +66,7 @@ public class Gtk4MainWindow : IDisposable
     {
         // Use the provided GTK application instance, or fall back to the static instance
         var gtkApp = _gtkApplication ?? Gtk4Application.Instance;
-        
+
         // Create main application window using the correct application instance
         _window = Gtk.ApplicationWindow.New(gtkApp);
         _window.SetTitle("Overlay Companion MCP Server");
@@ -206,7 +206,7 @@ public class Gtk4MainWindow : IDisposable
             vbox.Append(updateLabel);
 
             var updateBox = Box.New(Orientation.Horizontal, 10);
-            
+
             var checkUpdateButton = Button.NewWithLabel("🔄 Check for Updates");
             checkUpdateButton.OnClicked += OnCheckForUpdates;
             updateBox.Append(checkUpdateButton);
@@ -366,7 +366,7 @@ public class Gtk4MainWindow : IDisposable
 
                 // Hide the control window while demonstrating click-through, then restore
                 GLib.Functions.IdleAdd(0, () => { _window?.SetVisible(false); return false; });
-                
+
                 // Run overlay creation asynchronously but don't block the UI
                 _ = Task.Run(async () =>
                 {
@@ -479,7 +479,7 @@ public class Gtk4MainWindow : IDisposable
         {
             // Get the configuration JSON from Program.cs helper method
             var configJson = OverlayCompanion.Program.GetMcpConfigurationJson();
-            
+
             // Create a dialog to show the configuration
             var dialog = new Gtk.Dialog();
             dialog.SetTitle("MCP Configuration for Cherry Studio");
@@ -531,7 +531,7 @@ public class Gtk4MainWindow : IDisposable
                     {
                         var clipboard = display.GetClipboard();
                         clipboard.SetText(configJson);
-                        
+
                         // Show success message
                         copyButton.SetLabel("✅ Copied!");
                         GLib.Functions.TimeoutAdd(0, 2000, () =>
@@ -580,7 +580,7 @@ public class Gtk4MainWindow : IDisposable
         }
 
         var button = sender as Button;
-        
+
         try
         {
             if (_updateService == null)
@@ -608,7 +608,7 @@ public class Gtk4MainWindow : IDisposable
             // Perform update check on background thread
             UpdateInfo? updateInfo = null;
             string? errorMessage = null;
-            
+
             await Task.Run(async () =>
             {
                 try
@@ -649,7 +649,7 @@ public class Gtk4MainWindow : IDisposable
                     }
                     else if (updateInfo.UpdateAvailable)
                     {
-                        ShowUpdateDialog("Update Available", 
+                        ShowUpdateDialog("Update Available",
                             $"A new version is available!\n\n" +
                             $"Current Version: {updateInfo.CurrentVersion}\n" +
                             $"Latest Version: {updateInfo.LatestVersion}\n\n" +
@@ -657,7 +657,7 @@ public class Gtk4MainWindow : IDisposable
                     }
                     else
                     {
-                        ShowUpdateDialog("Up to Date", 
+                        ShowUpdateDialog("Up to Date",
                             $"You are running the latest version ({updateInfo.CurrentVersion}).");
                     }
                 }
@@ -709,7 +709,7 @@ public class Gtk4MainWindow : IDisposable
         }
 
         var button = sender as Button;
-        
+
         try
         {
             if (_updateService == null)
@@ -739,7 +739,7 @@ public class Gtk4MainWindow : IDisposable
             {
                 GLib.Functions.IdleAdd(0, () =>
                 {
-                    ShowUpdateDialog("AppImageUpdate Required", 
+                    ShowUpdateDialog("AppImageUpdate Required",
                         "AppImageUpdate is not installed. Please install it first:\n\n" +
                         "For Fedora: Download from https://github.com/AppImage/AppImageUpdate/releases\n" +
                         "For Ubuntu/Debian: sudo apt install appimageupdate\n\n" +
@@ -777,13 +777,13 @@ public class Gtk4MainWindow : IDisposable
                 {
                     if (success)
                     {
-                        ShowUpdateDialog("Update Complete", 
+                        ShowUpdateDialog("Update Complete",
                             "AppImage updated successfully!\n\n" +
                             "Please restart the application to use the new version.");
                     }
                     else
                     {
-                        ShowUpdateDialog("Update Failed", 
+                        ShowUpdateDialog("Update Failed",
                             "Failed to update AppImage. Please check the logs for more details or try updating manually.");
                     }
                 }

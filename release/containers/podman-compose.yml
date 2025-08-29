@@ -1,3 +1,14 @@
+# ⚠️ DEPRECATED: Guacamole-based Release Container Configuration
+#
+# This file defines the LEGACY Guacamole-based container stack for releases.
+#
+# ⚠️ WARNING: This configuration is DEPRECATED in favor of KasmVNC.
+# Use the KasmVNC-based configuration instead for:
+# ✅ No PostgreSQL database required
+# ✅ True multi-monitor support
+# ✅ 33% fewer containers (4 vs 6)
+# ✅ Simpler configuration
+
 version: '3.8'
 
 services:
@@ -8,7 +19,7 @@ services:
     environment:
       POSTGRES_DB: guacamole
       POSTGRES_USER: guacamole
-      POSTGRES_PASSWORD: guacamole-dev-password
+      POSTGRES_PASSWORD: guacamole-dev-password  # pragma: allowlist secret
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -35,7 +46,7 @@ services:
       POSTGRES_HOSTNAME: overlay-companion-postgres
       POSTGRES_DATABASE: guacamole
       POSTGRES_USER: guacamole
-      POSTGRES_PASSWORD: guacamole-dev-password
+      POSTGRES_PASSWORD: guacamole-dev-password  # pragma: allowlist secret
       GUACD_HOSTNAME: overlay-companion-guacd
     volumes:
       - guacamole_data:/config

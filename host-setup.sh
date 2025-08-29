@@ -1,6 +1,23 @@
 #!/bin/bash
 
-# Overlay Companion MCP - Host Container Setup Script
+# ⚠️  DEPRECATED: Guacamole-based Host Container Setup Script
+#
+# This script sets up the LEGACY Guacamole-based container infrastructure.
+#
+# ⚠️  WARNING: This setup is DEPRECATED in favor of KasmVNC architecture.
+#
+# Issues with Guacamole setup:
+# - Requires complex PostgreSQL database setup
+# - Lacks true multi-monitor support (single canvas limitation)
+# - Uses 6 containers instead of 4 (higher resource usage)
+# - Complex credential management
+#
+# RECOMMENDED: Use host-setup-kasmvnc.sh instead for:
+# ✅ No database required
+# ✅ True multi-monitor support
+# ✅ 33% fewer containers
+# ✅ Simpler configuration
+#
 # This script sets up the container infrastructure on your HOST Fedora Linux system
 # The containers will connect to VMs you create separately
 #
@@ -24,6 +41,25 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Show deprecation warning
+echo -e "${RED}⚠️  DEPRECATION WARNING ⚠️${NC}"
+echo -e "${YELLOW}This Guacamole-based setup is DEPRECATED.${NC}"
+echo -e "${YELLOW}Use 'host-setup-kasmvnc.sh' instead for:${NC}"
+echo -e "${GREEN}✅ No PostgreSQL database required${NC}"
+echo -e "${GREEN}✅ True multi-monitor support${NC}"
+echo -e "${GREEN}✅ 33% fewer containers (4 vs 6)${NC}"
+echo -e "${GREEN}✅ Simpler configuration${NC}"
+echo ""
+echo -e "${YELLOW}Continue with deprecated Guacamole setup? (y/N)${NC}"
+read -r response
+if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}Recommended: Download KasmVNC setup instead:${NC}"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash"
+    exit 0
+fi
+echo -e "${YELLOW}Proceeding with deprecated Guacamole setup...${NC}"
+echo ""
+
 # Configuration
 PROJECT_NAME="overlay-companion-mcp"
 DEFAULT_CONTAINER_PORT=8080
@@ -36,7 +72,7 @@ LOG_FILE="/tmp/${PROJECT_NAME}-setup.log"
 # Parse command line arguments
 parse_arguments() {
     local port_from_args=""
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             --port)
@@ -71,7 +107,7 @@ parse_arguments() {
                 ;;
         esac
     done
-    
+
     # Validate port if provided
     if [[ -n "$port_from_args" ]]; then
         if [[ $port_from_args -lt 1024 ]] || [[ $port_from_args -gt 65535 ]]; then
@@ -194,7 +230,7 @@ check_port() {
 get_available_port() {
     local start_port=${1:-$DEFAULT_CONTAINER_PORT}
     local port=$start_port
-    
+
     while check_port "$port"; do
         log "Port $port is already in use, trying $((port + 1))..."
         ((port++))
@@ -203,20 +239,20 @@ get_available_port() {
             exit 1
         fi
     done
-    
+
     echo "$port"
 }
 
 # Interactive port selection
 select_port() {
     log "Checking port availability..."
-    
+
     # If user specified a port via command line or environment variable, use it
     if [[ -n "${CONTAINER_PORT_FROM_ARGS:-}" ]] || [[ -n "${OVERLAY_COMPANION_PORT:-}" ]]; then
         local specified_port="$CONTAINER_PORT"
         local source="command line"
         [[ -z "${CONTAINER_PORT_FROM_ARGS:-}" ]] && source="environment variable"
-        
+
         if check_port "$specified_port"; then
             error "❌ Specified port $specified_port (from $source) is already in use"
             echo "   Processes using port $specified_port:"
@@ -251,7 +287,7 @@ select_port() {
             echo ""
             read -p "   Choose option (1/2/3): " -n 1 -r
             echo
-            
+
             case $REPLY in
                 1)
                     CONTAINER_PORT=$(get_available_port)
@@ -280,33 +316,33 @@ select_port() {
             CONTAINER_PORT=$DEFAULT_CONTAINER_PORT
         fi
     fi
-    
+
     log "✅ Using port: $CONTAINER_PORT"
 }
 
 # Configure all service ports
 configure_service_ports() {
     log "Configuring service ports..."
-    
+
     # Set defaults if not already set
     MCP_PORT=${MCP_PORT:-$DEFAULT_MCP_PORT}
     GUACAMOLE_PORT=${GUACAMOLE_PORT:-$DEFAULT_GUACAMOLE_PORT}
     WEB_PORT=${WEB_PORT:-$DEFAULT_WEB_PORT}
     POSTGRES_PORT=${POSTGRES_PORT:-$DEFAULT_POSTGRES_PORT}
-    
+
     # Check for port conflicts and offer alternatives
     local ports_to_check=("$CONTAINER_PORT:Main Interface" "$MCP_PORT:MCP Server" "$GUACAMOLE_PORT:Guacamole" "$WEB_PORT:Web Interface")
     local conflicts=()
-    
+
     for port_info in "${ports_to_check[@]}"; do
         local port="${port_info%%:*}"
         local service="${port_info##*:}"
-        
+
         if check_port "$port"; then
             conflicts+=("$port:$service")
         fi
     done
-    
+
     if [[ ${#conflicts[@]} -gt 0 ]]; then
         warn "⚠️  Port conflicts detected:"
         for conflict in "${conflicts[@]}"; do
@@ -315,7 +351,7 @@ configure_service_ports() {
             echo "   • Port $port ($service) is already in use"
         done
         echo ""
-        
+
         echo "Options:"
         echo "1. Auto-resolve conflicts (recommended)"
         echo "2. Manually specify ports"
@@ -323,7 +359,7 @@ configure_service_ports() {
         echo ""
         read -p "Choose option (1-3): " -n 1 -r choice
         echo ""
-        
+
         case $choice in
             1)
                 log "Auto-resolving port conflicts..."
@@ -331,14 +367,14 @@ configure_service_ports() {
                     local port="${conflict%%:*}"
                     local service="${conflict##*:}"
                     local new_port=$(find_available_port $((port + 1)))
-                    
+
                     case $service in
                         "Main Interface") CONTAINER_PORT=$new_port ;;
                         "MCP Server") MCP_PORT=$new_port ;;
                         "Guacamole") GUACAMOLE_PORT=$new_port ;;
                         "Web Interface") WEB_PORT=$new_port ;;
                     esac
-                    
+
                     log "   $service: $port → $new_port"
                 done
                 ;;
@@ -348,7 +384,7 @@ configure_service_ports() {
                 read -p "MCP Server [$MCP_PORT]: " custom_mcp
                 read -p "Guacamole [$GUACAMOLE_PORT]: " custom_guac
                 read -p "Web Interface [$WEB_PORT]: " custom_web
-                
+
                 [[ -n "$custom_main" ]] && CONTAINER_PORT="$custom_main"
                 [[ -n "$custom_mcp" ]] && MCP_PORT="$custom_mcp"
                 [[ -n "$custom_guac" ]] && GUACAMOLE_PORT="$custom_guac"
@@ -364,14 +400,14 @@ configure_service_ports() {
                 ;;
         esac
     fi
-    
+
     log "✅ Service ports configured:"
     log "   🌐 Main Interface (Caddy): $CONTAINER_PORT"
     log "   🤖 MCP Server: $MCP_PORT"
     log "   🖥️  Guacamole: $GUACAMOLE_PORT"
     log "   📱 Web Interface: $WEB_PORT"
     log "   🗄️  PostgreSQL: $POSTGRES_PORT (internal)"
-    
+
     # Export for use in other functions
     export CONTAINER_PORT MCP_PORT GUACAMOLE_PORT WEB_PORT POSTGRES_PORT
 }
@@ -379,21 +415,21 @@ configure_service_ports() {
 # Check platform compatibility
 check_platform() {
     log "Checking platform compatibility..."
-    
+
     if [[ ! -f /etc/os-release ]]; then
         error "❌ Cannot detect operating system"
         exit 1
     fi
-    
+
     . /etc/os-release
-    
+
     if [[ "$ID" != "fedora" ]]; then
         error "❌ This script requires Fedora Linux"
         error "   Detected: $PRETTY_NAME"
         error "   Please create a Fedora VM and run this script inside it"
         exit 1
     fi
-    
+
     log "✅ Fedora detected (version $VERSION_ID)"
 }
 
@@ -402,23 +438,23 @@ install_dependencies() {
     log "Installing system dependencies..."
     log "Updating package cache..."
     sudo dnf update -y >> "$LOG_FILE" 2>&1
-    
+
     log "Installing packages: podman podman-compose curl wget unzip jq git"
     sudo dnf install -y podman podman-compose curl wget unzip jq git >> "$LOG_FILE" 2>&1
-    
+
     # Enable user session for rootless podman
     log "Enabling user session for rootless podman..."
     loginctl enable-linger "$USER" || true
-    
+
     log "✅ System dependencies installed"
 }
 
 # Setup project directory
 setup_project() {
     log "Setting up project directory..."
-    
+
     local project_dir="$HOME/$PROJECT_NAME"
-    
+
     if [[ -d "$project_dir" ]]; then
         warn "Project directory already exists. Updating..."
         cd "$project_dir"
@@ -428,23 +464,23 @@ setup_project() {
         git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git "$project_dir" >> "$LOG_FILE" 2>&1
         cd "$project_dir"
     fi
-    
+
     log "✅ Project directory ready: $project_dir"
 }
 
 # Generate cryptographically secure credentials
 generate_credentials() {
     log "Generating cryptographically secure credentials..."
-    
+
     local project_dir="$HOME/$PROJECT_NAME"
     local creds_file="$project_dir/.credentials"
     local env_file="$project_dir/infra/.env"
-    
+
     # Generate secure random passwords (32 characters, alphanumeric + special chars)
     local db_password=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
     local guac_admin_password=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
     local guac_admin_user="admin_$(openssl rand -hex 4)"
-    
+
     # Create credentials file (readable only by owner)
     cat > "$creds_file" << EOF
 # Overlay Companion MCP - Generated Credentials
@@ -456,7 +492,7 @@ DB_USER=guacamole
 DB_PASSWORD=$db_password
 DB_NAME=guacamole_db
 
-# Guacamole Web Interface Credentials  
+# Guacamole Web Interface Credentials
 GUAC_ADMIN_USER=$guac_admin_user
 GUAC_ADMIN_PASSWORD=$guac_admin_password
 
@@ -466,10 +502,10 @@ MCP_SERVER=http://localhost:$MCP_PORT
 GUACAMOLE_WEB=http://localhost:$CONTAINER_PORT/guac/
 WEB_INTERFACE=http://localhost:$CONTAINER_PORT/
 EOF
-    
+
     # Set secure permissions (owner read/write only)
     chmod 600 "$creds_file"
-    
+
     # Create .env file for docker-compose
     cat > "$env_file" << EOF
 # Auto-generated environment variables for Overlay Companion MCP
@@ -491,15 +527,15 @@ GUACAMOLE_PORT=$GUACAMOLE_PORT
 WEB_PORT=$WEB_PORT
 POSTGRES_PORT=$POSTGRES_PORT
 EOF
-    
+
     # Set secure permissions for .env file
     chmod 600 "$env_file"
-    
+
     log "✅ Secure credentials generated:"
     log "   📁 Credentials file: $creds_file"
     log "   📁 Environment file: $env_file"
     log "   🔒 Files secured with 600 permissions (owner only)"
-    
+
     # Store credentials for later display
     export GENERATED_DB_PASSWORD="$db_password"
     export GENERATED_GUAC_USER="$guac_admin_user"
@@ -509,14 +545,14 @@ EOF
 # Setup containers
 setup_containers() {
     log "Setting up containers..."
-    
+
     # Create container configuration directory
     local config_dir="$HOME/.config/$PROJECT_NAME"
     mkdir -p "$config_dir"
-    
+
     # Copy container configurations from infra directory (separate containers with custom web interface)
     cp -r infra/* "$config_dir/"
-    
+
     # Copy the generated .env file to the config directory
     local project_dir="$HOME/$PROJECT_NAME"
     if [[ -f "$project_dir/infra/.env" ]]; then
@@ -525,93 +561,93 @@ setup_containers() {
     else
         warn "⚠️  .env file not found, using defaults"
     fi
-    
+
     cd "$config_dir"
-    
+
     # Build MCP server container
     log "Building MCP server container..."
     cd "$project_dir"  # Build from project root where src/ directory exists
     podman build -f infra/Dockerfile.mcp -t overlay-companion-mcp . >> "$LOG_FILE" 2>&1
-    
+
     # Build custom overlay web interface container
     log "Building custom overlay web interface with MCP-powered icons..."
     podman build -f infra/Dockerfile.web -t overlay-companion-web . >> "$LOG_FILE" 2>&1
     cd "$config_dir"  # Return to config directory
-    
+
     log "✅ Container built and configured for port $CONTAINER_PORT"
 }
 
 # Start services
 start_services() {
     log "Starting services..."
-    
+
     local config_dir="$HOME/.config/$PROJECT_NAME"
     cd "$config_dir"
-    
+
     # Start database first
     log "Starting PostgreSQL database..."
     podman-compose up -d postgres >> "$LOG_FILE" 2>&1
-    
+
     # Wait for database to be ready
     log "Waiting for PostgreSQL to be ready..."
     local max_attempts=30
     local attempt=1
-    
+
     while [[ $attempt -le $max_attempts ]]; do
         if podman exec overlay-companion-postgres pg_isready -U guacamole >/dev/null 2>&1; then
             log "✅ PostgreSQL is ready"
             break
         fi
-        
+
         if [[ $attempt -eq $max_attempts ]]; then
             error "❌ PostgreSQL failed to start"
             return 1
         fi
-        
+
         sleep 2
         ((attempt++))
     done
-    
+
     # Initialize Guacamole database schema
     log "Initializing Guacamole database schema..."
     podman run --rm --network container:overlay-companion-postgres \
         docker.io/guacamole/guacamole:1.5.4 \
         /opt/guacamole/bin/initdb.sh --postgresql > /tmp/guacamole-schema.sql 2>>"$LOG_FILE"
-    
+
     podman exec -i overlay-companion-postgres \
         psql -U guacamole -d guacamole < /tmp/guacamole-schema.sql >> "$LOG_FILE" 2>&1 || true
-    
+
     rm -f /tmp/guacamole-schema.sql
-    
+
     # Start all services
     log "Starting all services..."
     podman-compose up -d >> "$LOG_FILE" 2>&1
-    
+
     log "✅ Services started"
 }
 
 # Wait for services to be ready
 wait_for_services() {
     log "Waiting for services to start..."
-    
+
     local vm_ip
     vm_ip=$(hostname -I | awk '{print $1}' || echo "localhost")
     local management_url="http://$vm_ip:$CONTAINER_PORT"
     local max_attempts=30
     local attempt=1
-    
+
     while [[ $attempt -le $max_attempts ]]; do
         log "Checking services... (attempt $attempt/$max_attempts)"
-        
+
         if curl -s --connect-timeout 5 "$management_url/health" >/dev/null 2>&1; then
             log "✅ Services are ready"
             return 0
         fi
-        
+
         sleep 10
         ((attempt++))
     done
-    
+
     warn "⚠️  Services may still be starting. Check logs if needed."
 }
 
@@ -619,7 +655,7 @@ wait_for_services() {
 show_completion() {
     local vm_ip
     vm_ip=$(hostname -I | awk '{print $1}' || echo "localhost")
-    
+
     echo -e "${GREEN}"
     echo "🎉 Installation Complete!"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -662,10 +698,10 @@ main() {
     echo "This sets up containers on your HOST Fedora Linux system."
     echo "Create VMs separately and connect them via the web interface."
     echo ""
-    
+
     # Initialize log file
     echo "Starting Overlay Companion MCP setup at $(date)" > "$LOG_FILE"
-    
+
     check_platform
     select_port
     configure_service_ports

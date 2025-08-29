@@ -6,7 +6,7 @@
       <xsl:apply-templates select="node()|@*"/>
     </xsl:copy>
   </xsl:template>
-  
+
   <!-- Add metadata to domain -->
   <xsl:template match="/domain">
     <xsl:copy>

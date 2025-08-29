@@ -33,11 +33,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     outputs:
       version-tag: ${{ steps.version.outputs.version }}
       pr-tag: ${{ steps.version.outputs.pr_tag }}
-    
+
     strategy:
       matrix:
         include:
@@ -61,17 +61,17 @@ jobs:
         run: |
           # Generate date-based version: YYYY.MM.DD.quantity
           DATE=$(date +%Y.%m.%d)
-          
+
           # Get existing tags for today to determine quantity
           EXISTING_TAGS=$(git tag -l "${DATE}.*" | wc -l)
           QUANTITY=$((EXISTING_TAGS + 1))
-          
+
           VERSION="${DATE}.${QUANTITY}"
-          
+
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "date=${DATE}" >> $GITHUB_OUTPUT
           echo "quantity=${QUANTITY}" >> $GITHUB_OUTPUT
-          
+
           echo "Generated version: ${VERSION}"
 
       - name: Set up Docker Buildx
@@ -128,7 +128,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     strategy:
       matrix:
         image: [mcp-server, web-interface]
@@ -150,7 +150,7 @@ jobs:
       contents: read
       packages: read
       security-events: write
-    
+
     strategy:
       matrix:
         image: [mcp-server, web-interface]

@@ -64,7 +64,6 @@ Environment:
 - OC_SMOKE_TEST=1 to run smoke/startup check and exit
 
 
-
 **Architecture**: Full HTTP MCP server with web-only viewer. Overlays render in the browser and the server runs headless by default.
 - **Default operation**: HTTP server on port 3000
 - **Native GUI**: Removed. All interaction is via the web UI and MCP over HTTP

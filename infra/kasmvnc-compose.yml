@@ -1,0 +1,88 @@
+version: "3.8"
+services:
+  # KasmVNC container - replaces Guacamole stack (postgres, guacd, guacamole, guac-init)
+  kasmvnc:
+    image: lscr.io/linuxserver/kasm:latest
+    container_name: overlay-companion-kasmvnc
+    privileged: true
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - KASM_PORT=443
+      - DOCKER_HUB_USERNAME=${DOCKER_HUB_USERNAME:-}
+      - DOCKER_HUB_PASSWORD=${DOCKER_HUB_PASSWORD:-}
+      - DOCKER_MTU=1500
+    volumes:
+      - kasmvnc_data:/opt
+      - kasmvnc_profiles:/profiles
+      - /dev/input:/dev/input:ro
+      - /run/udev/data:/run/udev/data:ro
+    ports:
+      - "${KASMVNC_PORT:-6901}:6901"   # KasmVNC web interface
+      - "${KASMVNC_ADMIN_PORT:-3000}:3000"  # Admin interface
+    restart: unless-stopped
+    networks:
+      - overlay-network
+
+  # MCP Server - simplified, no Guacamole dependency
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.mcp
+    container_name: overlay-companion-mcp
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:3000
+      KASMVNC_URL: http://kasmvnc:6901
+      # Remove Guacamole-specific environment variables
+    ports:
+      - "${MCP_PORT:-3001}:3000"
+    depends_on:
+      - kasmvnc
+    restart: unless-stopped
+    networks:
+      - overlay-network
+
+  # Simplified web interface - no Guacamole integration needed
+  overlay-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    container_name: overlay-companion-web
+    environment:
+      PORT: 8080
+      MCP_SERVER_URL: http://mcp-server:3000
+      KASMVNC_URL: http://kasmvnc:6901
+      # Remove GUACAMOLE_URL
+    ports:
+      - "${WEB_PORT:-8082}:8080"
+    depends_on:
+      - mcp-server
+      - kasmvnc
+    restart: unless-stopped
+    networks:
+      - overlay-network
+
+  # Simplified Caddy proxy - fewer services to route
+  caddy:
+    image: docker.io/library/caddy:2.8.4
+    container_name: overlay-companion-proxy
+    ports:
+      - "${CONTAINER_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile.kasmvnc:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - mcp-server
+      - overlay-web
+      - kasmvnc
+    restart: unless-stopped
+    networks:
+      - overlay-network
+
+volumes:
+  kasmvnc_data:
+  kasmvnc_profiles:
+
+networks:
+  overlay-network:
+    driver: bridge

@@ -1,5 +1,7 @@
 # Overlay Companion MCP - Architecture Specification
 
+> **📋 Architecture Update**: This specification reflects the new KasmVNC-based architecture, eliminating database complexity and providing true multi-monitor support.
+
 ## Vision
 
 A single-user, lightweight system where users download a small release package, run an install script, and get a local IP URL to access a Fedora Silverblue VM through a web interface with AI-assisted overlay capabilities.
@@ -8,10 +10,10 @@ A single-user, lightweight system where users download a small release package, 
 
 1. **Download**: Small release package from GitHub (no large VM images)
 2. **Install**: Run `install.sh` → auto-installs Podman + OpenTofu + libvirt
-3. **Provision**: OpenTofu creates management container + Fedora Silverblue VM
+3. **Provision**: OpenTofu creates 4 containers + Fedora Silverblue VM (no database required)
 4. **Access**: Script prints local IP URL (e.g., `http://192.168.1.42:8080`)
 5. **Configure**: Click URL → Web interface → "Copy MCP Config" → Paste into Cherry Studio
-6. **Use**: Access VM through Guacamole with AI overlay assistance
+6. **Use**: Access VM through KasmVNC with AI overlay assistance
 
 ## System Architecture
 
@@ -19,21 +21,22 @@ A single-user, lightweight system where users download a small release package, 
 
 ```text
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────┐
-│   Cherry Studio │───▶│ Management       │───▶│ Fedora Silverblue   │
-│   (AI Client)   │    │ Container        │    │ VM (KVM/libvirt)    │
+│   Cherry Studio │───▶│ 4 Containers     │───▶│ Fedora Silverblue   │
+│   (AI Client)   │    │ (Simplified)     │    │ VM (KVM/libvirt)    │
 └─────────────────┘    │                  │    └─────────────────────┘
-                       │ • Guacamole      │              │
+                       │ • KasmVNC        │              │
                        │ • MCP Server     │              │
                        │ • Web Frontend   │              │
-                       │ • Overlay System │              │
+                       │ • Caddy Proxy    │              │
                        └──────────────────┘              │
                                 │                        │
                        ┌──────────────────┐              │
                        │ Web Interface    │◀─────────────┘
                        │ (Browser)        │
-                       │ • guacamole-js   │
+                       │ • KasmVNC Client │
                        │ • Click-through  │
-                       │ • Overlays       │
+                       │ • Multi-Monitor  │
+                       │ • AI Overlays    │
                        └──────────────────┘
 ```
 
@@ -45,24 +48,24 @@ A single-user, lightweight system where users download a small release package, 
 - **libvirt/KVM**: VM virtualization platform
 - **Fedora Linux**: Host OS (target platform)
 
-#### Management Container (Podman/OCI)
-- **Guacamole Stack**:
-  - `guacd`: Gateway daemon for RDP/VNC protocols
-  - `guacamole`: Web application (Tomcat-based)
-  - `postgres`: Database for Guacamole configuration
-- **MCP Server**: C# WebSocket bridge for overlay broadcasting
-- **Web Frontend**: Static assets + guacamole-common-js client
-- **Reverse Proxy**: Caddy for TLS termination (future)
+#### Container Stack (4 Containers - 33% Reduction)
+- **KasmVNC Container**:
+  - Web-native VNC server with WebSocket/WebRTC support
+  - Multi-monitor support with separate browser windows
+  - No database required for configuration
+- **MCP Server Container**: C# WebSocket bridge for overlay broadcasting
+- **Web Frontend Container**: Static assets + KasmVNC web client
+- **Caddy Proxy Container**: Unified access point and reverse proxy
 
 #### Virtual Machine
 - **OS**: Fedora Silverblue (immutable, container-focused)
-- **Display**: Wayland (future-proof, with XRDP fallback)
-- **Remote Access**: XRDP for Guacamole connectivity
+- **Display**: Wayland (future-proof, with X11 fallback)
+- **Remote Access**: KasmVNC server for web-native connectivity
 - **Isolation**: Full VM isolation for security
 
 #### Client Integration
 - **Cherry Studio**: AI client with MCP support
-- **Web Browser**: Guacamole client + overlay rendering
+- **Web Browser**: KasmVNC web client + overlay rendering
 - **Overlay System**: Click-through annotations with `pointer-events: none`
 
 ## Network Architecture

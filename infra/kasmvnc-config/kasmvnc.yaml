@@ -1,0 +1,46 @@
+# KasmVNC Server Configuration for Overlay Companion
+desktop:
+  resolution:
+    width: 1920
+    height: 1080
+  allow_resize: true
+
+network:
+  interface: 0.0.0.0
+  websocket_port: 6901
+  vnc_port: 5901
+  ssl:
+    pem: /etc/ssl/certs/self.pem
+    require_ssl: false
+
+security:
+  brute_force_protection: true
+  max_login_attempts: 5
+  login_rate_limit: 10
+
+encoding:
+  max_frame_rate: 60
+  jpeg_quality: 9
+  webp_quality: 9
+  treat_lossless: 5
+  prefer_bandwidth: 100
+  dynamic_quality_min: 3
+  dynamic_quality_max: 9
+  area_congestion_threshold: 0.65
+  time_congestion_threshold: 5
+
+runtime_configuration:
+  allow_client_to_override_kasm_server_settings: true
+  public_hostname: localhost
+
+# Multi-monitor support
+display_manager:
+  enabled: true
+  max_displays: 4
+  default_layout: horizontal
+
+# Overlay integration settings
+overlay:
+  enabled: true
+  click_through: true
+  transparency: 0.5
