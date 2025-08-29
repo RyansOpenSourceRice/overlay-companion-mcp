@@ -1,8 +1,17 @@
 /**
- * Overlay Companion MCP - Web Frontend
+ * ⚠️ DEPRECATED: Overlay Companion MCP - Web Frontend (Guacamole-based)
+ *
+ * This frontend is DEPRECATED in favor of the KasmVNC-based version.
+ * 
+ * ⚠️ WARNING: This frontend uses deprecated Guacamole architecture.
+ * Use the KasmVNC-based frontend instead for:
+ * ✅ No database required
+ * ✅ True multi-monitor support
+ * ✅ Modern WebSocket/WebRTC protocols
+ * ✅ Simpler configuration
  *
  * This frontend provides:
- * - Guacamole-based remote desktop access to Fedora Silverblue VM
+ * - Guacamole-based remote desktop access to Fedora Silverblue VM (DEPRECATED)
  * - MCP configuration management with copy-to-clipboard functionality
  * - WebSocket overlay system for AI-assisted screen interaction
  * - Status monitoring and health checks
@@ -26,7 +35,9 @@ class OverlayCompanionApp {
     }
 
     async init() {
-        console.log('🚀 Initializing Overlay Companion MCP');
+        console.warn('⚠️ DEPRECATION WARNING: This Guacamole-based frontend is DEPRECATED');
+        console.warn('Use the KasmVNC-based version for better multi-monitor support and simpler setup');
+        console.log('🚀 Initializing Overlay Companion MCP (DEPRECATED Guacamole version)');
 
         try {
             // Initialize components

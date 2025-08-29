@@ -1,5 +1,15 @@
 #!/bin/bash
-# VM Setup Script for Overlay Companion MCP
+# ⚠️ DEPRECATED: VM Setup Script for Guacamole-based Overlay Companion MCP
+# 
+# This script sets up LEGACY RDP services for Guacamole connections.
+# 
+# ⚠️ WARNING: This setup is DEPRECATED in favor of KasmVNC architecture.
+# Use vm-setup-kasmvnc.sh instead for:
+# ✅ No complex RDP configuration
+# ✅ Web-native VNC server
+# ✅ True multi-monitor support
+# ✅ Simpler setup process
+# 
 # This script runs INSIDE a Fedora Silverblue VM to set up RDP services
 # The containers run on the HOST OS, not in this VM
 
@@ -11,6 +21,25 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Show deprecation warning
+echo -e "${RED}⚠️  DEPRECATION WARNING ⚠️${NC}"
+echo -e "${YELLOW}This Guacamole-based VM setup is DEPRECATED.${NC}"
+echo -e "${YELLOW}Use 'vm-setup-kasmvnc.sh' instead for:${NC}"
+echo -e "${GREEN}✅ Web-native VNC server (no RDP complexity)${NC}"
+echo -e "${GREEN}✅ True multi-monitor support${NC}"
+echo -e "${GREEN}✅ Simpler configuration${NC}"
+echo -e "${GREEN}✅ Better performance${NC}"
+echo ""
+echo -e "${YELLOW}Continue with deprecated Guacamole VM setup? (y/N)${NC}"
+read -r response
+if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}Recommended: Download KasmVNC VM setup instead:${NC}"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash"
+    exit 0
+fi
+echo -e "${YELLOW}Proceeding with deprecated Guacamole VM setup...${NC}"
+echo ""
 
 # Logging
 LOG_FILE="/tmp/overlay-companion-vm-setup.log"

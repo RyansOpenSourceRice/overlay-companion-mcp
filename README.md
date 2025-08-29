@@ -2,6 +2,8 @@
 
 AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through simplified containerized infrastructure using KasmVNC.
 
+> **📋 Important**: The Guacamole-based architecture has been deprecated. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for details on the migration to KasmVNC.
+
 ## Architecture
 
 **Host OS (Fedora Linux)**: Runs 4 podman containers (simplified from 6)
@@ -38,11 +40,15 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 
 **Benefits**: No database, true multi-monitor support, 4 containers instead of 6, simpler maintenance.
 
-### Option B: Legacy Guacamole Setup
+### Option B: Legacy Guacamole Setup (⚠️ DEPRECATED)
 
-For compatibility with existing setups:
+> **⚠️ DEPRECATED**: The Guacamole-based architecture is deprecated in favor of KasmVNC. 
+> Guacamole requires complex PostgreSQL setup and lacks true multi-monitor support.
+> Use Option A (KasmVNC) for new installations.
+
+For compatibility with existing setups only:
 ```bash
-# Legacy Guacamole setup (requires PostgreSQL)
+# Legacy Guacamole setup (requires PostgreSQL) - DEPRECATED
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
 ```
 

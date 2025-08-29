@@ -1,6 +1,23 @@
 #!/bin/bash
 
-# Overlay Companion MCP - Host Container Setup Script
+# ⚠️  DEPRECATED: Guacamole-based Host Container Setup Script
+# 
+# This script sets up the LEGACY Guacamole-based container infrastructure.
+# 
+# ⚠️  WARNING: This setup is DEPRECATED in favor of KasmVNC architecture.
+# 
+# Issues with Guacamole setup:
+# - Requires complex PostgreSQL database setup
+# - Lacks true multi-monitor support (single canvas limitation)
+# - Uses 6 containers instead of 4 (higher resource usage)
+# - Complex credential management
+# 
+# RECOMMENDED: Use host-setup-kasmvnc.sh instead for:
+# ✅ No database required
+# ✅ True multi-monitor support
+# ✅ 33% fewer containers
+# ✅ Simpler configuration
+# 
 # This script sets up the container infrastructure on your HOST Fedora Linux system
 # The containers will connect to VMs you create separately
 #
@@ -23,6 +40,25 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Show deprecation warning
+echo -e "${RED}⚠️  DEPRECATION WARNING ⚠️${NC}"
+echo -e "${YELLOW}This Guacamole-based setup is DEPRECATED.${NC}"
+echo -e "${YELLOW}Use 'host-setup-kasmvnc.sh' instead for:${NC}"
+echo -e "${GREEN}✅ No PostgreSQL database required${NC}"
+echo -e "${GREEN}✅ True multi-monitor support${NC}"
+echo -e "${GREEN}✅ 33% fewer containers (4 vs 6)${NC}"
+echo -e "${GREEN}✅ Simpler configuration${NC}"
+echo ""
+echo -e "${YELLOW}Continue with deprecated Guacamole setup? (y/N)${NC}"
+read -r response
+if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}Recommended: Download KasmVNC setup instead:${NC}"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash"
+    exit 0
+fi
+echo -e "${YELLOW}Proceeding with deprecated Guacamole setup...${NC}"
+echo ""
 
 # Configuration
 PROJECT_NAME="overlay-companion-mcp"
