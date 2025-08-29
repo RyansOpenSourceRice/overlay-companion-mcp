@@ -18,7 +18,53 @@
 
 ## Security Fixes Implemented
 
-### 1. Host Validation and SSRF Protection
+### 1. Comprehensive SSRF Protection (Latest Update)
+
+#### POST Method Implementation
+**Issue**: CodeQL detected "URL depends on user-provided value" in GET requests
+**Solution**: Converted KasmVNC health checks from GET to POST method
+
+```javascript
+// OLD (Vulnerable): User data in URL
+const url = `${protocol}//${host}:${port}/api/health`;
+const req = client.get(url, options, callback);
+
+// NEW (Secure): Fixed URL path with POST data
+const options = {
+  hostname: validatedHost,
+  port: port,
+  path: '/api/health',  // Fixed path - no user input
+  method: 'POST'
+};
+const req = client.request(options, callback);
+req.write(JSON.stringify({ target_host: validatedHost }));
+```
+
+#### Enhanced Host Sanitization
+```javascript
+sanitizeHost(host) {
+  // Remove protocol, port, path
+  let sanitizedHost = host.toLowerCase().trim()
+    .replace(/^https?:\/\//, '')
+    .split(':')[0]
+    .split('/')[0];
+  
+  // Only allow alphanumeric, dots, and hyphens
+  if (!/^[a-zA-Z0-9.-]+$/.test(sanitizedHost)) {
+    return null;
+  }
+  
+  return sanitizedHost;
+}
+```
+
+#### Multiple Validation Layers
+1. **Entry Point Validation**: `validateHost()` at API entry
+2. **Pre-Operation Sanitization**: `sanitizeHost()` before network calls
+3. **Fixed URL Paths**: No user data in URL construction
+4. **POST Method**: User data in body, not URL
+
+### 2. Host Validation and SSRF Protection (Previous Implementation)
 
 #### Blocked Host Patterns
 ```javascript
