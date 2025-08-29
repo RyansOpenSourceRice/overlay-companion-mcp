@@ -164,7 +164,10 @@ class ConnectionManager {
             const host = connection.host || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.host) || '(unknown)';
             const port = connection.port || (connection.targetId && this.kasmVncAllowlist[connection.targetId]?.port) || '';
         } catch (error) {
-            console.error(`🚫 Connection test failed for ${host}:${port}:`, error.message);
+            // SECURITY: Sanitize user-controlled values for logging to prevent format string attacks
+            const sanitizedHost = String(host).replace(/[^\w\.-]/g, '');
+            const sanitizedPort = parseInt(port) || 0;
+            console.error(`🚫 Connection test failed for ${sanitizedHost}:${sanitizedPort}:`, error.message);
             return {
                 success: false,
                 error: error.message,
@@ -177,9 +180,14 @@ class ConnectionManager {
 
     /**
      * Test KasmVNC connection with SSRF protection
-     * SECURITY: Host validation already performed in testConnection()
+     * SECURITY: Host validation performed before network operations
      */
     async testKasmVNC(host, port, ssl = false) {
+        // SECURITY: Re-validate host immediately before network operation
+        if (!this.validateHost(host)) {
+            throw new Error('Host validation failed - potential SSRF attack blocked');
+        }
+        
         const protocol = ssl ? 'https:' : 'http:';
         const url = `${protocol}//${host}:${port}/api/health`;
         
@@ -259,9 +267,14 @@ class ConnectionManager {
 
     /**
      * Test VNC connection with SSRF protection
-     * SECURITY: Host validation already performed in testConnection()
+     * SECURITY: Host validation performed before network operations
      */
     async testVNC(host, port) {
+        // SECURITY: Re-validate host immediately before network operation
+        if (!this.validateHost(host)) {
+            throw new Error('Host validation failed - potential SSRF attack blocked');
+        }
+        
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -272,7 +285,7 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
-            // SECURITY: Host has been validated in testConnection() against SSRF patterns - safe to connect
+            // SECURITY: Host validated immediately above - safe to connect
             socket.connect(port, host, () => {
                 socket.destroy();
                 resolve({
@@ -317,9 +330,14 @@ class ConnectionManager {
 
     /**
      * Test RDP connection with SSRF protection
-     * SECURITY: Host validation already performed in testConnection()
+     * SECURITY: Host validation performed before network operations
      */
     async testRDP(host, port) {
+        // SECURITY: Re-validate host immediately before network operation
+        if (!this.validateHost(host)) {
+            throw new Error('Host validation failed - potential SSRF attack blocked');
+        }
+        
         return new Promise((resolve) => {
             const socket = new net.Socket();
             const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
@@ -330,7 +348,7 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
-            // SECURITY: Host has been validated in testConnection() against SSRF patterns - safe to connect
+            // SECURITY: Host validated immediately above - safe to connect
             socket.connect(port, host, () => {
                 socket.destroy();
                 resolve({
