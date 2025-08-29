@@ -3,15 +3,112 @@
  * 
  * Handles secure connection testing and proxy functionality
  * for various remote desktop protocols (KasmVNC, VNC, RDP)
+ * 
+ * SECURITY: Implements SSRF protection with host validation
  */
 
 const net = require('net');
 const http = require('http');
 const https = require('https');
+const { URL } = require('url');
+const securityConfig = require('./security-config');
 
 class ConnectionManager {
     constructor() {
         this.activeConnections = new Map();
+        
+        // SECURITY: Load security configuration
+        this.allowedHostPatterns = securityConfig.allowedHostPatterns;
+        this.blockedHostPatterns = securityConfig.blockedHostPatterns;
+        this.limits = securityConfig.limits;
+        this.allowedProtocols = securityConfig.allowedProtocols;
+        this.portRestrictions = securityConfig.portRestrictions;
+        this.logging = securityConfig.logging;
+        
+        console.log('🔒 SECURITY: Connection manager initialized with SSRF protection');
+        console.log(`🔒 SECURITY: ${this.allowedHostPatterns.length} allowed host patterns configured`);
+        console.log(`🔒 SECURITY: ${this.blockedHostPatterns.length} blocked host patterns configured`);
+    }
+
+    /**
+     * SECURITY: Validate host to prevent SSRF attacks
+     * @param {string} host - Host to validate
+     * @returns {boolean} True if host is allowed
+     */
+    validateHost(host) {
+        if (!host || typeof host !== 'string') {
+            return false;
+        }
+
+        // Normalize host (remove protocol, port, path)
+        let normalizedHost = host.toLowerCase().trim();
+        
+        // Remove protocol if present
+        normalizedHost = normalizedHost.replace(/^https?:\/\//, '');
+        
+        // Remove port if present
+        normalizedHost = normalizedHost.split(':')[0];
+        
+        // Remove path if present
+        normalizedHost = normalizedHost.split('/')[0];
+
+        // Check against blocked patterns first (security priority)
+        for (const pattern of this.blockedHostPatterns) {
+            if (pattern.test(normalizedHost)) {
+                if (this.logging.logBlockedHosts) {
+                    console.warn(`🚫 SECURITY: Blocked host access attempt: ${host} (matched pattern: ${pattern})`);
+                }
+                return false;
+            }
+        }
+
+        // Check against allowed patterns
+        for (const pattern of this.allowedHostPatterns) {
+            if (pattern.test(normalizedHost)) {
+                return true;
+            }
+        }
+
+        // If no explicit allow pattern matches, check if it's a valid external host
+        // Only allow well-formed hostnames/IPs that are not in private ranges
+        const isValidExternalHost = this.isValidExternalHost(normalizedHost);
+        if (!isValidExternalHost) {
+            console.warn(`🚫 SECURITY: Invalid or private host rejected: ${host}`);
+        }
+        
+        return isValidExternalHost;
+    }
+
+    /**
+     * SECURITY: Check if host is a valid external host (not private/internal)
+     * @param {string} host - Normalized host
+     * @returns {boolean} True if valid external host
+     */
+    isValidExternalHost(host) {
+        // Basic hostname/IP validation
+        const hostnameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+        
+        if (!hostnameRegex.test(host) && !ipRegex.test(host)) {
+            return false;
+        }
+
+        // If it's an IP, ensure it's not in private ranges (already checked in blockedHostPatterns)
+        if (ipRegex.test(host)) {
+            const parts = host.split('.').map(Number);
+            
+            // Additional IP validation
+            if (parts.some(part => part < 0 || part > 255)) {
+                return false;
+            }
+            
+            // Block additional dangerous ranges
+            if (parts[0] === 0 || parts[0] === 255) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -23,6 +120,16 @@ class ConnectionManager {
         const { host, port, protocol, ssl } = connection;
         
         try {
+            // SECURITY: Validate host before making any network requests
+            if (!this.validateHost(host)) {
+                throw new Error('Host not allowed - potential security risk detected');
+            }
+
+            // SECURITY: Validate port range
+            if (!port || port < 1 || port > 65535) {
+                throw new Error('Invalid port number');
+            }
+
             switch (protocol) {
                 case 'kasmvnc':
                     return await this.testKasmVNC(host, port, ssl);
@@ -34,6 +141,7 @@ class ConnectionManager {
                     throw new Error(`Unsupported protocol: ${protocol}`);
             }
         } catch (error) {
+            console.error(`🚫 Connection test failed for ${host}:${port}:`, error.message);
             return {
                 success: false,
                 error: error.message,
@@ -45,7 +153,8 @@ class ConnectionManager {
     }
 
     /**
-     * Test KasmVNC connection
+     * Test KasmVNC connection with SSRF protection
+     * SECURITY: Host validation already performed in testConnection()
      */
     async testKasmVNC(host, port, ssl = false) {
         const protocol = ssl ? 'https:' : 'http:';
@@ -53,17 +162,49 @@ class ConnectionManager {
         
         return new Promise((resolve) => {
             const client = ssl ? https : http;
-            const timeout = 5000;
+            const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
             
-            const req = client.get(url, { timeout }, (res) => {
-                resolve({
-                    success: res.statusCode === 200,
-                    protocol: 'kasmvnc',
-                    host,
-                    port,
-                    ssl,
-                    statusCode: res.statusCode,
-                    message: res.statusCode === 200 ? 'KasmVNC server is accessible' : `HTTP ${res.statusCode}`
+            // SECURITY: Additional request options for safety
+            const options = {
+                timeout,
+                headers: {
+                    'User-Agent': 'OverlayCompanion-HealthCheck/1.0',
+                    'Accept': 'application/json'
+                },
+                // SECURITY: Prevent following redirects that could lead to SSRF
+                maxRedirects: 0
+            };
+            
+            const req = client.get(url, options, (res) => {
+                // SECURITY: Limit response size to prevent memory exhaustion
+                let data = '';
+                const maxResponseSize = 1024; // 1KB limit for health check
+                
+                res.on('data', (chunk) => {
+                    data += chunk;
+                    if (data.length > maxResponseSize) {
+                        req.destroy();
+                        resolve({
+                            success: false,
+                            protocol: 'kasmvnc',
+                            host,
+                            port,
+                            ssl,
+                            error: 'Response too large'
+                        });
+                    }
+                });
+                
+                res.on('end', () => {
+                    resolve({
+                        success: res.statusCode === 200,
+                        protocol: 'kasmvnc',
+                        host,
+                        port,
+                        ssl,
+                        statusCode: res.statusCode,
+                        message: res.statusCode === 200 ? 'KasmVNC server is accessible' : `HTTP ${res.statusCode}`
+                    });
                 });
             });
 
@@ -93,14 +234,19 @@ class ConnectionManager {
     }
 
     /**
-     * Test VNC connection
+     * Test VNC connection with SSRF protection
+     * SECURITY: Host validation already performed in testConnection()
      */
     async testVNC(host, port) {
         return new Promise((resolve) => {
             const socket = new net.Socket();
-            const timeout = 5000;
+            const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
 
             socket.setTimeout(timeout);
+
+            // SECURITY: Set socket options to prevent abuse
+            socket.setNoDelay(true);
+            socket.setKeepAlive(false);
 
             socket.connect(port, host, () => {
                 socket.destroy();
@@ -125,6 +271,7 @@ class ConnectionManager {
             });
 
             socket.on('error', (error) => {
+                socket.destroy();
                 resolve({
                     success: false,
                     protocol: 'vnc',
@@ -133,18 +280,30 @@ class ConnectionManager {
                     error: error.message
                 });
             });
+
+            // SECURITY: Force cleanup after timeout
+            setTimeout(() => {
+                if (!socket.destroyed) {
+                    socket.destroy();
+                }
+            }, timeout + 1000);
         });
     }
 
     /**
-     * Test RDP connection
+     * Test RDP connection with SSRF protection
+     * SECURITY: Host validation already performed in testConnection()
      */
     async testRDP(host, port) {
         return new Promise((resolve) => {
             const socket = new net.Socket();
-            const timeout = 5000;
+            const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
 
             socket.setTimeout(timeout);
+
+            // SECURITY: Set socket options to prevent abuse
+            socket.setNoDelay(true);
+            socket.setKeepAlive(false);
 
             socket.connect(port, host, () => {
                 socket.destroy();
@@ -169,6 +328,7 @@ class ConnectionManager {
             });
 
             socket.on('error', (error) => {
+                socket.destroy();
                 resolve({
                     success: false,
                     protocol: 'rdp',
@@ -177,6 +337,13 @@ class ConnectionManager {
                     error: error.message
                 });
             });
+
+            // SECURITY: Force cleanup after timeout
+            setTimeout(() => {
+                if (!socket.destroyed) {
+                    socket.destroy();
+                }
+            }, timeout + 1000);
         });
     }
 
@@ -243,34 +410,50 @@ class ConnectionManager {
     }
 
     /**
-     * Validate connection configuration
+     * Validate connection configuration with security checks
      */
     validateConnection(connection) {
         const errors = [];
 
+        // SECURITY: Basic input validation
         if (!connection.host || typeof connection.host !== 'string') {
             errors.push('Host is required and must be a string');
+        } else {
+            // SECURITY: Validate host against SSRF patterns
+            if (!this.validateHost(connection.host)) {
+                errors.push('Host not allowed - potential security risk detected');
+            }
         }
 
-        if (!connection.port || !Number.isInteger(connection.port) || connection.port < 1 || connection.port > 65535) {
-            errors.push('Port must be a valid integer between 1 and 65535');
+        // SECURITY: Port validation with restrictions
+        if (!connection.port || !Number.isInteger(connection.port)) {
+            errors.push('Port must be a valid integer');
+        } else if (connection.port < this.portRestrictions.min || connection.port > this.portRestrictions.max) {
+            errors.push(`Port must be between ${this.portRestrictions.min} and ${this.portRestrictions.max}`);
         }
 
-        if (!connection.protocol || !['kasmvnc', 'vnc', 'rdp'].includes(connection.protocol)) {
-            errors.push('Protocol must be one of: kasmvnc, vnc, rdp');
+        // SECURITY: Protocol validation
+        if (!connection.protocol || !this.allowedProtocols.includes(connection.protocol)) {
+            errors.push(`Protocol must be one of: ${this.allowedProtocols.join(', ')}`);
         }
 
-        // Protocol-specific validation
+        // Protocol-specific validation (warnings, not errors)
         if (connection.protocol === 'rdp' && connection.port === 6901) {
-            errors.push('RDP typically uses port 3389, not 6901');
+            console.warn('⚠️  RDP typically uses port 3389, not 6901');
         }
 
         if (connection.protocol === 'vnc' && connection.port === 3389) {
-            errors.push('VNC typically uses ports 5900-5999, not 3389');
+            console.warn('⚠️  VNC typically uses ports 5900-5999, not 3389');
+        }
+
+        const isValid = errors.length === 0;
+        
+        if (this.logging.logSecurityEvents && !isValid) {
+            console.warn('🚫 SECURITY: Connection validation failed:', errors);
         }
 
         return {
-            valid: errors.length === 0,
+            valid: isValid,
             errors
         };
     }

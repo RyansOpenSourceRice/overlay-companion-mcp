@@ -194,22 +194,54 @@ app.use('/mcp', createProxyMiddleware({
   }
 }));
 
-// Connection testing endpoint
-app.post('/api/test-connection', async (req, res) => {
+// SECURITY: Rate limiting for connection testing to prevent abuse
+const connectionTestLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // Limit each IP to 10 connection tests per minute
+  message: {
+    success: false,
+    error: 'Too many connection test attempts. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Connection testing endpoint with SSRF protection
+app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
   try {
     const connection = req.body;
     
+    // SECURITY: Additional input validation
+    if (!connection || typeof connection !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid connection configuration'
+      });
+    }
+
+    // SECURITY: Sanitize input fields
+    const sanitizedConnection = {
+      host: typeof connection.host === 'string' ? connection.host.trim() : '',
+      port: parseInt(connection.port),
+      protocol: typeof connection.protocol === 'string' ? connection.protocol.toLowerCase() : '',
+      ssl: Boolean(connection.ssl)
+    };
+    
     // Validate connection configuration
-    const validation = connectionManager.validateConnection(connection);
+    const validation = connectionManager.validateConnection(sanitizedConnection);
     if (!validation.valid) {
+      log.warn(`🚫 SECURITY: Invalid connection attempt from ${req.ip}:`, validation.errors);
       return res.status(400).json({
         success: false,
         errors: validation.errors
       });
     }
 
-    // Test the connection
-    const result = await connectionManager.testConnection(connection);
+    // Test the connection (includes SSRF protection)
+    const result = await connectionManager.testConnection(sanitizedConnection);
+    
+    // SECURITY: Log connection test attempts for monitoring
+    log.info(`Connection test: ${sanitizedConnection.protocol}://${sanitizedConnection.host}:${sanitizedConnection.port} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
     
     res.json(result);
   } catch (error) {
