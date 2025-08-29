@@ -2,21 +2,21 @@
  * Overlay Companion MCP - Web Frontend
  * 
  * This frontend provides:
- * - Guacamole-based remote desktop access to Fedora Silverblue VM
+ * - KasmVNC-based remote desktop access with multi-monitor support
  * - MCP configuration management with copy-to-clipboard functionality
  * - WebSocket overlay system for AI-assisted screen interaction
  * - Status monitoring and health checks
  */
 
 import './styles/main.css';
-import GuacamoleClient from './components/GuacamoleClient';
+import { KasmVNCClient } from './components/KasmVNCClient.js';
 import MCPConfigManager from './components/MCPConfigManager';
 import OverlaySystem from './components/OverlaySystem';
 import StatusMonitor from './components/StatusMonitor';
 
 class OverlayCompanionApp {
     constructor() {
-        this.guacamoleClient = null;
+        this.kasmvncClient = null;
         this.mcpConfigManager = null;
         this.overlaySystem = null;
         this.statusMonitor = null;
@@ -58,11 +58,11 @@ class OverlayCompanionApp {
         // Initialize overlay system
         this.overlaySystem = new OverlaySystem();
         
-        // Initialize Guacamole client
-        this.guacamoleClient = new GuacamoleClient({
-            onConnect: () => this.onGuacamoleConnect(),
-            onDisconnect: () => this.onGuacamoleDisconnect(),
-            onError: (error) => this.onGuacamoleError(error)
+        // Initialize KasmVNC client
+        this.kasmvncClient = new KasmVNCClient(document.createElement('div'), {
+            url: window.location.protocol + '//' + window.location.host + '/vnc',
+            autoConnect: false,
+            multiMonitor: true
         });
     }
     
@@ -123,21 +123,21 @@ class OverlayCompanionApp {
         }
     }
     
-    onGuacamoleConnect() {
-        console.log('✅ Guacamole connected');
-        this.updateConnectionStatus('guacamole-connected');
-        this.showNotification('Connected to Fedora Silverblue VM', 'success');
+    onKasmVNCConnect() {
+        console.log('✅ KasmVNC connected');
+        this.updateConnectionStatus('kasmvnc-connected');
+        this.showNotification('Connected to remote desktop via KasmVNC', 'success');
     }
     
-    onGuacamoleDisconnect() {
-        console.log('🔌 Guacamole disconnected');
-        this.updateConnectionStatus('guacamole-disconnected');
-        this.showNotification('Disconnected from VM', 'info');
+    onKasmVNCDisconnect() {
+        console.log('🔌 KasmVNC disconnected');
+        this.updateConnectionStatus('kasmvnc-disconnected');
+        this.showNotification('Disconnected from remote desktop', 'info');
     }
     
-    onGuacamoleError(error) {
-        console.error('❌ Guacamole error:', error);
-        this.showNotification('VM connection error', 'error');
+    onKasmVNCError(error) {
+        console.error('❌ KasmVNC error:', error);
+        this.showNotification('Remote desktop connection error', 'error');
     }
     
     render() {
@@ -166,12 +166,12 @@ class OverlayCompanionApp {
                 
                 <!-- Main Content -->
                 <main class="app-main">
-                    <!-- VM Display Area -->
+                    <!-- Remote Desktop Display Area -->
                     <div class="vm-container">
-                        <div id="guacamole-display" class="guacamole-display">
+                        <div id="kasmvnc-display" class="kasmvnc-display">
                             <div class="vm-loading">
                                 <div class="loading-spinner"></div>
-                                <p>Connecting to Fedora Silverblue VM...</p>
+                                <p>Connecting to remote desktop via KasmVNC...</p>
                             </div>
                         </div>
                         
@@ -182,7 +182,7 @@ class OverlayCompanionApp {
                     <!-- Side Panel -->
                     <aside class="side-panel">
                         <div class="panel-section">
-                            <h3>🖥️ VM Status</h3>
+                            <h3>🖥️ Remote Desktop Status</h3>
                             <div id="vm-status" class="status-display">
                                 <div class="status-item">
                                     <span class="label">Connection:</span>
@@ -191,6 +191,10 @@ class OverlayCompanionApp {
                                 <div class="status-item">
                                     <span class="label">Resolution:</span>
                                     <span class="value" id="vm-resolution">1920x1080</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="label">Displays:</span>
+                                    <span class="value" id="display-count">1</span>
                                 </div>
                             </div>
                         </div>
@@ -275,7 +279,22 @@ class OverlayCompanionApp {
         this.attachEventListeners();
         
         // Initialize components with DOM elements
-        this.guacamoleClient.initialize(document.getElementById('guacamole-display'));
+        const kasmvncContainer = document.getElementById('kasmvnc-display');
+        this.kasmvncClient = new KasmVNCClient(kasmvncContainer, {
+            url: window.location.protocol + '//' + window.location.host + '/vnc',
+            autoConnect: false,
+            multiMonitor: true
+        });
+        
+        // Set up KasmVNC event listeners
+        kasmvncContainer.addEventListener('kasmvnc:connected', () => this.onKasmVNCConnect());
+        kasmvncContainer.addEventListener('kasmvnc:disconnected', () => this.onKasmVNCDisconnect());
+        kasmvncContainer.addEventListener('kasmvnc:error', (e) => this.onKasmVNCError(e.detail));
+        kasmvncContainer.addEventListener('kasmvnc:displayAdded', (e) => {
+            const displayCount = document.getElementById('display-count');
+            displayCount.textContent = this.kasmvncClient.getDisplays().length + 1;
+        });
+        
         this.overlaySystem.initialize(document.getElementById('overlay-canvas'));
         this.mcpConfigManager.initialize();
     }
@@ -335,13 +354,13 @@ class OverlayCompanionApp {
                 statusElement.classList.add('status-error');
                 text.textContent = 'Connection Error';
                 break;
-            case 'guacamole-connected':
+            case 'kasmvnc-connected':
                 statusElement.classList.add('status-connected');
-                text.textContent = 'VM Connected';
+                text.textContent = 'Remote Desktop Connected';
                 break;
-            case 'guacamole-disconnected':
+            case 'kasmvnc-disconnected':
                 statusElement.classList.add('status-warning');
-                text.textContent = 'VM Disconnected';
+                text.textContent = 'Remote Desktop Disconnected';
                 break;
             default:
                 statusElement.classList.add('status-connecting');

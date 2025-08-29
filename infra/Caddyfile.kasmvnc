@@ -1,0 +1,38 @@
+:80 {
+    # Main overlay web interface (default route)
+    handle / {
+        reverse_proxy overlay-web:8080
+    }
+
+    # MCP server endpoint
+    handle /mcp* {
+        reverse_proxy mcp-server:3000
+    }
+
+    # KasmVNC web interface
+    handle /vnc* {
+        reverse_proxy kasmvnc:6901
+    }
+
+    # KasmVNC admin interface
+    handle /admin* {
+        reverse_proxy kasmvnc:3000
+    }
+
+    # Health check endpoint
+    handle /health {
+        respond "OK" 200
+    }
+
+    # Enable WebSocket support for KasmVNC
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets kasmvnc:6901
+
+    # CORS headers for MCP
+    header Access-Control-Allow-Origin *
+    header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    header Access-Control-Allow-Headers "Content-Type, Authorization"
+}

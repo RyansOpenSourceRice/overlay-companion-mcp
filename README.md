@@ -1,43 +1,57 @@
 # Overlay Companion MCP
 
-AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through containerized infrastructure.
+AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through simplified containerized infrastructure using KasmVNC.
 
 ## Architecture
 
-**Host OS (Fedora Linux)**: Runs 4 podman containers
+**Host OS (Fedora Linux)**: Runs 4 podman containers (simplified from 6)
 - **MCP Server Container**: C# overlay functionality for AI screen interaction
 - **Management Web Container**: Node.js web interface for system management
-- **PostgreSQL Container**: Database for Guacamole
-- **Guacamole Container**: Web-based RDP client for VM access
+- **KasmVNC Container**: Web-native VNC server with multi-monitor support
+- **Caddy Proxy Container**: Unified access point for all services
 
-**Separate VM (Fedora)**: Target for RDP connections
-- Runs RDP server (xrdp, VNC)
-- Accessed through Guacamole container on host
-- No containers needed in VM
+**Separate VM (Optional)**: Target for KasmVNC connections
+- Runs KasmVNC server for remote desktop access
+- Web-native interface, no legacy VNC client needed
+- True multi-monitor support with separate browser windows
 
-**Connection Flow**: Host containers → Guacamole → RDP → VM
+**Connection Flow**: Host containers → KasmVNC → Remote Desktop
+
+## Key Improvements over Guacamole
+
+✅ **No Database Required**: Eliminates PostgreSQL complexity and credential management  
+✅ **True Multi-Monitor Support**: KasmVNC provides native multi-monitor with separate windows  
+✅ **Fewer Containers**: 4 containers instead of 6 (33% reduction)  
+✅ **Simpler Configuration**: YAML-based config instead of database schemas  
+✅ **Modern Web-Native**: Built for browsers from the ground up  
+✅ **Better Performance**: WebSocket/WebRTC protocols instead of legacy VNC
 
 ## Installation
 
-### Option A: Use Pre-built Containers (Recommended)
+### Option A: KasmVNC Setup (Recommended - Simplified)
 
-Pull pre-built containers from GitHub Container Registry:
+Use the new KasmVNC-based setup for better multi-monitor support and simpler configuration:
 ```bash
-# Quick start with pre-built images
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash -s -- --use-registry
+# Quick start with KasmVNC (no database required)
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
-**Benefits**: Faster installation, no build time, automatically updated images.
-See [GitHub Container Registry Guide](docs/GITHUB_CONTAINER_REGISTRY.md) for details.
+**Benefits**: No database, true multi-monitor support, 4 containers instead of 6, simpler maintenance.
 
-### Option B: Build from Source
+### Option B: Legacy Guacamole Setup
+
+For compatibility with existing setups:
+```bash
+# Legacy Guacamole setup (requires PostgreSQL)
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
+```
 
 ### Step 1: Set up containers on your HOST Fedora Linux
 Run this on your main Fedora Linux system:
 
-**Default installation (interactive port configuration):**
+**KasmVNC installation (recommended):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
 **Custom port installation:**
@@ -63,7 +77,15 @@ If port 8080 is in use, the script will automatically detect this and offer opti
 - Specify custom port interactively
 - Exit to resolve port conflict manually
 
-**What gets installed on HOST:**
+**What gets installed on HOST (KasmVNC):**
+- MCP server container (C# overlay functionality)
+- Management web interface container (Node.js)
+- KasmVNC container (web-native VNC with multi-monitor support)
+- Caddy proxy container (unified access point)
+- **No Database**: Eliminates PostgreSQL complexity
+- **Ports**: All service ports configurable with automatic conflict resolution
+
+**What gets installed on HOST (Legacy Guacamole):**
 - MCP server container (C# overlay functionality)
 - Management web interface container (Node.js)
 - PostgreSQL container (database with secure credentials)
@@ -71,34 +93,55 @@ If port 8080 is in use, the script will automatically detect this and offer opti
 - **Security**: Cryptographically secure passwords generated and stored in `~/.credentials`
 - **Ports**: All service ports configurable with automatic conflict resolution
 
-### Step 2: Create a Fedora VM separately
-Create a VM using your preferred platform:
+### Step 2: Create a VM or Remote System (Optional)
+For remote desktop access, create a VM or use an existing system:
 - **Proxmox**: Create new VM with Fedora template
 - **VirtualBox**: Create new Fedora VM
 - **VMware**: Create new Fedora virtual machine
-- **Any platform**: Any Fedora VM will work
+- **Physical Machine**: Any Linux system with KasmVNC support
 
-**VM Requirements:**
-- **OS**: Fedora Silverblue or Fedora Workstation
+**System Requirements:**
+- **OS**: Fedora, Ubuntu, or other Linux distribution
 - **RAM**: 4+ GB
 - **Network**: Internet access
-- **Platform**: Any (VMware, VirtualBox, Proxmox, etc.)
+- **Platform**: Any (VMware, VirtualBox, Proxmox, physical hardware)
 
-### Step 3: Set up RDP services in your VM
-SSH into your VM or open a terminal, then run:
+### Step 3: Set up remote desktop services
+SSH into your VM/system or open a terminal, then run:
+
+**For KasmVNC (recommended):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+```
+
+**For legacy XRDP/VNC:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup.sh | bash
 ```
 
-**What gets installed in VM:**
+**What gets installed (KasmVNC):**
+- KasmVNC server (web-native VNC with multi-monitor support)
+- Virtual framebuffer (Xvfb) for headless operation
+- Basic desktop applications (Firefox, terminal, etc.)
+- Systemd service for automatic startup
+
+**What gets installed (Legacy):**
 - XRDP server (primary RDP access)
 - VNC server (backup access)
 - GNOME desktop environment
 - Basic desktop applications
 
 ### Step 4: Connect them together
+
+**For KasmVNC setup:**
 1. Access management interface: `http://localhost:PORT` (where PORT is the port you configured)
-2. Add your VM using its IP address
+2. Click "Connect" to access the remote desktop via KasmVNC
+3. Use "Add Display" button for multi-monitor support
+4. Copy MCP configuration for Cherry Studio integration
+
+**For legacy Guacamole setup:**
+1. Access management interface: `http://localhost:PORT` (where PORT is the port you configured)
+2. Add your VM using its IP address in Guacamole
 3. Configure RDP connection settings
 4. Start using AI overlay functionality
 
@@ -106,14 +149,20 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 
 ## Usage
 
-### Web Interface
+### Web Interface (KasmVNC)
+- **Main Interface**: `http://localhost:8080` (Caddy proxy - configurable port)
+- **Management**: `http://localhost:8080/` (overlay management interface)
+- **KasmVNC Desktop**: `http://localhost:8080/vnc/` (web-native VNC access)
+- **System Status**: Container health and remote desktop connections
+
+### Web Interface (Legacy Guacamole)
 - **Main Interface**: `http://localhost:8080` (Caddy proxy - configurable port)
 - **Management**: `http://localhost:8080/` (overlay management interface)
 - **Guacamole**: `http://localhost:8080/guac/` (RDP access with generated credentials)
 - **System Status**: Container health and VM connections
 
 ### MCP Server
-- **Direct Access**: `http://localhost:3000` (configurable port)
+- **Direct Access**: `http://localhost:3001` (configurable port)
 - **Via Proxy**: `http://localhost:8080/mcp` (through Caddy)
 - **Protocol**: Model Context Protocol over HTTP
 - **Features**: Screen capture, overlay annotations, AI interaction

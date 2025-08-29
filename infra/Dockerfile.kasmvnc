@@ -1,0 +1,32 @@
+# KasmVNC-based container for overlay companion
+FROM kasmweb/core:1.15.0-rolling
+
+USER root
+
+# Install additional tools for overlay functionality
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy KasmVNC configuration
+COPY infra/kasmvnc-config/ /etc/kasmvnc/
+
+# Copy startup scripts
+COPY infra/scripts/kasmvnc-init.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/kasmvnc-init.sh
+
+# Set up multi-monitor support
+RUN echo 'export DISPLAY_MANAGER_ENABLED=true' >> /etc/environment
+
+# Configure KasmVNC for overlay integration
+ENV KASM_VNC_RESOLUTION=1920x1080
+ENV KASM_VNC_DEPTH=24
+ENV KASM_VNC_MULTI_MONITOR=true
+
+# Expose KasmVNC ports
+EXPOSE 6901 5901
+
+# Use custom startup script
+CMD ["/usr/local/bin/kasmvnc-init.sh"]
