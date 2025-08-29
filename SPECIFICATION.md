@@ -113,6 +113,105 @@ host-setup-kasmvnc.sh → Podman Compose → {4 Containers} → Web Interface + 
 **Security Implementation:**
 - **POST over GET**: Network requests use POST method with fixed URL paths
 - **Host Validation**: Multi-layer validation with allowlist/blocklist patterns
+
+## Pre-commit Hooks Configuration
+
+The project uses comprehensive pre-commit hooks to ensure code quality, security, and consistency. Install with:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+### Python Code Quality
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **black** | Code formatting | Python 3, line length 88 |
+| **isort** | Import sorting | Black-compatible profile |
+| **flake8** | Linting | Max line 88, ignore E203/W503 |
+| **bandit** | Security scanning | JSON output, excludes tests |
+
+### File Validation
+
+| Hook | Purpose | Files |
+|------|---------|-------|
+| **trailing-whitespace** | Remove trailing spaces | All except .md |
+| **end-of-file-fixer** | Ensure newline at EOF | All except .md |
+| **check-yaml** | YAML syntax validation | .yaml, .yml |
+| **check-json** | JSON syntax validation | .json |
+| **check-toml** | TOML syntax validation | .toml |
+| **check-xml** | XML syntax validation | .xml |
+| **check-merge-conflict** | Detect merge conflicts | All files |
+| **check-case-conflict** | Case sensitivity issues | All files |
+| **check-added-large-files** | Prevent large files | Max 1MB |
+| **detect-private-key** | Prevent key commits | All files |
+
+### Language-Specific Formatting
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **dotnet-format** | C# code formatting | Minimal verbosity |
+
+### Build and Deployment Validation
+
+| Hook | Purpose | Validation |
+|------|---------|------------|
+| **check-build-scripts-executable** | Script permissions | scripts/*.sh executable |
+| **validate-appimage-if-exists** | AppImage integrity | Runs validation if AppImage exists |
+| **check-workflow-syntax** | GitHub Actions YAML | Syntax validation |
+| **check-npm-cache-config** | npm configuration | Cache/package.json consistency |
+
+### Documentation Quality
+
+| Hook | Purpose | Configuration |
+|------|---------|---------------|
+| **markdownlint** | Markdown linting | Auto-fix enabled |
+| **cspell** | Spell checking | Custom dictionary, .md files |
+
+### Security Analysis (CodeQL-like)
+
+| Hook | Purpose | Coverage |
+|------|---------|----------|
+| **eslint-security** | JavaScript security | SSRF, XSS, injection detection |
+| **semgrep-security** | Multi-language static analysis | Format strings, insecure transport, WebSocket security |
+| **detect-secrets** | Secret detection | Excludes .lock, .min.js, .min.css |
+
+### Git Commit Standards
+
+| Hook | Purpose | Format |
+|------|---------|--------|
+| **conventional-pre-commit** | Commit message format | feat, fix, docs, style, refactor, test, chore, ci |
+
+### Security Hook Details
+
+**ESLint Security Analysis:**
+- Detects SSRF vulnerabilities
+- Identifies XSS injection points
+- Validates object injection sinks
+- Checks for unsafe regex patterns
+- Monitors format string vulnerabilities
+
+**Semgrep Security Analysis:**
+- Multi-language security scanning (JS, TS, C#)
+- Detects insecure transport (HTTP vs HTTPS)
+- Identifies insecure WebSocket connections
+- Validates PostMessage origin handling
+- Checks for CSRF protection
+- Analyzes innerHTML usage for XSS risks
+
+**Installation Requirements:**
+```bash
+# ESLint security (auto-installed)
+cd infra/server
+npm install --no-save eslint@8 eslint-plugin-security
+
+# Semgrep (auto-installed)
+pip install semgrep
+
+# Spell checking
+npm install -g cspell
+```
 - **Input Sanitization**: Character filtering and normalization
 - **Rate Limiting**: Connection testing limited to 10 requests/minute per IP
 
