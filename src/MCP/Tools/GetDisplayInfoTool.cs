@@ -21,12 +21,40 @@ public class GetDisplayInfoTool
     }
 
     [McpServerTool]
-    [Description("Get information about all connected displays including resolution, position, and scale")]
+    [Description("Get information about all connected displays including resolution, position, scale, and KasmVNC integration status")]
     public async Task<object> GetDisplayInfo()
     {
         try
         {
             var displays = await GetDisplaysInfoAsync();
+
+            // Try to get KasmVNC service if available
+            var kasmvncConnected = false;
+            string? sessionStatus = null;
+            
+            try
+            {
+                // This will be injected if KasmVNC service is registered
+                var kasmvncService = ServiceProvider?.GetService<IKasmVNCService>();
+                if (kasmvncService != null)
+                {
+                    kasmvncConnected = await kasmvncService.IsConnectedAsync();
+                    if (!kasmvncConnected)
+                    {
+                        kasmvncConnected = await kasmvncService.ConnectAsync();
+                    }
+                    
+                    if (kasmvncConnected)
+                    {
+                        sessionStatus = await kasmvncService.GetSessionStatusAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail the entire operation
+                Console.WriteLine($"KasmVNC integration warning: {ex.Message}");
+            }
 
             return new
             {
@@ -39,6 +67,13 @@ public class GetDisplayInfoTool
                     height = displays.Max(d => d.y + d.height),
                     min_x = displays.Min(d => d.x),
                     min_y = displays.Min(d => d.y)
+                },
+                kasmvnc_integration = new
+                {
+                    connected = kasmvncConnected,
+                    session_status = sessionStatus,
+                    multi_monitor_support = kasmvncConnected,
+                    overlay_support = kasmvncConnected
                 }
             };
         }
@@ -47,6 +82,9 @@ public class GetDisplayInfoTool
             return new { error = $"Failed to get display info: {ex.Message}" };
         }
     }
+
+    // Property to access service provider for KasmVNC service
+    public IServiceProvider? ServiceProvider { get; set; }
 
     private async Task<List<DisplayInfo>> GetDisplaysInfoAsync()
     {

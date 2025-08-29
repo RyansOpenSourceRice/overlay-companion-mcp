@@ -114,6 +114,16 @@ public class Program
         builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();
 
+        // Register KasmVNC integration service
+        builder.Services.Configure<KasmVNCOptions>(options =>
+        {
+            options.BaseUrl = Environment.GetEnvironmentVariable("KASMVNC_URL") ?? "http://kasmvnc:6901";
+            options.WebSocketUrl = Environment.GetEnvironmentVariable("KASMVNC_WS_URL") ?? "ws://kasmvnc:6901/websockify";
+            options.ApiUrl = Environment.GetEnvironmentVariable("KASMVNC_API_URL") ?? "http://kasmvnc:6902";
+            options.AdminPort = int.Parse(Environment.GetEnvironmentVariable("KASMVNC_ADMIN_PORT") ?? "3000");
+        });
+        builder.Services.AddSingleton<IKasmVNCService, KasmVNCService>();
+
         // Add MCP server with native HTTP transport using official SDK
         builder.Services
             .AddMcpServer()
@@ -205,6 +215,40 @@ public class Program
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
+        
+        // Health check endpoint with KasmVNC integration status
+        app.MapGet("/health", async (IKasmVNCService kasmvnc, IOverlayService overlay, IOverlayEventBroadcaster broadcaster) =>
+        {
+            var kasmvncConnected = await kasmvnc.IsConnectedAsync();
+            var sessionStatus = kasmvncConnected ? await kasmvnc.GetSessionStatusAsync() : "disconnected";
+            var activeOverlays = await overlay.GetActiveOverlaysAsync();
+            
+            var health = new
+            {
+                status = "healthy",
+                timestamp = DateTime.UtcNow,
+                uptime = Environment.TickCount64 / 1000.0, // seconds
+                services = new
+                {
+                    mcp_server = "running",
+                    overlay_service = "running",
+                    kasmvnc_connection = kasmvncConnected,
+                    kasmvnc_session = sessionStatus,
+                    websocket_clients = broadcaster.ClientCount,
+                    active_overlays = activeOverlays.Count()
+                },
+                capabilities = new
+                {
+                    multi_monitor = true,
+                    overlay_system = true,
+                    click_through = true,
+                    kasmvnc_integration = kasmvncConnected,
+                    websocket_streaming = true
+                }
+            };
+            
+            return Results.Json(health);
+        });
         // WebSocket endpoint for overlay events
         app.MapGet("/ws/overlays", async (HttpContext context) =>
         {

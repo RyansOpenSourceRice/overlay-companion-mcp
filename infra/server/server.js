@@ -24,8 +24,9 @@ const config = {
   bindAddress: process.env.BIND_ADDRESS || '0.0.0.0',
   httpPort: parseInt(process.env.HTTP_PORT) || 8080,
   wsPort: parseInt(process.env.WS_PORT) || 8081,
-  guacamoleUrl: process.env.GUACAMOLE_URL || 'http://localhost:8080',
-  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:8081',
+  kasmvncUrl: process.env.KASMVNC_URL || 'http://localhost:6901',
+  kasmvncApiUrl: process.env.KASMVNC_API_URL || 'http://localhost:6902',
+  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:3001',
   mcpWsEnabled: process.env.MCP_WS_ENABLED === 'true',
   nodeEnv: process.env.NODE_ENV || 'development'
 };
@@ -205,6 +206,18 @@ app.get('/health', async (req, res) => {
     mcpServerStatus = 'unavailable';
   }
 
+  // Check KasmVNC health
+  let kasmvncStatus = 'unknown';
+  try {
+    const response = await fetch(`${config.kasmvncApiUrl}/api/health`, {
+      timeout: 5000,
+      signal: AbortSignal.timeout(5000)
+    });
+    kasmvncStatus = response.ok ? 'healthy' : 'unhealthy';
+  } catch (error) {
+    kasmvncStatus = 'unavailable';
+  }
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -215,12 +228,15 @@ app.get('/health', async (req, res) => {
       httpPort: config.httpPort,
       wsPort: config.wsPort,
       mcpWsEnabled: config.mcpWsEnabled,
-      mcpServerUrl: config.mcpServerUrl
+      mcpServerUrl: config.mcpServerUrl,
+      kasmvncUrl: config.kasmvncUrl,
+      kasmvncApiUrl: config.kasmvncApiUrl
     },
     services: {
       webServer: 'running',
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
       mcpServer: mcpServerStatus,
+      kasmvnc: kasmvncStatus,
       connectedClients: overlayClients.size
     }
   };
@@ -244,7 +260,9 @@ app.get('/mcp-config', (req, res) => {
       token: `dev-token-${Date.now()}`
     },
     desktop: {
-      target: 'fedora-silverblue',
+      target: 'kasmvnc-session',
+      kasmvnc_url: config.kasmvncUrl,
+      kasmvnc_api_url: config.kasmvncApiUrl,
       viewport: {
         w: 1920,
         h: 1080,
