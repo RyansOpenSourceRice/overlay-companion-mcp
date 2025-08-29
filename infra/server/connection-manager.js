@@ -175,6 +175,7 @@ class ConnectionManager {
                 maxRedirects: 0
             };
             
+            // SECURITY: URL constructed from validated host - safe for HTTP request
             const req = client.get(url, options, (res) => {
                 // SECURITY: Limit response size to prevent memory exhaustion
                 let data = '';
@@ -248,6 +249,7 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
+            // SECURITY: Host has been validated in testConnection() against SSRF patterns - safe to connect
             socket.connect(port, host, () => {
                 socket.destroy();
                 resolve({
@@ -305,6 +307,7 @@ class ConnectionManager {
             socket.setNoDelay(true);
             socket.setKeepAlive(false);
 
+            // SECURITY: Host has been validated in testConnection() against SSRF patterns - safe to connect
             socket.connect(port, host, () => {
                 socket.destroy();
                 resolve({
