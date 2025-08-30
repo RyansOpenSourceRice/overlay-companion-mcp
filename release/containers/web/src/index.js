@@ -18,6 +18,8 @@
  */
 
 import './styles/main.css';
+import DOMPurify from 'dompurify';
+import he from 'he';
 import GuacamoleClient from './components/GuacamoleClient';
 import MCPConfigManager from './components/MCPConfigManager';
 import OverlaySystem from './components/OverlaySystem';
@@ -372,11 +374,15 @@ class OverlayCompanionApp {
             info: 'ℹ️'
         }[type] || 'ℹ️';
 
-        notification.innerHTML = `
+        // Sanitize message content to prevent XSS
+        const sanitizedMessage = he.encode(message);
+        const safeHTML = DOMPurify.sanitize(`
             <span class="notification-icon">${icon}</span>
-            <span class="notification-message">${message}</span>
+            <span class="notification-message">${sanitizedMessage}</span>
             <button class="notification-close">&times;</button>
-        `;
+        `);
+
+        notification.innerHTML = safeHTML;
 
         // Add close functionality
         notification.querySelector('.notification-close').addEventListener('click', () => {

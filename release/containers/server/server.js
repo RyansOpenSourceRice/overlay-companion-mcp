@@ -16,6 +16,8 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs').promises;
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const helmet = require('helmet');
+const { rateLimiters, validatePath, validationRules, validateInput } = require('./middleware/security');
 
 // Configuration
 const config = {
@@ -44,6 +46,27 @@ const log = {
 // Express app setup
 const app = express();
 const server = http.createServer(app);
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Apply general rate limiting to all routes
+app.use(rateLimiters.general);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -191,7 +214,7 @@ app.use('/mcp', createProxyMiddleware({
 }));
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', rateLimiters.health, async (req, res) => {
   // Check MCP server health
   let mcpServerStatus = 'unknown';
   try {
@@ -228,7 +251,7 @@ app.get('/health', async (req, res) => {
 });
 
 // MCP configuration endpoint for Cherry Studio integration
-app.get('/mcp-config', (req, res) => {
+app.get('/mcp-config', validationRules.mcpConfig, validateInput, (req, res) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
   const wsProtocol = req.secure ? 'wss' : 'ws';
@@ -262,15 +285,24 @@ app.get('/mcp-config', (req, res) => {
   res.json(mcpConfig);
 });
 
-// Serve static files (web frontend)
-app.use(express.static(path.join(__dirname, '../public'), {
+// Serve static files (web frontend) with rate limiting
+app.use(rateLimiters.fileSystem, express.static(path.join(__dirname, '../public'), {
   maxAge: config.nodeEnv === 'production' ? '1d' : '0',
   etag: true,
   lastModified: true
 }));
 
-// Catch-all route for SPA
-app.get('*', (req, res) => {
+// Catch-all route for SPA with rate limiting and input validation
+app.get('*', rateLimiters.fileSystem, validatePath, (req, res) => {
+  // Validate that the request path doesn't contain directory traversal attempts
+  const safePath = path.normalize(req.path);
+  if (safePath.includes('..') || safePath.includes('~')) {
+    return res.status(400).json({
+      error: 'Invalid path detected',
+      message: 'Path traversal attempts are not allowed'
+    });
+  }
+
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
