@@ -134,9 +134,12 @@ jobs:
           
           TAG_NAME="${{ steps.version.outputs.version-tag }}"
           
-          # Check if tag already exists
-          if git tag -l | grep -q "^${TAG_NAME}$"; then
-            echo "Tag ${TAG_NAME} already exists, skipping tag creation"
+          # Fetch all tags from remote to ensure we have the latest tag information
+          git fetch --tags
+          
+          # Check if tag already exists locally or remotely
+          if git tag -l | grep -q "^${TAG_NAME}$" || git ls-remote --tags origin | grep -q "refs/tags/${TAG_NAME}$"; then
+            echo "Tag ${TAG_NAME} already exists (locally or remotely), skipping tag creation"
             exit 0
           fi
           
