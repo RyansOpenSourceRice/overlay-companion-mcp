@@ -87,7 +87,7 @@ show_help() {
     cat << EOF
 Overlay Companion MCP - KasmVNC Host Setup
 
-This script sets up a simplified container stack using KasmVNC instead of Guacamole.
+This script sets up a streamlined container stack using KasmVNC for remote desktop access.
 Benefits: No database required, true multi-monitor support, simpler configuration.
 
 USAGE:
@@ -250,6 +250,22 @@ check_requirements() {
         warning "This script is designed for Fedora Linux. Other distributions may work but are not officially supported."
     fi
 
+    # Check SELinux status
+    if command -v getenforce >/dev/null 2>&1; then
+        local selinux_status=$(getenforce 2>/dev/null || echo "Disabled")
+        if [[ "$selinux_status" == "Enforcing" ]]; then
+            info "SELinux is enforcing - will apply proper contexts for container volumes"
+            SELINUX_ENFORCING=true
+        elif [[ "$selinux_status" == "Permissive" ]]; then
+            info "SELinux is permissive - will apply contexts as precaution"
+            SELINUX_ENFORCING=true
+        else
+            SELINUX_ENFORCING=false
+        fi
+    else
+        SELINUX_ENFORCING=false
+    fi
+
     # Check for Podman
     if ! command -v podman >/dev/null 2>&1; then
         info "Installing Podman..."
@@ -294,6 +310,9 @@ setup_repository() {
 
         [[ "${DEBUG:-false}" == "true" ]] && info "Files in config directory:" && ls -la "$config_dir/"
         success "Repository files copied to $config_dir"
+
+    # Apply SELinux contexts if needed
+    apply_selinux_contexts
         return
     fi
 
@@ -353,6 +372,33 @@ USE_REGISTRY=${USE_REGISTRY:-false}
 EOF
 
     success "Environment file created: $env_file"
+}
+
+# Apply SELinux contexts for container volumes
+apply_selinux_contexts() {
+    if [[ "${SELINUX_ENFORCING:-false}" != "true" ]]; then
+        debug "SELinux not enforcing, skipping context application"
+        return 0
+    fi
+
+    info "Applying SELinux contexts for container volumes..."
+
+    local config_dir="$HOME/.config/$PROJECT_NAME"
+
+    # Apply container file context to the entire config directory
+    if command -v chcon >/dev/null 2>&1; then
+        debug "Applying svirt_sandbox_file_t context to $config_dir"
+        if chcon -R -t svirt_sandbox_file_t "$config_dir" 2>/dev/null; then
+            success "SELinux contexts applied successfully"
+        else
+            warning "Failed to apply SELinux contexts automatically."
+            warning "If containers have permission issues, run:"
+            warning "  sudo chcon -R -t svirt_sandbox_file_t $config_dir"
+        fi
+    else
+        warning "chcon command not found. SELinux contexts not applied."
+        warning "If you encounter permission issues, install policycoreutils-python-utils"
+    fi
 }
 
 # Build or pull containers
@@ -462,11 +508,11 @@ show_completion_info() {
     info "  🔄 Restart: cd $config_dir && podman-compose -f $compose_file restart"
     info "  🛑 Stop: cd $config_dir && podman-compose -f $compose_file down"
     echo
-    info "Advantages of KasmVNC over Guacamole:"
-    info "  ✅ No database required (vs PostgreSQL)"
-    info "  ✅ True multi-monitor support (vs single canvas)"
-    info "  ✅ 4 containers instead of 6"
-    info "  ✅ Simpler configuration and maintenance"
+    info "KasmVNC Features:"
+    info "  ✅ No database required - simple configuration"
+    info "  ✅ True multi-monitor support"
+    info "  ✅ Streamlined container stack (4 containers)"
+    info "  ✅ Easy configuration and maintenance"
     echo
 }
 
