@@ -5,6 +5,13 @@
 
 const rateLimit = require('express-rate-limit');
 const { body, param, query, validationResult } = require('express-validator');
+const validator = require('validator');
+const { JSDOM } = require('jsdom');
+const createDOMPurify = require('dompurify');
+
+// Create DOMPurify instance for server-side use
+const window = new JSDOM('').window;
+const DOMPurify = createDOMPurify(window);
 
 /**
  * Input validation middleware
@@ -21,30 +28,78 @@ const validateInput = (req, res, next) => {
 };
 
 /**
- * Sanitize string input to prevent injection attacks
+ * Sanitize string input using DOMPurify and validator.js
+ * Addresses CodeQL: Incomplete multi-character sanitization
  */
 const sanitizeString = (str) => {
   if (typeof str !== 'string') return str;
 
-  // Remove potentially dangerous characters
-  return str
-    .replace(/[<>]/g, '') // Remove angle brackets
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/on\w+=/gi, '') // Remove event handlers
-    .trim();
+  // Use DOMPurify for comprehensive HTML sanitization
+  const sanitized = DOMPurify.sanitize(str, {
+    ALLOWED_TAGS: [], // Strip all HTML tags
+    ALLOWED_ATTR: [] // Strip all attributes
+  });
+
+  // Additional URL scheme filtering using validator.js
+  let result = sanitized;
+
+  // Remove dangerous URL schemes (addresses CodeQL incomplete URL scheme check)
+  const dangerousSchemes = [
+    /javascript:/gi,
+    /data:/gi,
+    /vbscript:/gi,
+    /file:/gi,
+    /about:/gi,
+    /chrome:/gi,
+    /chrome-extension:/gi,
+    /moz-extension:/gi
+  ];
+
+  dangerousSchemes.forEach(scheme => {
+    result = result.replace(scheme, '');
+  });
+
+  // Remove event handlers and dangerous attributes
+  result = result.replace(/on\w+\s*=/gi, '');
+
+  return validator.escape(result.trim());
 };
 
 /**
- * Path traversal protection
+ * Path traversal protection with proper type checking
+ * Addresses CodeQL: Type confusion through parameter tampering
  */
 const validatePath = (req, res, next) => {
-  const path = req.path || req.params.path || req.query.path;
-  if (path && (path.includes('..') || path.includes('~') || path.includes('\0'))) {
-    return res.status(400).json({
-      error: 'Invalid path',
-      message: 'Path traversal attempts are not allowed'
-    });
+  const pathSources = [req.path, req.params.path, req.query.path];
+
+  for (const path of pathSources) {
+    if (path !== undefined && path !== null) {
+      // Critical: Check type before string operations (fixes CodeQL type confusion)
+      if (typeof path !== 'string') {
+        return res.status(400).json({
+          error: 'Invalid path type',
+          message: 'Path must be a string'
+        });
+      }
+
+      // Only proceed with string checks if path is confirmed to be a string
+      if (path.includes('..') || path.includes('~') || path.includes('\0')) {
+        return res.status(400).json({
+          error: 'Invalid path',
+          message: 'Path traversal attempts are not allowed'
+        });
+      }
+
+      // Additional path validation using validator.js
+      if (!validator.isLength(path, { min: 0, max: 1000 })) {
+        return res.status(400).json({
+          error: 'Invalid path length',
+          message: 'Path length exceeds maximum allowed'
+        });
+      }
+    }
   }
+
   next();
 };
 
@@ -102,27 +157,71 @@ const rateLimiters = {
 };
 
 /**
- * Input validation rules
+ * Enhanced input validation rules using validator.js
  */
 const validationRules = {
-  // WebSocket message validation
+  // WebSocket message validation with enhanced security
   wsMessage: [
-    body('type').isString().isLength({ min: 1, max: 50 }).matches(/^[a-zA-Z_-]+$/),
+    body('type')
+      .isString()
+      .isLength({ min: 1, max: 50 })
+      .matches(/^[a-zA-Z_-]+$/)
+      .custom((value) => {
+        // Additional sanitization using our secure function
+        const sanitized = sanitizeString(value);
+        if (sanitized !== value) {
+          throw new Error('Message type contains invalid characters');
+        }
+        return true;
+      }),
     body('data').optional().isObject(),
     body('timestamp').optional().isISO8601()
   ],
 
-  // MCP configuration validation
+  // MCP configuration validation with type checking
   mcpConfig: [
-    query('format').optional().isIn(['json', 'yaml']),
-    query('version').optional().matches(/^\d+\.\d+$/)
+    query('format')
+      .optional()
+      .custom((value) => {
+        if (value !== undefined && typeof value !== 'string') {
+          throw new Error('Format must be a string');
+        }
+        return validator.isIn(value || '', ['json', 'yaml']);
+      }),
+    query('version')
+      .optional()
+      .custom((value) => {
+        if (value !== undefined && typeof value !== 'string') {
+          throw new Error('Version must be a string');
+        }
+        return validator.matches(value || '', /^\d+\.\d+$/);
+      })
   ],
 
-  // Path parameters validation
+  // Enhanced path parameters validation with type safety
   safePath: [
     param('path').optional().custom((value) => {
-      if (value && (value.includes('..') || value.includes('~') || value.includes('\0'))) {
-        throw new Error('Invalid path detected');
+      // Type check first (addresses CodeQL type confusion)
+      if (value !== undefined && typeof value !== 'string') {
+        throw new Error('Path must be a string');
+      }
+
+      if (value) {
+        // Use validator.js for length validation
+        if (!validator.isLength(value, { min: 0, max: 1000 })) {
+          throw new Error('Path length exceeds maximum allowed');
+        }
+
+        // Path traversal checks
+        if (value.includes('..') || value.includes('~') || value.includes('\0')) {
+          throw new Error('Invalid path detected');
+        }
+
+        // Additional security: check for encoded path traversal attempts
+        const decoded = decodeURIComponent(value);
+        if (decoded.includes('..') || decoded.includes('~')) {
+          throw new Error('Encoded path traversal detected');
+        }
       }
       return true;
     })

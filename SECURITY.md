@@ -9,24 +9,34 @@ This document outlines the security measures implemented in the Overlay Companio
 ### 1. Cross-Site Scripting (XSS) Prevention - CWE-79
 
 **Libraries Used:**
-- `dompurify` (v3.0.5): Sanitizes HTML content to prevent XSS attacks
-- `he` (v1.2.0): HTML entity encoding for user input
+- `dompurify` (v3.0.5): Sanitizes HTML content to prevent XSS attacks (client & server)
+- `he` (v1.2.0): HTML entity encoding for user input (client-side)
+- `validator` (v13.11.0): Server-side input validation and sanitization
+- `jsdom` (v23.0.1): DOM implementation for server-side DOMPurify
 
 **Implementation:**
-- All user-provided content is sanitized using DOMPurify before rendering
+- **Client-side**: All user-provided content is sanitized using DOMPurify before rendering
+- **Server-side**: DOMPurify with JSDOM for comprehensive HTML sanitization
 - HTML entity encoding is applied to prevent script injection
 - Replaced dangerous `innerHTML` usage with safe DOM manipulation
+- Enhanced URL scheme filtering (javascript:, data:, vbscript:, file:, etc.)
 
 **Files Protected:**
 - `release/containers/web/src/components/GuacamoleClient.js`
 - `release/containers/web/src/index.js`
+- `release/containers/server/middleware/security.js`
 
 ### 2. Improper Encoding/Escaping - CWE-116
 
+**Libraries Used:**
+- `validator` (v13.11.0): Comprehensive input validation and escaping
+- `dompurify` (v3.0.5): HTML sanitization with configurable policies
+
 **Solution:**
-- Implemented comprehensive HTML entity encoding using the `he` library
+- Implemented comprehensive HTML entity encoding using validator.js
 - All user input is properly encoded before display
 - Special characters are escaped to prevent injection attacks
+- Multi-layer sanitization approach with DOMPurify + validator.js
 
 ### 3. Missing Rate Limiting - CWE-307
 
@@ -56,16 +66,18 @@ This document outlines the security measures implemented in the Overlay Companio
 - Referrer-Policy
 - And other security headers
 
-### 5. Input Validation
+### 5. Input Validation & Type Safety
 
-**Library Used:**
+**Libraries Used:**
 - `express-validator` (v7.0.1): Request validation middleware
+- `validator` (v13.11.0): Comprehensive validation utilities
 
 **Validation Applied:**
-- Path traversal protection (prevents `../` attacks)
-- Input sanitization for all user-provided data
-- Type validation for API parameters
-- Length limits on string inputs
+- **Type Safety**: Explicit type checking before string operations (fixes CWE type confusion)
+- **Path Traversal Protection**: Prevents `../` attacks with encoded path detection
+- **Input Sanitization**: Multi-layer sanitization for all user-provided data
+- **Length Validation**: Configurable limits on string inputs using validator.js
+- **URL Scheme Validation**: Comprehensive filtering of dangerous protocols
 
 ## Security Middleware
 
@@ -105,7 +117,16 @@ This project uses GitHub's CodeQL security scanning to automatically detect:
 
 ## Dependencies Security
 
-Regular dependency updates are performed to address known vulnerabilities:
+**Security Libraries:**
+- `dompurify@3.0.5`: Industry-standard HTML sanitization
+- `validator@13.11.0`: Comprehensive input validation
+- `express-validator@7.0.1`: Express.js validation middleware
+- `helmet@7.1.0`: Security headers middleware
+- `express-rate-limit@7.1.5`: Rate limiting middleware
+- `jsdom@23.0.1`: Server-side DOM for DOMPurify
+
+**Maintenance:**
+- Regular dependency updates are performed to address known vulnerabilities
 - Run `npm audit` to check for vulnerabilities
 - Use `npm audit fix` to automatically fix issues
 - Monitor security advisories for used packages

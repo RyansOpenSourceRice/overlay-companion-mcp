@@ -217,7 +217,10 @@
     "KasmVNC",
     "KASMVNC",
     "allowlist",
-    "blocklist"
+    "blocklist",
+    "vbscript",
+    "dompurify",
+    "jsdom"
   ],
   "flagWords": [],
   "ignorePaths": [
