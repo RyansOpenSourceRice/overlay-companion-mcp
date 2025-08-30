@@ -3,6 +3,9 @@
  * Handles connection to the Fedora Silverblue VM via Guacamole
  */
 
+import DOMPurify from 'dompurify';
+import he from 'he';
+
 export default class GuacamoleClient {
     constructor(options = {}) {
         this.options = {
@@ -131,21 +134,36 @@ export default class GuacamoleClient {
             animation: windowOpen 0.3s ease;
         `;
 
-        appWindow.innerHTML = `
+        // Use DOMPurify to safely create HTML content
+        // Sanitize and encode the app name
+        const sanitizedAppName = he.encode(appName);
+
+        // Create safe HTML using DOMPurify
+        const safeHTML = DOMPurify.sanitize(`
             <div style="padding: 1rem; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 0.5rem 0.5rem 0 0;">
-                <h3 style="margin: 0; font-size: 1rem;">${appName}</h3>
-                <button onclick="this.closest('[style*=\"position: absolute\"]').remove()" style="background: #ff5f56; border: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer;"></button>
+                <h3 style="margin: 0; font-size: 1rem;">${sanitizedAppName}</h3>
+                <button class="close-window-btn" style="background: #ff5f56; border: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer;"></button>
             </div>
             <div style="flex: 1; padding: 1rem; display: flex; align-items: center; justify-content: center; text-align: center;">
                 <div>
                     <div style="font-size: 2rem; margin-bottom: 1rem;">📱</div>
                     <p style="margin: 0; opacity: 0.7;">
-                        ${appName} application simulation<br>
-                        <small>In a real deployment, this would be the actual ${appName} application running in the Fedora VM</small>
+                        ${sanitizedAppName} application simulation<br>
+                        <small>In a real deployment, this would be the actual ${sanitizedAppName} application running in the Fedora VM</small>
                     </p>
                 </div>
             </div>
-        `;
+        `);
+
+        appWindow.innerHTML = safeHTML;
+
+        // Add event listener safely after DOM creation
+        const closeBtn = appWindow.querySelector('.close-window-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                appWindow.remove();
+            });
+        }
 
         // Add animation styles
         const style = document.createElement('style');
