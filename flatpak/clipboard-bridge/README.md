@@ -248,7 +248,7 @@ sudo firewall-cmd --reload
 - **API Key**: Change the default API key in production
 - **Network Access**: The service binds to `0.0.0.0` by default for VM access
 - **Firewall**: Configure firewall rules to restrict access as needed
-- **Flatpak Sandboxing**: The service runs in a Flatpak sandbox with minimal permissions
+- **Flatpak Sandbox**: The service runs in a Flatpak sandbox with minimal permissions
 
 ## Development
 

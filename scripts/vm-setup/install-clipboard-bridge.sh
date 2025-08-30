@@ -100,16 +100,16 @@ sleep 3
 echo "🧪 Testing clipboard bridge service..."
 if curl -s -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/health > /dev/null; then
     echo "✅ Clipboard bridge service is running successfully!"
-    
+
     # Test clipboard functionality
     echo "📋 Testing clipboard functionality..."
-    
+
     # Set test content
     TEST_CONTENT="Overlay Companion MCP Clipboard Bridge Test - $(date)"
     if curl -s -X POST -H "X-API-Key: overlay-companion-mcp" -H "Content-Type: application/json" \
            -d "{\"content\":\"${TEST_CONTENT}\"}" http://localhost:8765/clipboard > /dev/null; then
         echo "✅ Clipboard write test successful"
-        
+
         # Read back content
         RETRIEVED_CONTENT=$(curl -s -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/clipboard | jq -r '.content')
         if [ "$RETRIEVED_CONTENT" = "$TEST_CONTENT" ]; then
