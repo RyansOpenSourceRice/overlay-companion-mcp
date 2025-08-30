@@ -9,10 +9,12 @@ WORKDIR /app/web
 
 # Copy package files first for better caching
 COPY infra/web/package.json ./
+
+# Copy package-lock.json if it exists (optional)
 COPY infra/web/package-lock.json* ./
 
-# Install dependencies (fallback to npm install if npm ci fails)
-RUN npm ci --verbose || npm install
+# Install dependencies (use npm install since package-lock.json may not exist)
+RUN npm install --verbose
 
 # Copy source code
 COPY infra/web/ ./
@@ -39,10 +41,12 @@ WORKDIR /app
 
 # Copy Node.js server package files first
 COPY infra/server/package.json ./server/
+
+# Copy package-lock.json if it exists (optional)
 COPY infra/server/package-lock.json* ./server/
 
-# Install server dependencies
-RUN cd server && (npm ci --omit=dev --verbose || npm install --omit=dev)
+# Install server dependencies (use npm install since package-lock.json may not exist)
+RUN cd server && npm install --omit=dev --verbose
 
 # Copy server source code
 COPY infra/server/ ./server/
