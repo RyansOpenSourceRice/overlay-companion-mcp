@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="clipboardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#357ABD;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bridgeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#50C878;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3A9B5C;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#clipboardGradient)" stroke="#2C5282" stroke-width="2"/>
+  
+  <!-- Clipboard icon -->
+  <rect x="35" y="25" width="35" height="45" rx="3" ry="3" fill="#FFFFFF" stroke="#2C5282" stroke-width="2"/>
+  <rect x="45" y="20" width="15" height="8" rx="2" ry="2" fill="#2C5282"/>
+  
+  <!-- Clipboard lines (representing text) -->
+  <line x1="40" y1="35" x2="65" y2="35" stroke="#2C5282" stroke-width="2"/>
+  <line x1="40" y1="42" x2="60" y2="42" stroke="#2C5282" stroke-width="2"/>
+  <line x1="40" y1="49" x2="65" y2="49" stroke="#2C5282" stroke-width="2"/>
+  <line x1="40" y1="56" x2="55" y2="56" stroke="#2C5282" stroke-width="2"/>
+  
+  <!-- Bridge/connection arrows -->
+  <path d="M 75 35 Q 85 25 95 35" stroke="url(#bridgeGradient)" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  <path d="M 95 55 Q 85 65 75 55" stroke="url(#bridgeGradient)" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <!-- Arrow marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="url(#bridgeGradient)"/>
+    </marker>
+  </defs>
+  
+  <!-- VM/Computer icon -->
+  <rect x="85" y="75" width="25" height="18" rx="2" ry="2" fill="#FFFFFF" stroke="#2C5282" stroke-width="2"/>
+  <rect x="87" y="77" width="21" height="12" fill="#E2E8F0"/>
+  <rect x="95" y="93" width="5" height="3" fill="#2C5282"/>
+  <rect x="90" y="96" width="15" height="2" rx="1" ry="1" fill="#2C5282"/>
+  
+  <!-- Network/sync indicators -->
+  <circle cx="80" cy="45" r="3" fill="url(#bridgeGradient)"/>
+  <circle cx="88" cy="40" r="2" fill="url(#bridgeGradient)" opacity="0.7"/>
+  <circle cx="82" cy="52" r="2" fill="url(#bridgeGradient)" opacity="0.7"/>
+</svg>

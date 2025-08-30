@@ -9,14 +9,16 @@ namespace OverlayCompanion.MCP.Tools;
 /// <summary>
 /// MCP tool for setting clipboard content
 /// Implements the set_clipboard tool from MCP_SPECIFICATION.md
+/// Supports both VM clipboard bridge and local clipboard access
 /// </summary>
 [McpServerToolType]
 public static class SetClipboardTool
 {
-    [McpServerTool, Description("Set the clipboard content")]
+    [McpServerTool, Description("Set the clipboard content in VM or local system")]
     [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> SetClipboard(
         IModeManager modeManager,
+        IClipboardBridgeService clipboardBridge,
         [Description("Text content to set in clipboard")] string text,
         [Description("Format of the content (text, html)")] string format = "text")
     {
@@ -44,10 +46,11 @@ public static class SetClipboardTool
         }
 
         bool success = false;
+        string source = "none";
 
         if (!needsConfirmation || wasConfirmed)
         {
-            success = await SetClipboardTextAsync(text, format);
+            (success, source) = await SetClipboardTextAsync(clipboardBridge, text, format);
         }
 
         var response = new
@@ -56,13 +59,32 @@ public static class SetClipboardTool
             text_length = text.Length,
             format = format,
             confirmation_required = needsConfirmation,
-            confirmed = wasConfirmed
+            confirmed = wasConfirmed,
+            source = source,
+            vm_bridge_available = await clipboardBridge.IsAvailableAsync()
         };
 
         return System.Text.Json.JsonSerializer.Serialize(response);
     }
 
-    private static async Task<bool> SetClipboardTextAsync(string text, string format = "text")
+    private static async Task<(bool success, string source)> SetClipboardTextAsync(IClipboardBridgeService clipboardBridge, string text, string format = "text")
+    {
+        // First try VM clipboard bridge if available
+        if (await clipboardBridge.IsAvailableAsync())
+        {
+            var vmSuccess = await clipboardBridge.SetClipboardAsync(text, format);
+            if (vmSuccess)
+            {
+                return (true, "vm_bridge");
+            }
+        }
+
+        // Fallback to local clipboard access
+        var localSuccess = await SetLocalClipboardTextAsync(text, format);
+        return (localSuccess, localSuccess ? "local" : "failed");
+    }
+
+    private static async Task<bool> SetLocalClipboardTextAsync(string text, string format = "text")
     {
         try
         {

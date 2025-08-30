@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Overlay Companion Clipboard Bridge
+Comment=Clipboard synchronization service for Overlay Companion MCP
+Exec=clipboard-bridge
+Icon=org.overlaycompanion.ClipboardBridge
+Terminal=false
+Type=Application
+Categories=Utility;System;
+StartupNotify=true
+NoDisplay=true
+X-Flatpak-RenamedFrom=clipboard-bridge.desktop;
