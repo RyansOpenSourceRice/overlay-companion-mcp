@@ -1,9 +1,13 @@
 # Task List
 
-1. ✅ Modernize web interface with accessible UI library
-Updated CSS with black text, white backgrounds, blue/yellow accents. Added accessibility features, focus management, reduced motion support, and responsive design improvements.
-2. ✅ Fix SELinux permission issues for Caddy proxy
-Added SELinux detection and automatic context application to setup script
-3. ✅ Enhance setup script to handle SELinux automatically
-Enhanced setup script with SELinux detection, context application, and helpful error messages
+1. 🔄 Assess impact of GitHub username change and list required fixes
+Scanned repo for old vs new owner strings; will report findings and wait for confirmation before mass-replacing
+2. 🔄 Remove 'guacamole' references from README.md
+
+3. 🔄 Add Flatpak packaging with minimal GUI for configuration and enable clipboard copy/paste
+Implement optional GTK mini window in clipboard-bridge; adjust manifest to GNOME Platform
+4. 🔄 Create GitHub Action to build Flatpak and publish on release
+Add workflow to build bundle and upload on release publish
+5. 🔄 Add appropriate timeout-minutes to all GitHub Actions workflows
+Add job-level timeouts to workflows missing them
 

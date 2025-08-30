@@ -251,16 +251,60 @@ class ClipboardManager:
         return True
 
     async def _get_gtk_clipboard(self) -> tuple[str, str]:
-        """Get clipboard using GTK (fallback)"""
-        # This would require running in the main thread
-        # For now, raise an exception
-        raise Exception("GTK clipboard backend not implemented in async context")
+        """Get clipboard using GTK (portal-friendly)"""
+        import asyncio
+        return await asyncio.to_thread(self._gtk_get_text_blocking)
 
     async def _set_gtk_clipboard(self, content: str, content_type: str) -> bool:
-        """Set clipboard using GTK (fallback)"""
-        # This would require running in the main thread
-        # For now, raise an exception
-        raise Exception("GTK clipboard backend not implemented in async context")
+        """Set clipboard using GTK (portal-friendly)"""
+        import asyncio
+        return await asyncio.to_thread(self._gtk_set_text_blocking, content)
+
+    def _gtk_get_text_blocking(self) -> tuple[str, str]:
+        try:
+            import gi
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk, Gdk
+
+            # Initialize GTK if needed
+            try:
+                Gtk.init([])
+            except Exception:
+                pass
+
+            display = Gdk.Display.get_default()
+            if not display:
+                raise Exception("No display available for GTK clipboard")
+
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            text = clipboard.wait_for_text() or ""
+            return text, "text/plain"
+        except Exception as e:
+            logger.error(f"GTK clipboard read failed: {e}")
+            raise
+
+    def _gtk_set_text_blocking(self, content: str) -> bool:
+        try:
+            import gi
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gtk, Gdk
+
+            try:
+                Gtk.init([])
+            except Exception:
+                pass
+
+            display = Gdk.Display.get_default()
+            if not display:
+                raise Exception("No display available for GTK clipboard")
+
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            clipboard.set_text(content, -1)
+            clipboard.store()
+            return True
+        except Exception as e:
+            logger.error(f"GTK clipboard write failed: {e}")
+            raise
 
 
 # Global clipboard manager

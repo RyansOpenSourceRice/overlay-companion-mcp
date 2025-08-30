@@ -1,17 +1,18 @@
 app-id: org.overlaycompanion.ClipboardBridge
-runtime: org.freedesktop.Platform
-runtime-version: '23.08'
-sdk: org.freedesktop.Sdk
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
 command: clipboard-bridge
 
 finish-args:
-  # Clipboard access permissions
+  # Clipboard and GUI permissions
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  - --socket=session-bus
 
-  # Clipboard-specific permissions
+  # Clipboard-specific permissions via portals
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.freedesktop.portal.Clipboard
 
@@ -25,6 +26,7 @@ finish-args:
   # Environment variables
   - --env=CLIPBOARD_BRIDGE_PORT=8765
   - --env=CLIPBOARD_BRIDGE_HOST=0.0.0.0
+  - --env=GTK_USE_PORTAL=1
 
 modules:
   - name: python3-dependencies
