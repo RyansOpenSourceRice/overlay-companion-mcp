@@ -144,13 +144,33 @@ Clear clipboard content.
 
 ### Host MCP Server Configuration
 
-Update `appsettings.json` on the host:
+#### Web Interface Configuration (Recommended)
+
+Configure the clipboard bridge through the MCP server's web interface:
+
+1. Open `http://localhost:3000/setup` in your browser
+2. Scroll to the "VM Clipboard Bridge Settings" section
+3. Enable the clipboard bridge and configure:
+   - **Base URL**: VM clipboard bridge service URL (e.g., `http://vm-ip-address:8765`)
+   - **API Key**: Authentication key (default: `overlay-companion-mcp`)
+   - **Timeout**: Connection timeout in seconds (default: 5)
+   - **Fallback**: Enable automatic fallback to local clipboard (recommended: enabled)
+4. Click "Test Connection" to verify the bridge is working
+5. Click "Save Settings" to persist the configuration
+
+#### Manual Configuration (Advanced)
+
+The settings are stored in `~/.overlay-companion/settings.json` and can be edited manually:
 
 ```json
 {
-  "ClipboardBridge": {
-    "BaseUrl": "http://vm-ip-address:8765",
-    "ApiKey": "overlay-companion-mcp"
+  "clipboard_bridge": {
+    "enabled": true,
+    "baseUrl": "http://vm-ip-address:8765",
+    "apiKey": "overlay-companion-mcp",
+    "timeoutSeconds": 5,
+    "fallbackToLocal": true,
+    "description": "VM clipboard bridge for cross-system clipboard synchronization"
   }
 }
 ```

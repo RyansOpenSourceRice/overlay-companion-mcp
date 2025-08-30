@@ -195,10 +195,16 @@ cd flatpak/clipboard-bridge
 ```
 
 **Configuration:**
-The MCP server automatically detects and uses the clipboard bridge when available. No additional configuration is required on the host side.
+Configure the clipboard bridge through the web interface at `http://localhost:3000/setup`. The settings include:
+- **Enable/Disable**: Toggle VM clipboard bridge functionality
+- **Base URL**: VM clipboard bridge service URL (default: `http://localhost:8765`)
+- **API Key**: Authentication key for the bridge service
+- **Timeout**: Connection timeout in seconds
+- **Fallback**: Enable automatic fallback to local clipboard
 
 **Status Check:**
-Use the `get_clipboard_bridge_status` MCP tool to check if the clipboard bridge is available and properly configured.
+- Use the web interface test button to verify connectivity
+- Use the `get_clipboard_bridge_status` MCP tool for programmatic status checking
 
 **Documentation:** See [flatpak/clipboard-bridge/README.md](flatpak/clipboard-bridge/README.md) for detailed setup and usage instructions.
 

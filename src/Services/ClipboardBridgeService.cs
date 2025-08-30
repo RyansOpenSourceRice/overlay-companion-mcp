@@ -19,31 +19,35 @@ public class ClipboardBridgeService : IClipboardBridgeService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<ClipboardBridgeService> _logger;
-    private readonly string _baseUrl;
-    private readonly string _apiKey;
+    private readonly ISettingsService _settingsService;
 
-    public ClipboardBridgeService(ILogger<ClipboardBridgeService> logger, IConfiguration configuration)
+    public ClipboardBridgeService(ILogger<ClipboardBridgeService> logger, ISettingsService settingsService)
     {
         _logger = logger;
-        
-        // Get configuration from appsettings.json or environment variables
-        _baseUrl = configuration["ClipboardBridge:BaseUrl"] ?? "http://localhost:8765";
-        _apiKey = configuration["ClipboardBridge:ApiKey"] ?? "overlay-companion-mcp";
+        _settingsService = settingsService;
         
         _httpClient = new HttpClient();
-        _httpClient.DefaultRequestHeaders.Add("X-API-Key", _apiKey);
-        _httpClient.Timeout = TimeSpan.FromSeconds(5); // Short timeout for clipboard operations
         
-        _logger.LogInformation("Clipboard Bridge Service initialized with URL: {BaseUrl}", _baseUrl);
+        _logger.LogInformation("Clipboard Bridge Service initialized with dynamic configuration");
     }
 
     public async Task<string?> GetClipboardAsync(string format = "text")
     {
+        var settings = await _settingsService.GetClipboardBridgeSettingsAsync();
+        if (!settings.Enabled)
+        {
+            return null;
+        }
+
         try
         {
             _logger.LogDebug("Getting clipboard content from VM bridge");
             
-            var response = await _httpClient.GetAsync($"{_baseUrl}/clipboard");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{settings.BaseUrl}/clipboard");
+            request.Headers.Add("X-API-Key", settings.ApiKey);
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             
             if (response.IsSuccessStatusCode)
             {
@@ -92,6 +96,12 @@ public class ClipboardBridgeService : IClipboardBridgeService
 
     public async Task<bool> SetClipboardAsync(string content, string format = "text")
     {
+        var settings = await _settingsService.GetClipboardBridgeSettingsAsync();
+        if (!settings.Enabled)
+        {
+            return false;
+        }
+
         try
         {
             _logger.LogDebug("Setting clipboard content in VM bridge: {Length} characters", content.Length);
@@ -107,8 +117,12 @@ public class ClipboardBridgeService : IClipboardBridgeService
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
 
-            var httpContent = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/clipboard", httpContent);
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.BaseUrl}/clipboard");
+            request.Headers.Add("X-API-Key", settings.ApiKey);
+            request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             
             if (response.IsSuccessStatusCode)
             {
@@ -156,11 +170,21 @@ public class ClipboardBridgeService : IClipboardBridgeService
 
     public async Task<bool> ClearClipboardAsync()
     {
+        var settings = await _settingsService.GetClipboardBridgeSettingsAsync();
+        if (!settings.Enabled)
+        {
+            return false;
+        }
+
         try
         {
             _logger.LogDebug("Clearing clipboard content in VM bridge");
             
-            var response = await _httpClient.DeleteAsync($"{_baseUrl}/clipboard");
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"{settings.BaseUrl}/clipboard");
+            request.Headers.Add("X-API-Key", settings.ApiKey);
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             
             if (response.IsSuccessStatusCode)
             {
@@ -208,9 +232,19 @@ public class ClipboardBridgeService : IClipboardBridgeService
 
     public async Task<bool> IsAvailableAsync()
     {
+        var settings = await _settingsService.GetClipboardBridgeSettingsAsync();
+        if (!settings.Enabled)
+        {
+            return false;
+        }
+
         try
         {
-            var response = await _httpClient.GetAsync($"{_baseUrl}/health");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{settings.BaseUrl}/health");
+            request.Headers.Add("X-API-Key", settings.ApiKey);
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
+            var response = await _httpClient.SendAsync(request, cts.Token);
             return response.IsSuccessStatusCode;
         }
         catch (Exception)

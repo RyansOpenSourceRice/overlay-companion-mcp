@@ -12,6 +12,8 @@
 
 6. ✅ Integrate Flatpak installation into vm-setup scripts
 
-7. ⏳ Test clipboard synchronization between host and VM
+7. ✅ Make clipboard bridge settings configurable through web interface
+
+8. ⏳ Test clipboard synchronization between host and VM
 
 

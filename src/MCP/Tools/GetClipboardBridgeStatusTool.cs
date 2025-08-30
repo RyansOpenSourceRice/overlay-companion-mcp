@@ -16,32 +16,36 @@ public static class GetClipboardBridgeStatusTool
     [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> GetClipboardBridgeStatus(
         IClipboardBridgeService clipboardBridge,
-        IConfiguration configuration)
+        ISettingsService settingsService)
     {
         try
         {
+            var settings = await settingsService.GetClipboardBridgeSettingsAsync();
             var isAvailable = await clipboardBridge.IsAvailableAsync();
-            var baseUrl = configuration["ClipboardBridge:BaseUrl"] ?? "http://localhost:8765";
-            var apiKey = configuration["ClipboardBridge:ApiKey"] ?? "overlay-companion-mcp";
 
             var response = new
             {
+                enabled = settings.Enabled,
                 available = isAvailable,
                 configured = true,
-                base_url = baseUrl,
-                api_key_configured = !string.IsNullOrEmpty(apiKey),
-                status = isAvailable ? "connected" : "disconnected",
-                description = isAvailable 
-                    ? "VM clipboard bridge is available and responding"
-                    : "VM clipboard bridge is not available - clipboard operations will use local system only",
-                fallback_enabled = true,
+                base_url = settings.BaseUrl,
+                api_key_configured = !string.IsNullOrEmpty(settings.ApiKey),
+                timeout_seconds = settings.TimeoutSeconds,
+                fallback_to_local = settings.FallbackToLocal,
+                status = !settings.Enabled ? "disabled" : (isAvailable ? "connected" : "disconnected"),
+                description = !settings.Enabled 
+                    ? "VM clipboard bridge is disabled - clipboard operations will use local system only"
+                    : isAvailable 
+                        ? "VM clipboard bridge is available and responding"
+                        : "VM clipboard bridge is not available - clipboard operations will use local system only",
                 features = new
                 {
-                    vm_clipboard_sync = isAvailable,
-                    local_clipboard_fallback = true,
+                    vm_clipboard_sync = settings.Enabled && isAvailable,
+                    local_clipboard_fallback = settings.FallbackToLocal,
                     multi_backend_support = true,
                     wayland_support = true,
-                    x11_support = true
+                    x11_support = true,
+                    web_configurable = true
                 }
             };
 

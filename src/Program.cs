@@ -68,6 +68,7 @@ public class Program
         builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
+        builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IClipboardBridgeService, ClipboardBridgeService>();
 
         // Add MCP server with official SDK using stdio transport (standard for MCP servers)
@@ -111,6 +112,7 @@ public class Program
         builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
+        builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IClipboardBridgeService, ClipboardBridgeService>();
         builder.Services.AddSingleton<UpdateService>();
         builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
@@ -217,6 +219,29 @@ public class Program
         // Add configuration endpoints for better UX
         app.MapGet("/setup", () => Results.Content(GetConfigurationWebUI(), "text/html"));
         app.MapGet("/config", () => Results.Json(GetMcpConfiguration()));
+
+        // Clipboard bridge settings API endpoints
+        app.MapGet("/api/settings/clipboard-bridge", async (ISettingsService settingsService) =>
+        {
+            var settings = await settingsService.GetClipboardBridgeSettingsAsync();
+            return Results.Json(settings);
+        });
+
+        app.MapPost("/api/settings/clipboard-bridge", async (ClipboardBridgeSettings settings, ISettingsService settingsService) =>
+        {
+            await settingsService.SetClipboardBridgeSettingsAsync(settings);
+            return Results.Json(new { success = true, message = "Clipboard bridge settings updated successfully" });
+        });
+
+        app.MapGet("/api/settings/clipboard-bridge/test", async (IClipboardBridgeService clipboardBridge) =>
+        {
+            var isAvailable = await clipboardBridge.IsAvailableAsync();
+            return Results.Json(new { 
+                available = isAvailable,
+                status = isAvailable ? "connected" : "disconnected",
+                message = isAvailable ? "VM clipboard bridge is responding" : "VM clipboard bridge is not available"
+            });
+        });
 
         // Health check endpoint with KasmVNC integration status
         app.MapGet("/health", async (IKasmVNCService kasmvnc, IOverlayService overlay, IOverlayEventBroadcaster broadcaster) =>
@@ -556,6 +581,62 @@ public class Program
             <button class="copy-btn" onclick="copyConfig('stdio')">📋 Copy STDIO Configuration</button>
         </div>
 
+        <div class="config-section">
+            <div class="config-title">📋 VM Clipboard Bridge Settings</div>
+            <div class="config-description">
+                Configure the optional VM clipboard bridge for cross-system clipboard synchronization.
+                When enabled, clipboard operations will use the VM bridge with automatic fallback to local clipboard.
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <input type="checkbox" id="clipboard-enabled" onchange="updateClipboardSettings()">
+                    <strong>Enable VM Clipboard Bridge</strong>
+                </label>
+            </div>
+
+            <div id="clipboard-settings" style="display: none;">
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>Base URL:</strong></label>
+                    <input type="text" id="clipboard-base-url" value="http://localhost:8765" 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                           onchange="updateClipboardSettings()">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>API Key:</strong></label>
+                    <input type="text" id="clipboard-api-key" value="overlay-companion-mcp"
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                           onchange="updateClipboardSettings()">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>Timeout (seconds):</strong></label>
+                    <input type="number" id="clipboard-timeout" value="5" min="1" max="30"
+                           style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
+                           onchange="updateClipboardSettings()">
+                </div>
+
+                <div style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="clipboard-fallback" checked onchange="updateClipboardSettings()">
+                        <strong>Fallback to Local Clipboard</strong>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button onclick="testClipboardBridge()" style="padding: 8px 16px; background: #007acc; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        🔍 Test Connection
+                    </button>
+                    <button onclick="saveClipboardSettings()" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        💾 Save Settings
+                    </button>
+                </div>
+
+                <div id="clipboard-status" style="padding: 10px; border-radius: 4px; margin-bottom: 10px; display: none;"></div>
+            </div>
+        </div>
+
         <div class="endpoints">
             <h3>📡 Available Endpoints</h3>
             <div class="endpoint">
@@ -613,6 +694,109 @@ public class Program
                 alert('Failed to copy to clipboard. Please copy manually.');
             });
         }
+
+        // Clipboard bridge configuration functions
+        function loadClipboardSettings() {
+            fetch('/api/settings/clipboard-bridge')
+                .then(r => r.json())
+                .then(settings => {
+                    document.getElementById('clipboard-enabled').checked = settings.enabled;
+                    document.getElementById('clipboard-base-url').value = settings.baseUrl;
+                    document.getElementById('clipboard-api-key').value = settings.apiKey;
+                    document.getElementById('clipboard-timeout').value = settings.timeoutSeconds;
+                    document.getElementById('clipboard-fallback').checked = settings.fallbackToLocal;
+                    updateClipboardSettings();
+                })
+                .catch(err => {
+                    console.error('Failed to load clipboard settings:', err);
+                });
+        }
+
+        function updateClipboardSettings() {
+            const enabled = document.getElementById('clipboard-enabled').checked;
+            const settingsDiv = document.getElementById('clipboard-settings');
+            settingsDiv.style.display = enabled ? 'block' : 'none';
+        }
+
+        function saveClipboardSettings() {
+            const settings = {
+                enabled: document.getElementById('clipboard-enabled').checked,
+                baseUrl: document.getElementById('clipboard-base-url').value,
+                apiKey: document.getElementById('clipboard-api-key').value,
+                timeoutSeconds: parseInt(document.getElementById('clipboard-timeout').value),
+                fallbackToLocal: document.getElementById('clipboard-fallback').checked,
+                description: "VM clipboard bridge for cross-system clipboard synchronization"
+            };
+
+            fetch('/api/settings/clipboard-bridge', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(r => r.json())
+            .then(result => {
+                showClipboardStatus(result.message, 'success');
+            })
+            .catch(err => {
+                console.error('Failed to save clipboard settings:', err);
+                showClipboardStatus('Failed to save settings: ' + err.message, 'error');
+            });
+        }
+
+        function testClipboardBridge() {
+            showClipboardStatus('Testing connection...', 'info');
+            
+            fetch('/api/settings/clipboard-bridge/test')
+                .then(r => r.json())
+                .then(result => {
+                    const statusType = result.available ? 'success' : 'warning';
+                    showClipboardStatus(result.message, statusType);
+                })
+                .catch(err => {
+                    console.error('Failed to test clipboard bridge:', err);
+                    showClipboardStatus('Test failed: ' + err.message, 'error');
+                });
+        }
+
+        function showClipboardStatus(message, type) {
+            const statusDiv = document.getElementById('clipboard-status');
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = message;
+            
+            // Set background color based on type
+            switch(type) {
+                case 'success':
+                    statusDiv.style.backgroundColor = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.style.border = '1px solid #c3e6cb';
+                    break;
+                case 'error':
+                    statusDiv.style.backgroundColor = '#f8d7da';
+                    statusDiv.style.color = '#721c24';
+                    statusDiv.style.border = '1px solid #f5c6cb';
+                    break;
+                case 'warning':
+                    statusDiv.style.backgroundColor = '#fff3cd';
+                    statusDiv.style.color = '#856404';
+                    statusDiv.style.border = '1px solid #ffeaa7';
+                    break;
+                case 'info':
+                    statusDiv.style.backgroundColor = '#d1ecf1';
+                    statusDiv.style.color = '#0c5460';
+                    statusDiv.style.border = '1px solid #bee5eb';
+                    break;
+            }
+
+            // Auto-hide after 5 seconds for success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Load clipboard settings on page load
+        loadClipboardSettings();
     </script>
 </body>
 </html>
