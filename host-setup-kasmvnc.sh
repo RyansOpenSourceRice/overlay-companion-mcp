@@ -56,6 +56,10 @@ parse_arguments() {
                 USE_REGISTRY=true
                 shift
                 ;;
+            --build-from-source)
+                BUILD_FROM_SOURCE=true
+                shift
+                ;;
             *)
                 if [[ "$1" =~ ^[0-9]+$ ]]; then
                     port_from_args="$1"
@@ -91,7 +95,8 @@ USAGE:
 
 OPTIONS:
     --port PORT         Specify the main container port (default: 8080)
-    --use-registry      Use pre-built containers from GitHub Container Registry
+    --use-registry      Use pre-built containers from GitHub Container Registry (default)
+    --build-from-source Build containers from source code instead of using registry
     --debug             Enable debug mode with verbose output
     --help, -h          Show this help message
 
@@ -368,12 +373,19 @@ setup_containers() {
         exit 1
     fi
 
-    if [[ "${USE_REGISTRY:-false}" == "true" ]]; then
-        info "Pulling pre-built containers from GitHub Container Registry..."
-        podman-compose -f infra/kasmvnc-compose.yml pull
-    else
+    # Default to using registry images unless explicitly building from source
+    if [[ "${BUILD_FROM_SOURCE:-false}" == "true" ]]; then
         info "Building containers from source..."
         podman-compose -f infra/kasmvnc-compose.yml build
+    else
+        info "Using pre-built containers from GitHub Container Registry..."
+        # Use the registry compose file by default
+        if [[ -f "infra/kasmvnc-compose-registry.yml" ]]; then
+            podman-compose -f infra/kasmvnc-compose-registry.yml pull
+        else
+            warning "Registry compose file not found, falling back to source build"
+            podman-compose -f infra/kasmvnc-compose.yml build
+        fi
     fi
 
     success "Containers ready"
@@ -395,18 +407,26 @@ start_services() {
         exit 1
     fi
 
-    info "Starting KasmVNC-based services..."
-    podman-compose -f infra/kasmvnc-compose.yml up -d
+    # Determine which compose file to use
+    local compose_file="infra/kasmvnc-compose.yml"
+    if [[ "${BUILD_FROM_SOURCE:-false}" != "true" ]] && [[ -f "infra/kasmvnc-compose-registry.yml" ]]; then
+        compose_file="infra/kasmvnc-compose-registry.yml"
+        info "Starting KasmVNC-based services using registry images..."
+    else
+        info "Starting KasmVNC-based services using source-built images..."
+    fi
+
+    podman-compose -f "$compose_file" up -d
 
     # Wait for services to start
     info "Waiting for services to initialize..."
     sleep 10
 
     # Check service health
-    if podman-compose -f infra/kasmvnc-compose.yml ps | grep -q "Up"; then
+    if podman-compose -f "$compose_file" ps | grep -q "Up"; then
         success "Services started successfully"
     else
-        error "Some services failed to start. Check logs with: podman-compose -f infra/kasmvnc-compose.yml logs"
+        error "Some services failed to start. Check logs with: podman-compose -f $compose_file logs"
         return 1
     fi
 }
@@ -430,11 +450,17 @@ show_completion_info() {
     info "  3. Use the 'Add Display' button for multi-monitor support"
     info "  4. Copy MCP configuration for Cherry Studio integration"
     echo
+    # Determine which compose file was used
+    local compose_file="infra/kasmvnc-compose.yml"
+    if [[ "${BUILD_FROM_SOURCE:-false}" != "true" ]] && [[ -f "$config_dir/infra/kasmvnc-compose-registry.yml" ]]; then
+        compose_file="infra/kasmvnc-compose-registry.yml"
+    fi
+
     info "Container management:"
-    info "  📊 Status: cd $config_dir && podman-compose -f infra/kasmvnc-compose.yml ps"
-    info "  📋 Logs: cd $config_dir && podman-compose -f infra/kasmvnc-compose.yml logs"
-    info "  🔄 Restart: cd $config_dir && podman-compose -f infra/kasmvnc-compose.yml restart"
-    info "  🛑 Stop: cd $config_dir && podman-compose -f infra/kasmvnc-compose.yml down"
+    info "  📊 Status: cd $config_dir && podman-compose -f $compose_file ps"
+    info "  📋 Logs: cd $config_dir && podman-compose -f $compose_file logs"
+    info "  🔄 Restart: cd $config_dir && podman-compose -f $compose_file restart"
+    info "  🛑 Stop: cd $config_dir && podman-compose -f $compose_file down"
     echo
     info "Advantages of KasmVNC over Guacamole:"
     info "  ✅ No database required (vs PostgreSQL)"
