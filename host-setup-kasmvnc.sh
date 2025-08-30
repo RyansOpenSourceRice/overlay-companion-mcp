@@ -47,6 +47,11 @@ parse_arguments() {
                 show_help
                 exit 0
                 ;;
+            --debug)
+                set -x
+                DEBUG=true
+                shift
+                ;;
             --use-registry)
                 USE_REGISTRY=true
                 shift
@@ -87,6 +92,7 @@ USAGE:
 OPTIONS:
     --port PORT         Specify the main container port (default: 8080)
     --use-registry      Use pre-built containers from GitHub Container Registry
+    --debug             Enable debug mode with verbose output
     --help, -h          Show this help message
 
 EXAMPLES:
@@ -257,18 +263,54 @@ check_requirements() {
 # Clone or update repository
 setup_repository() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+    # Check if we're running from within the repository
+    if [[ -f "$script_dir/infra/kasmvnc-compose.yml" ]]; then
+        info "Running from repository directory, copying files..."
+        [[ "${DEBUG:-false}" == "true" ]] && info "Script directory: $script_dir"
+        [[ "${DEBUG:-false}" == "true" ]] && info "Config directory: $config_dir"
+
+        mkdir -p "$config_dir"
+
+        # Copy all necessary files to config directory
+        [[ "${DEBUG:-false}" == "true" ]] && info "Copying files from $script_dir to $config_dir"
+        cp -r "$script_dir"/* "$config_dir/" 2>/dev/null || true
+
+        # Also copy hidden files that might be important
+        cp -r "$script_dir"/.[^.]* "$config_dir/" 2>/dev/null || true
+
+        # Ensure critical files are present
+        if [[ ! -f "$config_dir/infra/kasmvnc-compose.yml" ]]; then
+            error "❌ Failed to copy repository files"
+            [[ "${DEBUG:-false}" == "true" ]] && ls -la "$config_dir/infra/" || true
+            exit 1
+        fi
+
+        [[ "${DEBUG:-false}" == "true" ]] && info "Files in config directory:" && ls -la "$config_dir/"
+        success "Repository files copied to $config_dir"
+        return
+    fi
+
+    # Original git-based setup for when script is downloaded directly
     if [[ -d "$config_dir" ]]; then
         info "Updating existing repository..."
         cd "$config_dir"
-        git pull origin main || warning "Failed to update repository"
+        if git rev-parse --git-dir > /dev/null 2>&1; then
+            git pull origin main || warning "Failed to update repository"
+        else
+            warning "Config directory exists but is not a git repository, recreating..."
+            rm -rf "$config_dir"
+            mkdir -p "$(dirname "$config_dir")"
+            git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
+        fi
     else
         info "Cloning repository..."
         mkdir -p "$(dirname "$config_dir")"
         git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
-        cd "$config_dir"
     fi
 
+    cd "$config_dir"
     success "Repository ready at $config_dir"
 }
 
@@ -311,7 +353,20 @@ EOF
 # Build or pull containers
 setup_containers() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
+
+    # Validate we're in the right directory with required files
+    if [[ ! -d "$config_dir" ]]; then
+        error "❌ Config directory not found: $config_dir"
+        exit 1
+    fi
+
     cd "$config_dir"
+
+    if [[ ! -f "infra/kasmvnc-compose.yml" ]]; then
+        error "❌ Compose file not found: $config_dir/infra/kasmvnc-compose.yml"
+        error "   This indicates a problem with repository setup."
+        exit 1
+    fi
 
     if [[ "${USE_REGISTRY:-false}" == "true" ]]; then
         info "Pulling pre-built containers from GitHub Container Registry..."
@@ -327,7 +382,18 @@ setup_containers() {
 # Start services
 start_services() {
     local config_dir="$HOME/.config/$PROJECT_NAME"
+
+    if [[ ! -d "$config_dir" ]]; then
+        error "❌ Config directory not found: $config_dir"
+        exit 1
+    fi
+
     cd "$config_dir"
+
+    if [[ ! -f "infra/kasmvnc-compose.yml" ]]; then
+        error "❌ Compose file not found: $config_dir/infra/kasmvnc-compose.yml"
+        exit 1
+    fi
 
     info "Starting KasmVNC-based services..."
     podman-compose -f infra/kasmvnc-compose.yml up -d
