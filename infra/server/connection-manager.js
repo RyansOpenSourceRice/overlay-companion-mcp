@@ -200,7 +200,7 @@ class ConnectionManager {
             // SECURITY: Sanitize user-controlled values for logging to prevent format string attacks
             const sanitizedHost = String(connection.host || '(unknown)').replace(/[^\w.-]/g, '');
             const sanitizedPort = parseInt(connection.port) || 0;
-            console.error(`🚫 Connection test failed for ${sanitizedHost}:${sanitizedPort}:`, error.message);
+            console.error('🚫 Connection test failed for %s:%s: %s', sanitizedHost, sanitizedPort, error.message);
             return {
                 success: false,
                 error: error.message,
