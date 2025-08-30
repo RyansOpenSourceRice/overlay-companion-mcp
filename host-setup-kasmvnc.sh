@@ -87,7 +87,7 @@ show_help() {
     cat << EOF
 Overlay Companion MCP - KasmVNC Host Setup
 
-This script sets up a simplified container stack using KasmVNC instead of Guacamole.
+This script sets up a streamlined container stack using KasmVNC for remote desktop access.
 Benefits: No database required, true multi-monitor support, simpler configuration.
 
 USAGE:
@@ -462,11 +462,11 @@ show_completion_info() {
     info "  🔄 Restart: cd $config_dir && podman-compose -f $compose_file restart"
     info "  🛑 Stop: cd $config_dir && podman-compose -f $compose_file down"
     echo
-    info "Advantages of KasmVNC over Guacamole:"
-    info "  ✅ No database required (vs PostgreSQL)"
-    info "  ✅ True multi-monitor support (vs single canvas)"
-    info "  ✅ 4 containers instead of 6"
-    info "  ✅ Simpler configuration and maintenance"
+    info "KasmVNC Features:"
+    info "  ✅ No database required - simple configuration"
+    info "  ✅ True multi-monitor support"
+    info "  ✅ Streamlined container stack (4 containers)"
+    info "  ✅ Easy configuration and maintenance"
     echo
 }
 
