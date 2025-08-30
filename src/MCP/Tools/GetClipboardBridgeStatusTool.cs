@@ -33,9 +33,9 @@ public static class GetClipboardBridgeStatusTool
                 timeout_seconds = settings.TimeoutSeconds,
                 fallback_to_local = settings.FallbackToLocal,
                 status = !settings.Enabled ? "disabled" : (isAvailable ? "connected" : "disconnected"),
-                description = !settings.Enabled 
+                description = !settings.Enabled
                     ? "VM clipboard bridge is disabled - clipboard operations will use local system only"
-                    : isAvailable 
+                    : isAvailable
                         ? "VM clipboard bridge is available and responding"
                         : "VM clipboard bridge is not available - clipboard operations will use local system only",
                 features = new

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace OverlayCompanion.Services;
 
@@ -25,9 +26,9 @@ public class ClipboardBridgeService : IClipboardBridgeService
     {
         _logger = logger;
         _settingsService = settingsService;
-        
+
         _httpClient = new HttpClient();
-        
+
         _logger.LogInformation("Clipboard Bridge Service initialized with dynamic configuration");
     }
 
@@ -42,13 +43,13 @@ public class ClipboardBridgeService : IClipboardBridgeService
         try
         {
             _logger.LogDebug("Getting clipboard content from VM bridge");
-            
+
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{settings.BaseUrl}/clipboard");
             request.Headers.Add("X-API-Key", settings.ApiKey);
-            
+
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
             var response = await _httpClient.SendAsync(request, cts.Token);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var jsonContent = await response.Content.ReadAsStringAsync();
@@ -59,20 +60,20 @@ public class ClipboardBridgeService : IClipboardBridgeService
 
                 if (clipboardResponse?.Success == true)
                 {
-                    _logger.LogDebug("Successfully retrieved clipboard content from VM bridge: {Length} characters", 
+                    _logger.LogDebug("Successfully retrieved clipboard content from VM bridge: {Length} characters",
                         clipboardResponse.Content?.Length ?? 0);
                     return clipboardResponse.Content;
                 }
                 else
                 {
-                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}", 
+                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}",
                         clipboardResponse?.Message);
                     return null;
                 }
             }
             else
             {
-                _logger.LogDebug("Failed to get clipboard from VM bridge. Status: {StatusCode}", 
+                _logger.LogDebug("Failed to get clipboard from VM bridge. Status: {StatusCode}",
                     response.StatusCode);
                 return null;
             }
@@ -105,7 +106,7 @@ public class ClipboardBridgeService : IClipboardBridgeService
         try
         {
             _logger.LogDebug("Setting clipboard content in VM bridge: {Length} characters", content.Length);
-            
+
             var requestData = new ClipboardContent
             {
                 Content = content,
@@ -120,10 +121,10 @@ public class ClipboardBridgeService : IClipboardBridgeService
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.BaseUrl}/clipboard");
             request.Headers.Add("X-API-Key", settings.ApiKey);
             request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
-            
+
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
             var response = await _httpClient.SendAsync(request, cts.Token);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -139,14 +140,14 @@ public class ClipboardBridgeService : IClipboardBridgeService
                 }
                 else
                 {
-                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}", 
+                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}",
                         clipboardResponse?.Message);
                     return false;
                 }
             }
             else
             {
-                _logger.LogDebug("Failed to set clipboard in VM bridge. Status: {StatusCode}", 
+                _logger.LogDebug("Failed to set clipboard in VM bridge. Status: {StatusCode}",
                     response.StatusCode);
                 return false;
             }
@@ -179,13 +180,13 @@ public class ClipboardBridgeService : IClipboardBridgeService
         try
         {
             _logger.LogDebug("Clearing clipboard content in VM bridge");
-            
+
             using var request = new HttpRequestMessage(HttpMethod.Delete, $"{settings.BaseUrl}/clipboard");
             request.Headers.Add("X-API-Key", settings.ApiKey);
-            
+
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
             var response = await _httpClient.SendAsync(request, cts.Token);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -201,14 +202,14 @@ public class ClipboardBridgeService : IClipboardBridgeService
                 }
                 else
                 {
-                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}", 
+                    _logger.LogDebug("VM clipboard bridge returned unsuccessful response: {Message}",
                         clipboardResponse?.Message);
                     return false;
                 }
             }
             else
             {
-                _logger.LogDebug("Failed to clear clipboard in VM bridge. Status: {StatusCode}", 
+                _logger.LogDebug("Failed to clear clipboard in VM bridge. Status: {StatusCode}",
                     response.StatusCode);
                 return false;
             }
@@ -242,7 +243,7 @@ public class ClipboardBridgeService : IClipboardBridgeService
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"{settings.BaseUrl}/health");
             request.Headers.Add("X-API-Key", settings.ApiKey);
-            
+
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(settings.TimeoutSeconds));
             var response = await _httpClient.SendAsync(request, cts.Token);
             return response.IsSuccessStatusCode;

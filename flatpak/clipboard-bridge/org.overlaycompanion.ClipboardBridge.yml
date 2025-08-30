@@ -10,18 +10,18 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
-  
+
   # Clipboard-specific permissions
   - --talk-name=org.freedesktop.portal.Desktop
   - --talk-name=org.freedesktop.portal.Clipboard
-  
+
   # Network permissions for API server
   - --share=network
-  
+
   # File system access for configuration
   - --filesystem=xdg-config/overlay-companion:create
   - --filesystem=xdg-data/overlay-companion:create
-  
+
   # Environment variables
   - --env=CLIPBOARD_BRIDGE_PORT=8765
   - --env=CLIPBOARD_BRIDGE_HOST=0.0.0.0
@@ -30,17 +30,8 @@ modules:
   - name: python3-dependencies
     buildsystem: simple
     build-commands:
-      - pip3 install --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} --no-build-isolation fastapi uvicorn pydantic python-multipart aiofiles
-    sources:
-      - type: file
-        url: https://files.pythonhosted.org/packages/71/92/2c2cc2d1aa884b04821e4ad3b2cd663c9e2a8e7d4b8e8b8c8c8c8c8c8c8c8/fastapi-0.104.1-py3-none-any.whl
-        sha256: 17ea427674467486e997206a5ab25760f6b09e069f099b96f5b55a32fb6f1631
-      - type: file
-        url: https://files.pythonhosted.org/packages/5b/fc/dafdb2fbc3c3c8f7c8b8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8/uvicorn-0.24.0-py3-none-any.whl
-        sha256: 368f46ba701c8c0ac4b8c1c1c8c8b8c8c8b8c8c8c8b8c8c8c8b8c8c8c8b8c8c8
-      - type: file
-        url: https://files.pythonhosted.org/packages/d4/e1/1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c/pydantic-2.5.0-py3-none-any.whl
-        sha256: 7d0c8b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b
+      - pip3 install --prefix=${FLATPAK_DEST} --no-build-isolation fastapi==0.104.1 uvicorn==0.24.0 pydantic==2.5.0 python-multipart==0.0.6 aiofiles==23.2.1
+    sources: []
 
   - name: clipboard-bridge
     buildsystem: simple

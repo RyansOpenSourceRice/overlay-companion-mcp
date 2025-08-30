@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 
 namespace OverlayCompanion.Services;
 
@@ -28,19 +29,19 @@ public class SettingsService : ISettingsService
     public SettingsService(ILogger<SettingsService> logger)
     {
         _logger = logger;
-        
+
         // Store settings in user data directory
         var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".overlay-companion");
         Directory.CreateDirectory(dataDir);
         _settingsFilePath = Path.Combine(dataDir, "settings.json");
-        
+
         _logger.LogInformation("Settings service initialized with file: {SettingsFile}", _settingsFilePath);
     }
 
     public async Task<T?> GetSettingAsync<T>(string key, T? defaultValue = default)
     {
         await EnsureSettingsLoadedAsync();
-        
+
         if (_cachedSettings.TryGetValue(key, out var value))
         {
             try
@@ -66,7 +67,7 @@ public class SettingsService : ISettingsService
                 return defaultValue;
             }
         }
-        
+
         return defaultValue;
     }
 
@@ -76,10 +77,10 @@ public class SettingsService : ISettingsService
         try
         {
             await EnsureSettingsLoadedAsync();
-            
+
             _cachedSettings[key] = value!;
             await SaveSettingsAsync();
-            
+
             _logger.LogDebug("Setting {Key} updated", key);
         }
         finally
@@ -94,14 +95,14 @@ public class SettingsService : ISettingsService
         try
         {
             await EnsureSettingsLoadedAsync();
-            
+
             var removed = _cachedSettings.Remove(key);
             if (removed)
             {
                 await SaveSettingsAsync();
                 _logger.LogDebug("Setting {Key} deleted", key);
             }
-            
+
             return removed;
         }
         finally
@@ -143,7 +144,7 @@ public class SettingsService : ISettingsService
             {
                 var json = await File.ReadAllTextAsync(_settingsFilePath);
                 var settings = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
-                
+
                 if (settings != null)
                 {
                     _cachedSettings = settings.ToDictionary(
@@ -156,7 +157,7 @@ public class SettingsService : ISettingsService
             {
                 _cachedSettings = new Dictionary<string, object>();
             }
-            
+
             _lastLoadTime = DateTime.UtcNow;
             _logger.LogDebug("Settings loaded from {SettingsFile}", _settingsFilePath);
         }
@@ -175,10 +176,10 @@ public class SettingsService : ISettingsService
             {
                 WriteIndented = true
             });
-            
+
             await File.WriteAllTextAsync(_settingsFilePath, json);
             _lastLoadTime = DateTime.UtcNow;
-            
+
             _logger.LogDebug("Settings saved to {SettingsFile}", _settingsFilePath);
         }
         catch (Exception ex)

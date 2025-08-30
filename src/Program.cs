@@ -236,7 +236,8 @@ public class Program
         app.MapGet("/api/settings/clipboard-bridge/test", async (IClipboardBridgeService clipboardBridge) =>
         {
             var isAvailable = await clipboardBridge.IsAvailableAsync();
-            return Results.Json(new { 
+            return Results.Json(new
+            {
                 available = isAvailable,
                 status = isAvailable ? "connected" : "disconnected",
                 message = isAvailable ? "VM clipboard bridge is responding" : "VM clipboard bridge is not available"
@@ -587,7 +588,7 @@ public class Program
                 Configure the optional VM clipboard bridge for cross-system clipboard synchronization.
                 When enabled, clipboard operations will use the VM bridge with automatic fallback to local clipboard.
             </div>
-            
+
             <div style="margin-bottom: 15px;">
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
                     <input type="checkbox" id="clipboard-enabled" onchange="updateClipboardSettings()">
@@ -598,7 +599,7 @@ public class Program
             <div id="clipboard-settings" style="display: none;">
                 <div style="margin-bottom: 10px;">
                     <label style="display: block; margin-bottom: 5px;"><strong>Base URL:</strong></label>
-                    <input type="text" id="clipboard-base-url" value="http://localhost:8765" 
+                    <input type="text" id="clipboard-base-url" value="http://localhost:8765"
                            style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;"
                            onchange="updateClipboardSettings()">
                 </div>
@@ -745,7 +746,7 @@ public class Program
 
         function testClipboardBridge() {
             showClipboardStatus('Testing connection...', 'info');
-            
+
             fetch('/api/settings/clipboard-bridge/test')
                 .then(r => r.json())
                 .then(result => {
@@ -762,7 +763,7 @@ public class Program
             const statusDiv = document.getElementById('clipboard-status');
             statusDiv.style.display = 'block';
             statusDiv.textContent = message;
-            
+
             // Set background color based on type
             switch(type) {
                 case 'success':
