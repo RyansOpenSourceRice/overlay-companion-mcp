@@ -77,10 +77,16 @@ The server implements standard MCP error responses:
 
 ### Security Model
 
+- **CWE Vulnerability Protection**: Comprehensive fixes for Common Weakness Enumeration vulnerabilities
+  - **CWE-79 (XSS)**: DOMPurify + he libraries prevent cross-site scripting attacks
+  - **CWE-116 (Improper Encoding)**: Multi-layer HTML entity encoding using validator.js
+  - **CWE-307 (Rate Limiting)**: Tiered rate limiting prevents abuse and DoS attacks
 - **Human confirmation required** for input simulation in most modes
 - **Mode-based permissions** control automation level
 - **No network access** - purely local operations
 - **Clipboard access** requires explicit user permission
+- **Type Safety**: Explicit type checking prevents parameter tampering attacks
+- **Security Headers**: Helmet.js provides comprehensive HTTP security headers and CSP
 
 ### Authentication & Credentials
 
@@ -462,12 +468,18 @@ All tools implement rate limiting to protect local and remote inference systems 
 
 ## Privacy and Security
 
+- **CWE Compliance**: Addresses Common Weakness Enumeration vulnerabilities with industry-standard libraries
+- **XSS Prevention (CWE-79)**: DOMPurify and he libraries sanitize all user content
+- **Input Validation (CWE-116)**: validator.js provides comprehensive input sanitization
+- **Rate Limiting (CWE-307)**: express-rate-limit prevents abuse with tiered limits
 - **Screenshot Scrubbing**: Configurable privacy masks to obscure sensitive information
 - **Clipboard Control**: User-controlled clipboard access permissions
 - **Action Confirmation**: All automated actions can require user confirmation
 - **Human-in-the-loop**: Design ensures user maintains control over automation
 - **Audit Trail**: Optional logging of all actions for security and debugging
 - **Local Processing**: Sensitive operations can be processed locally without external API calls
+- **Security Middleware**: Centralized security utilities with type safety validation
+- **Content Security Policy**: Helmet.js provides comprehensive HTTP security headers
 
 ## Multi-Monitor Support
 
@@ -533,7 +545,10 @@ This repository uses **automated development environment setup** with:
 
 **Pre-commit Hooks**: All code changes are automatically validated for:
 - Code formatting and style consistency
-- Security vulnerabilities and credential detection
+- **CWE Security Vulnerabilities**: Detection of XSS, improper encoding, rate limiting issues
+- **Security Library Usage**: Validation of DOMPurify, validator.js, and security middleware
+- **Type Safety**: Detection of type confusion and parameter tampering vulnerabilities
+- Credential detection and secret scanning
 - Type checking and static analysis
 - Import sorting and dependency validation
 

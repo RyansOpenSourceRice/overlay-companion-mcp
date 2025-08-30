@@ -42,11 +42,19 @@ AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, KasmVNC} 
 
 #### Security Architecture (Enhanced)
 
+- **CWE Vulnerability Protection**: Comprehensive fixes for Common Weakness Enumeration vulnerabilities
+  - **CWE-79 (XSS)**: DOMPurify + he libraries for client-side, DOMPurify + JSDOM + validator.js for server-side
+  - **CWE-116 (Improper Encoding)**: Multi-layer HTML entity encoding using validator.js and DOMPurify
+  - **CWE-307 (Rate Limiting)**: Tiered rate limiting with express-rate-limit (100/15min general, 10/15min filesystem)
 - **SSRF Protection**: Comprehensive Server-Side Request Forgery protection with multiple validation layers
 - **POST over GET**: Network requests use POST method with fixed URL paths to prevent URL-based attacks
 - **Host Validation**: Multi-layer host validation with allowlist/blocklist patterns
-- **Input Sanitization**: Character filtering and normalization for all user inputs
-- **Rate Limiting**: Connection testing limited to 10 requests/minute per IP
+- **Input Sanitization**: Multi-layer sanitization using industry-standard security libraries
+  - **Client-side**: DOMPurify v3.0.5 + he v1.2.0 for XSS prevention
+  - **Server-side**: DOMPurify + JSDOM + validator.js v13.11.0 for comprehensive validation
+- **Type Safety**: Explicit type checking before string operations to prevent type confusion attacks
+- **Security Headers**: Helmet.js with Content Security Policy and comprehensive HTTP security headers
+- **Rate Limiting**: Multi-tiered rate limiting system (general, filesystem, WebSocket, health endpoints)
 - **No Database Attack Surface**: Elimination of PostgreSQL removes SQL injection and database compromise risks
 
 #### Network Architecture
@@ -92,27 +100,72 @@ host-setup-kasmvnc.sh → Podman Compose → {4 Containers} → Web Interface + 
 - **C#**: dotnet-format code formatting and style validation
 - **JavaScript Security**: ESLint with security plugins for SSRF, injection, and vulnerability detection
 - **Multi-language Security**: Semgrep static analysis (CodeQL alternative) for JavaScript, TypeScript, and C#
+- **CWE Vulnerability Detection**: Enhanced security scanning for Common Weakness Enumeration vulnerabilities
+  - **CWE-79 (XSS)**: Detection of unsafe innerHTML usage and missing sanitization
+  - **CWE-116 (Improper Encoding)**: Validation of HTML entity encoding implementation
+  - **CWE-307 (Rate Limiting)**: Verification of rate limiting middleware configuration
+  - **Type Confusion**: Detection of unsafe type operations and parameter tampering
 - **Markdown**: markdownlint formatting with auto-fix
-- **Spelling**: cspell spell checking for documentation
+- **Spelling**: cspell spell checking for documentation with security library terms
 - **Credential Security**: detect-secrets for credential scanning with allowlist for development passwords
 - **YAML/JSON**: Syntax validation for configuration files
 - **Git**: Conventional commit message validation
 
 **GitHub Actions Security:**
-- **CodeQL**: Comprehensive static analysis for security vulnerabilities (enhanced by pre-commit security checks)
-- **Container Security**: Vulnerability scanning for container images
-- **Dependency Scanning**: Automated dependency vulnerability detection
+- **CodeQL**: Comprehensive static analysis for security vulnerabilities detecting CWE-79, CWE-116, CWE-307
+- **Container Security**: Vulnerability scanning for container images with Trivy
+- **Dependency Scanning**: Automated dependency vulnerability detection for security libraries
 - **SSRF Protection**: Multiple validation layers prevent Server-Side Request Forgery attacks
 
 **Security Analysis Coverage:**
-- **Pre-commit**: ESLint security rules + Semgrep static analysis for immediate feedback during development
-- **GitHub Actions**: Full CodeQL analysis for comprehensive security scanning
-- **Combined Coverage**: Local security checks catch common issues, CodeQL provides deep analysis
+- **Pre-commit**: ESLint security rules + Semgrep static analysis for immediate CWE vulnerability feedback
+- **GitHub Actions**: Full CodeQL analysis for comprehensive security scanning with CWE classification
+- **Combined Coverage**: Local security checks catch common issues, CodeQL provides deep CWE analysis
 - **CodeQL-like Functionality**: Semgrep provides CodeQL-equivalent security analysis in pre-commit hooks
+- **Security Library Validation**: Automated testing of DOMPurify, validator.js, and security middleware
 
 **Security Implementation:**
 - **POST over GET**: Network requests use POST method with fixed URL paths
 - **Host Validation**: Multi-layer validation with allowlist/blocklist patterns
+
+**Security Dependencies & Libraries:**
+
+*Client-side Security (Web Interface):*
+```json
+{
+  "dompurify": "^3.0.5",
+  "he": "^1.2.0"
+}
+```
+
+*Server-side Security (MCP Server):*
+```json
+{
+  "express-rate-limit": "^7.1.5",
+  "helmet": "^7.1.0", 
+  "express-validator": "^7.0.1",
+  "validator": "^13.11.0",
+  "dompurify": "^3.0.5",
+  "jsdom": "^23.0.1"
+}
+```
+
+**Security Library Functions:**
+- **DOMPurify**: HTML sanitization preventing XSS attacks (CWE-79)
+- **he**: HTML entity encoding for safe text rendering (CWE-116)
+- **validator.js**: Comprehensive input validation and sanitization
+- **express-rate-limit**: Rate limiting middleware preventing abuse (CWE-307)
+- **helmet.js**: Security headers and Content Security Policy
+- **express-validator**: Request validation middleware with type safety
+- **JSDOM**: Server-side DOM implementation for DOMPurify
+
+**Security Middleware**: Centralized security utilities implemented in `release/containers/server/middleware/security.js` providing:
+- Input validation with type safety
+- Path traversal protection with encoded path detection  
+- Rate limiting configurations for different endpoint types
+- Sanitization functions using DOMPurify and validator.js
+
+**Security Documentation**: See [SECURITY.md](SECURITY.md) for comprehensive security policy, implementation details, and vulnerability reporting procedures.
 
 ## Pre-commit Hooks Configuration
 
@@ -187,10 +240,12 @@ pre-commit install
 
 **ESLint Security Analysis:**
 - Detects SSRF vulnerabilities
-- Identifies XSS injection points
+- Identifies XSS injection points (CWE-79)
 - Validates object injection sinks
 - Checks for unsafe regex patterns
 - Monitors format string vulnerabilities
+- Validates DOMPurify usage patterns
+- Detects missing HTML entity encoding (CWE-116)
 
 **Semgrep Security Analysis:**
 - Multi-language security scanning (JS, TS, C#)
@@ -198,7 +253,10 @@ pre-commit install
 - Identifies insecure WebSocket connections
 - Validates PostMessage origin handling
 - Checks for CSRF protection
-- Analyzes innerHTML usage for XSS risks
+- Analyzes innerHTML usage for XSS risks (CWE-79)
+- Validates rate limiting implementation (CWE-307)
+- Detects type confusion vulnerabilities
+- Monitors security library usage (DOMPurify, validator.js, helmet.js)
 
 **Installation Requirements:**
 ```bash
