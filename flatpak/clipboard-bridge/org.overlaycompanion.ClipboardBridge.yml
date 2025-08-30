@@ -1,0 +1,49 @@
+app-id: org.overlaycompanion.ClipboardBridge
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: clipboard-bridge
+
+finish-args:
+  # Clipboard access permissions
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Clipboard-specific permissions
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.Clipboard
+
+  # Network permissions for API server
+  - --share=network
+
+  # File system access for configuration
+  - --filesystem=xdg-config/overlay-companion:create
+  - --filesystem=xdg-data/overlay-companion:create
+
+  # Environment variables
+  - --env=CLIPBOARD_BRIDGE_PORT=8765
+  - --env=CLIPBOARD_BRIDGE_HOST=0.0.0.0
+
+modules:
+  - name: python3-dependencies
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=${FLATPAK_DEST} --no-build-isolation fastapi==0.104.1 uvicorn==0.24.0 pydantic==2.5.0 python-multipart==0.0.6 aiofiles==23.2.1
+    sources: []
+
+  - name: clipboard-bridge
+    buildsystem: simple
+    build-commands:
+      - install -D clipboard-bridge.py ${FLATPAK_DEST}/bin/clipboard-bridge
+      - chmod +x ${FLATPAK_DEST}/bin/clipboard-bridge
+      - install -D org.overlaycompanion.ClipboardBridge.desktop ${FLATPAK_DEST}/share/applications/org.overlaycompanion.ClipboardBridge.desktop
+      - install -D org.overlaycompanion.ClipboardBridge.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/org.overlaycompanion.ClipboardBridge.svg
+    sources:
+      - type: file
+        path: clipboard-bridge.py
+      - type: file
+        path: org.overlaycompanion.ClipboardBridge.desktop
+      - type: file
+        path: org.overlaycompanion.ClipboardBridge.svg

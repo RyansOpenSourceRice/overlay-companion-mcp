@@ -171,7 +171,42 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 - **Direct Access**: `http://localhost:3001` (configurable port)
 - **Via Proxy**: `http://localhost:8080/mcp` (through Caddy)
 - **Protocol**: Model Context Protocol over HTTP
-- **Features**: Screen capture, overlay annotations, AI interaction
+- **Features**: Screen capture, overlay annotations, AI interaction, clipboard access
+
+### VM Clipboard Bridge (Optional)
+
+The Overlay Companion MCP includes an optional Flatpak-based clipboard bridge that enables seamless clipboard synchronization between the host system and VM environments.
+
+**Features:**
+- **Cross-VM Clipboard Access**: Read and write clipboard content from the VM
+- **Automatic Fallback**: Falls back to local clipboard when VM bridge is unavailable
+- **Multi-Backend Support**: Works with Wayland, X11, and various clipboard tools
+- **Secure API**: REST API with authentication for clipboard operations
+- **Auto-Start**: Systemd service for automatic startup in the VM
+
+**Installation (in VM):**
+```bash
+# Automatic installation
+./scripts/vm-setup/install-clipboard-bridge.sh
+
+# Manual installation
+cd flatpak/clipboard-bridge
+./build.sh
+```
+
+**Configuration:**
+Configure the clipboard bridge through the web interface at `http://localhost:3000/setup`. The settings include:
+- **Enable/Disable**: Toggle VM clipboard bridge functionality
+- **Base URL**: VM clipboard bridge service URL (default: `http://localhost:8765`)
+- **API Key**: Authentication key for the bridge service
+- **Timeout**: Connection timeout in seconds
+- **Fallback**: Enable automatic fallback to local clipboard
+
+**Status Check:**
+- Use the web interface test button to verify connectivity
+- Use the `get_clipboard_bridge_status` MCP tool for programmatic status checking
+
+**Documentation:** See [flatpak/clipboard-bridge/README.md](flatpak/clipboard-bridge/README.md) for detailed setup and usage instructions.
 
 ### Generated Credentials
 After installation, find your secure credentials in:

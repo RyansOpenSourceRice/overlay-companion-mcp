@@ -1,6 +1,9 @@
 # Pre-commit configuration for Overlay Companion MCP
 # Install: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
+#
+# Auto-dependency installation: This configuration automatically installs
+# missing dependencies (bandit, pbr, cspell, semgrep) when hooks run
 
 repos:
   # Python formatting and linting
@@ -25,13 +28,15 @@ repos:
         files: \.py$
         args: ["--max-line-length=88", "--extend-ignore=E203,W503"]
 
-  - repo: https://github.com/pycqa/bandit
-    rev: 1.7.5
+  # Security scanning with auto-install
+  - repo: local
     hooks:
-      - id: bandit
+      - id: bandit-with-install
+        name: bandit
+        entry: bash -c 'command -v bandit >/dev/null 2>&1 || { echo "Installing bandit..."; pip install bandit pbr; }; bandit -r . -f json --exclude tests/'
+        language: system
         files: \.py$
-        args: ["-r", ".", "-f", "json"]
-        exclude: ^tests/
+        pass_filenames: false
 
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -101,15 +106,14 @@ repos:
         files: \.md$
         args: ["--fix"]
 
-  # Spell checking
+  # Spell checking with auto-install
   - repo: local
     hooks:
-      - id: cspell
+      - id: cspell-with-install
         name: cspell
-        entry: cspell
+        entry: bash -c 'command -v cspell >/dev/null 2>&1 || { echo "Installing cspell..."; npm install -g cspell; }; cspell --no-progress "$@"'
         language: system
         files: \.md$
-        args: ["--no-progress"]
 
   # JavaScript/Node.js security scanning (CodeQL-like functionality)
   - repo: local

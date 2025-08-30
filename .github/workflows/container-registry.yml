@@ -35,8 +35,8 @@ jobs:
       packages: write
 
     outputs:
-      version-tag: ${{ steps.version.outputs.version }}
-      pr-tag: ${{ steps.version.outputs.pr_tag }}
+      version-tag: ${{ steps.version.outputs.version-tag }}
+      pr-tag: ${{ steps.version.outputs.pr-tag }}
 
     strategy:
       matrix:
@@ -68,9 +68,20 @@ jobs:
 
           VERSION="${DATE}.${QUANTITY}"
 
+          # Set outputs for different scenarios
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version-tag=${VERSION}" >> $GITHUB_OUTPUT
           echo "date=${DATE}" >> $GITHUB_OUTPUT
           echo "quantity=${QUANTITY}" >> $GITHUB_OUTPUT
+
+          # For PR builds, use PR number
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            PR_TAG="pr-${{ github.event.number }}"
+            echo "pr-tag=${PR_TAG}" >> $GITHUB_OUTPUT
+            echo "Generated PR tag: ${PR_TAG}"
+          else
+            echo "pr-tag=${VERSION}" >> $GITHUB_OUTPUT
+          fi
 
           echo "Generated version: ${VERSION}"
 
@@ -92,12 +103,12 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.version-tag }}
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=${{ matrix.name }}
             org.opencontainers.image.description=Overlay Companion MCP - ${{ matrix.name }}
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version-tag }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -118,8 +129,8 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git tag -a "${{ steps.version.outputs.version }}" -m "Release ${{ steps.version.outputs.version }}"
-          git push origin "${{ steps.version.outputs.version }}"
+          git tag -a "${{ steps.version.outputs.version-tag }}" -m "Release ${{ steps.version.outputs.version-tag }}"
+          git push origin "${{ steps.version.outputs.version-tag }}"
 
   cleanup-old-images:
     needs: build-and-push
@@ -146,6 +157,7 @@ jobs:
   security-scan:
     needs: build-and-push
     runs-on: ubuntu-latest
+    if: needs.build-and-push.result == 'success'
     permissions:
       contents: read
       packages: read
@@ -160,9 +172,18 @@ jobs:
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "tag=${{ needs.build-and-push.outputs.pr-tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ needs.build-and-push.outputs.pr-tag }}"
           else
-            echo "tag=${{ needs.build-and-push.outputs.version-tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ needs.build-and-push.outputs.version-tag }}"
+          fi
+          
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Image tag to scan: ${TAG}"
+          
+          # Verify tag is not empty
+          if [ -z "${TAG}" ]; then
+            echo "Error: Image tag is empty"
+            exit 1
           fi
 
       - name: Run Trivy vulnerability scanner

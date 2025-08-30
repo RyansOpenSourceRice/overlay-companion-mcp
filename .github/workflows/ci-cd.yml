@@ -21,6 +21,12 @@ on:
         default: false
         type: boolean
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+  actions: read
+  security-events: write  # For uploading SARIF results
+
 env:
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '18'
