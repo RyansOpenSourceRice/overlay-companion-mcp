@@ -22,6 +22,10 @@ on:
       - 'setup.py'
       - '.github/workflows/python-lint.yml'
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: write  # Needed for auto-formatting commits on main branch
+
 env:
   PYTHON_VERSION: '3.12'
   PIP_DISABLE_PIP_VERSION_CHECK: 1

@@ -6,6 +6,10 @@ on:
   push:
     branches: [ main ]
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   merge-ready:
     name: Core Functionality Check

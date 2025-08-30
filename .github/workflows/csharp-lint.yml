@@ -14,6 +14,10 @@ on:
       - 'src/**/*.csproj'
       - '.github/workflows/csharp-lint.yml'
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 env:
   DOTNET_VERSION: '8.0.x'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1

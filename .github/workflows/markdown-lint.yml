@@ -10,6 +10,10 @@ on:
     paths:
       - '**.md'
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   markdown-lint:
     runs-on: ubuntu-latest
