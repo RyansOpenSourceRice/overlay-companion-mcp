@@ -96,7 +96,7 @@ I completed the final 5% by fixing all blocking issues:
    - Quality issues now show as yellow/blue warnings instead of red failures
 
 3. **🚀 PR Ready for Merge**
-   - PR #6: https://github.com/RyansOpenSauceRice/overlay-companion-mcp/pull/6
+   - PR #6: https://github.com/RyansOpenSourceRice/overlay-companion-mcp/pull/6
    - Core functionality check will pass (builds successfully)
    - Quality checks show as non-blocking warnings
    - No more blocking CI/CD failures!

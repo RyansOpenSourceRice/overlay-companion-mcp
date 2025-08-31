@@ -88,7 +88,7 @@ else
         PROJECT_DIR="$INSTALL_DIR/overlay-companion-mcp"
     else
         echo -e "${YELLOW}📥 Cloning repository...${NC}"
-        git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+        git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
         if [ $? -eq 0 ]; then
             echo -e "${GREEN}✅ Repository cloned successfully${NC}"
             PROJECT_DIR="$INSTALL_DIR/overlay-companion-mcp"

@@ -5,7 +5,7 @@
 # Much simpler than the previous XRDP + VNC setup
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
 #   OR
 #   ./vm-setup-kasmvnc.sh
 

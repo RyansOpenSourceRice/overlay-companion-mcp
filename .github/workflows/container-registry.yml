@@ -30,6 +30,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
       contents: write  # Need write permission to create tags
       packages: write
@@ -155,6 +156,7 @@ jobs:
   cleanup-old-images:
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
@@ -177,6 +179,7 @@ jobs:
   security-scan:
     needs: build-and-push
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     if: needs.build-and-push.result == 'success'
     permissions:
       contents: read

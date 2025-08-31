@@ -328,7 +328,7 @@ jobs:
 
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v3
-      if: always() && github.repository_owner == 'RyansOpenSauceRice'
+      if: always() && github.repository_owner == 'RyansOpenSourceRice'
       with:
         sarif_file: 'trivy-results.sarif'
       continue-on-error: true

@@ -22,6 +22,7 @@ permissions:
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
     - name: Checkout code
@@ -153,7 +154,7 @@ jobs:
         ## 📞 Support
 
         - **Documentation**: See ARCHITECTURE.md and DEPLOYMENT.md
-        - **Issues**: https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues
+        - **Issues**: https://github.com/RyansOpenSourceRice/overlay-companion-mcp/issues
         - **Logs**: Check /tmp/overlay-companion-mcp-install.log
 
         ## 🎯 Integration with Cherry Studio

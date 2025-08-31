@@ -101,7 +101,7 @@ The existing PR (#5) should now pass all checks:
 ### 3. **Ready for Merge**
 The PR is now ready for review and merge. All critical functionality is implemented:
 
-**PR Link**: https://github.com/RyansOpenSauceRice/overlay-companion-mcp/pull/5
+**PR Link**: https://github.com/RyansOpenSourceRice/overlay-companion-mcp/pull/5
 
 ## Technical Details
 

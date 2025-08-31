@@ -255,7 +255,7 @@ class OverlayCompanionApp {
                         </span>
                         <div class="footer-links">
                             <a href="/health" target="_blank">Health Check</a>
-                            <a href="https://github.com/RyansOpenSauceRice/overlay-companion-mcp" target="_blank">GitHub</a>
+                            <a href="https://github.com/RyansOpenSourceRice/overlay-companion-mcp" target="_blank">GitHub</a>
                         </div>
                     </div>
                 </footer>

@@ -4,10 +4,10 @@
 [![Platform](https://img.shields.io/badge/platform-Web%20(HTTP%20MCP)-00ADD8?style=for-the-badge&logo=google-chrome)](https://modelcontextprotocol.io/)
 [![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
 [![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
-[![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
-[![Status](https://img.shields.io/badge/status-development-yellow?style=for-the-badge&logo=github)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
+[![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSourceRice/overlay-companion-mcp)
+[![Status](https://img.shields.io/badge/status-development-yellow?style=for-the-badge&logo=github)](https://github.com/RyansOpenSourceRice/overlay-companion-mcp)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![Docs](https://img.shields.io/badge/docs-specification-green?style=for-the-badge&logo=markdown)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/blob/main/SPECIFICATION.md)
+[![Docs](https://img.shields.io/badge/docs-specification-green?style=for-the-badge&logo=markdown)](https://github.com/RyansOpenSourceRice/overlay-companion-mcp/blob/main/SPECIFICATION.md)
 
 A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
 
@@ -33,7 +33,7 @@ Create a Fedora virtual machine using your preferred platform:
 ### Step 2: Run Setup Inside VM
 SSH into your VM or open a terminal, then run:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/setup.sh | bash
 ```
 
 ### Step 3: Access Your System
@@ -91,7 +91,7 @@ Configure with Cherry Studio or other MCP-compatible AI clients using HTTP trans
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
-      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+      "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
     }
   }
 }

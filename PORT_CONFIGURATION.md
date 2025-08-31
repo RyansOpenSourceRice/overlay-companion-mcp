@@ -8,7 +8,7 @@ The Overlay Companion MCP setup script now includes intelligent port management 
 
 ### 1. Default Installation
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh | bash
 ```
 - Uses port 8080 by default
 - If port 8080 is in use, offers interactive alternatives

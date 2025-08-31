@@ -19,7 +19,7 @@ Multiple deployment options for different use cases and infrastructure preferenc
 
 **Step 1: Set up containers on HOST Fedora Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
 **Step 2: Create Fedora VM on your preferred platform**
@@ -29,7 +29,7 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 
 **Step 3: Set up KasmVNC in VM**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
 ```
 
 **What gets installed:**
@@ -64,7 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 If you already have Podman/Docker infrastructure and want to integrate:
 
 ```bash
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp/infra
 podman-compose up -d
 ```
@@ -112,7 +112,7 @@ If you must use this approach:
 
 ### Custom Container Build
 ```bash
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 
 # Build custom containers

@@ -124,7 +124,7 @@ The server implements standard MCP error responses:
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
-      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+      "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
     }
   }
 }
@@ -160,7 +160,7 @@ These endpoints include proper metadata (description, tags, provider info) for b
       "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
       "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
       "provider": "Overlay Companion",
-      "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+      "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
     }
   }
 }
@@ -524,7 +524,7 @@ All tools implement rate limiting to protect local and remote inference systems 
 
 **Automatic Setup (Required):**
 ```bash
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 ./scripts/setup-dev-environment.sh
 ```

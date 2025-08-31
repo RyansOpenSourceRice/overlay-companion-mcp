@@ -20,7 +20,7 @@ Use your preferred platform:
 
 ### Step 2: Run Setup Inside VM
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/setup.sh | bash
 ```
 
 **What it installs:**
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 ### Simple MCP-Only Deployment
 ```bash
 # Clone repository
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 
 # Build and run just the MCP server
@@ -129,7 +129,7 @@ sudo apt update
 sudo apt install -y dotnet-sdk-8.0 git
 
 # Clone and build
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 dotnet build -c Release src/OverlayCompanion.csproj -o build/publish
 
@@ -177,7 +177,7 @@ server {
 ### Manual Build (No Scripts)
 ```bash
 # Prerequisites: .NET 8.0 SDK
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 dotnet restore src/OverlayCompanion.csproj
 dotnet build -c Release src/OverlayCompanion.csproj -o build/publish

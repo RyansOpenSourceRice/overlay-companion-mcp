@@ -28,6 +28,7 @@ env:
 jobs:
   cleanup-images:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -51,6 +52,7 @@ jobs:
 
   cleanup-untagged:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: write
@@ -72,6 +74,7 @@ jobs:
   report-cleanup:
     needs: [cleanup-images, cleanup-untagged]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     permissions:
       contents: read

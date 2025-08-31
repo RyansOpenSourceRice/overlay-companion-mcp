@@ -107,7 +107,7 @@ index ae2bfbb..79a1735 100644
 -      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
 +      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
        "provider": "Overlay Companion",
-       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+       "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
      }
 @@ -122,7 +122,7 @@ These endpoints include proper metadata (description, tags, provider info) for b
      "overlay_companion": {
@@ -116,7 +116,7 @@ index ae2bfbb..79a1735 100644
 -      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "gtk4", "linux"],
 +      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
        "provider": "Overlay Companion",
-       "provider_url": "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+       "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
      }
 @@ -515,7 +515,7 @@ This repository uses **automated development environment setup** with:
 
@@ -139,7 +139,7 @@ index b7e3628..1d83e56 100644
 +[![Platform](https://img.shields.io/badge/platform-Web%20(HTTP%20MCP)-00ADD8?style=for-the-badge&logo=google-chrome)](https://modelcontextprotocol.io/)
  [![Language](https://img.shields.io/badge/language-C%23-239120?style=for-the-badge&logo=csharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
  [![AI](https://img.shields.io/badge/AI-Cherry%20Studio%20Compatible-4285F4?style=for-the-badge&logo=openai)](https://cherry-studio.ai/)
- [![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSauceRice/overlay-companion-mcp)
+ [![Automation](https://img.shields.io/badge/automation-Human%20in%20Loop-28A745?style=for-the-badge&logo=robot)](https://github.com/RyansOpenSourceRice/overlay-companion-mcp)
 @@ -11,34 +11,34 @@
 
  A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit built with the **official ModelContextProtocol C# SDK**.
@@ -148,7 +148,7 @@ index b7e3628..1d83e56 100644
 +## Installation (Web-first)
 
 -### Download AppImage (Recommended)
--1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases)
+-1. Download the latest AppImage from [Releases](https://github.com/RyansOpenSourceRice/overlay-companion-mcp/releases)
 -2. Make it executable: `chmod +x overlay-companion-mcp-*.AppImage`
 -3. Run: `./overlay-companion-mcp-*.AppImage`
 +Run as a headless HTTP MCP server that serves a browser overlay viewer.

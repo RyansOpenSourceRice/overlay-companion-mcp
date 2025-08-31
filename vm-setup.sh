@@ -35,7 +35,7 @@ echo -e "${YELLOW}Continue with deprecated Guacamole VM setup? (y/N)${NC}"
 read -r response
 if [[ ! "$response" =~ ^[Yy]$ ]]; then
     echo -e "${BLUE}Recommended: Download KasmVNC VM setup instead:${NC}"
-    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash"
     exit 0
 fi
 echo -e "${YELLOW}Proceeding with deprecated Guacamole VM setup...${NC}"
@@ -201,7 +201,7 @@ show_connection_info() {
     echo ""
     echo "🔧 Next Steps:"
     echo "1. Go back to your HOST Fedora Linux system"
-    echo "2. Run the container setup: curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash"
+    echo "2. Run the container setup: curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh | bash"
     echo "3. Access the management interface at http://localhost:8080"
     echo "4. Add this VM using IP: $vm_ip"
     echo ""

@@ -1,0 +1,72 @@
+name: Build Flatpak - Clipboard Bridge
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'flatpak/clipboard-bridge/**'
+      - '.github/workflows/flatpak-clipboard-bridge.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'flatpak/clipboard-bridge/**'
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-flatpak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flatpak and flatpak-builder
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq flatpak flatpak-builder python3-pip
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.gnome.Sdk//46 org.gnome.Platform//46
+
+      - name: Build Flatpak
+        working-directory: flatpak/clipboard-bridge
+        run: |
+          rm -rf build repo
+          flatpak-builder --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml
+
+      - name: Export bundle
+        working-directory: flatpak/clipboard-bridge
+        run: |
+          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: org.overlaycompanion.ClipboardBridge.flatpak
+          path: flatpak/clipboard-bridge/org.overlaycompanion.ClipboardBridge.flatpak
+          retention-days: 7
+
+  release-flatpak:
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: build-flatpak
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: org.overlaycompanion.ClipboardBridge.flatpak
+          path: ./dist
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/org.overlaycompanion.ClipboardBridge.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

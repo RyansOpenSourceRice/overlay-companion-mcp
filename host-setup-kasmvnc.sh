@@ -326,12 +326,12 @@ setup_repository() {
             warning "Config directory exists but is not a git repository, recreating..."
             rm -rf "$config_dir"
             mkdir -p "$(dirname "$config_dir")"
-            git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
+            git clone "https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git" "$config_dir"
         fi
     else
         info "Cloning repository..."
         mkdir -p "$(dirname "$config_dir")"
-        git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
+        git clone "https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git" "$config_dir"
     fi
 
     cd "$config_dir"
