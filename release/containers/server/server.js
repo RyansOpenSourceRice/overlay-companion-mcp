@@ -25,7 +25,7 @@ const config = {
   bindAddress: process.env.BIND_ADDRESS || '0.0.0.0',
   httpPort: parseInt(process.env.HTTP_PORT) || 8080,
   wsPort: parseInt(process.env.WS_PORT) || 8081,
-  guacamoleUrl: process.env.GUACAMOLE_URL || 'http://localhost:8080',
+  kasmvncUrl: process.env.KASMVNC_URL || 'http://localhost:6901',
   mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:8081',
   mcpWsEnabled: process.env.MCP_WS_ENABLED === 'true',
   nodeEnv: process.env.NODE_ENV || 'development'

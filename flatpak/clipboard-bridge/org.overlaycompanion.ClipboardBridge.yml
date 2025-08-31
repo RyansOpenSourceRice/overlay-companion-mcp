@@ -2,7 +2,7 @@ app-id: org.overlaycompanion.ClipboardBridge
 runtime: org.gnome.Platform
 runtime-version: '46'
 sdk: org.gnome.Sdk
-command: clipboard-bridge
+command: clipboard-bridge-gui
 
 finish-args:
   # Clipboard and GUI permissions
@@ -35,11 +35,15 @@ modules:
     build-commands:
       - install -D clipboard-bridge.py ${FLATPAK_DEST}/bin/clipboard-bridge
       - chmod +x ${FLATPAK_DEST}/bin/clipboard-bridge
+      - install -D clipboard-bridge-gui.py ${FLATPAK_DEST}/bin/clipboard-bridge-gui
+      - chmod +x ${FLATPAK_DEST}/bin/clipboard-bridge-gui
       - install -D org.overlaycompanion.ClipboardBridge.desktop ${FLATPAK_DEST}/share/applications/org.overlaycompanion.ClipboardBridge.desktop
       - install -D org.overlaycompanion.ClipboardBridge.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/org.overlaycompanion.ClipboardBridge.svg
     sources:
       - type: file
         path: clipboard-bridge.py
+      - type: file
+        path: clipboard-bridge-gui.py
       - type: file
         path: org.overlaycompanion.ClipboardBridge.desktop
       - type: file

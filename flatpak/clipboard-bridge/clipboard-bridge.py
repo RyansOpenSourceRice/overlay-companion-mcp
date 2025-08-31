@@ -429,7 +429,8 @@ def main():
     # Ensure log directory exists
     log_dir = Path.home() / ".local/share/overlay-companion"
     log_dir.mkdir(parents=True, exist_ok=True)
-logger.info(f"Starting Clipboard Bridge Service on {HOST}:{PORT}")
+
+    logger.info(f"Starting Clipboard Bridge Service on {HOST}:{PORT}")
     logger.info(f"Clipboard backend: {clipboard_manager.backend}")
     logger.info("API Key authentication enabled")
 

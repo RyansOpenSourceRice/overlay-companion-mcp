@@ -1,5 +1,5 @@
 # Multi-stage build for Overlay Companion MCP Management Container
-# This container includes: Guacamole integration, MCP WebSocket bridge, Web frontend
+# This container includes: KasmVNC integration, MCP WebSocket bridge, Web frontend
 
 FROM node:20-alpine AS web-builder
 
@@ -62,7 +62,7 @@ ENV NODE_ENV=production \
     BIND_ADDRESS=0.0.0.0 \
     HTTP_PORT=8080 \
     WS_PORT=8081 \
-    GUACAMOLE_URL=http://localhost:8080 \
+    KASMVNC_URL=http://localhost:6901 \
     MCP_WS_ENABLED=true
 
 # Health check
