@@ -22,7 +22,6 @@ This document outlines the security measures implemented in the Overlay Companio
 - Enhanced URL scheme filtering (javascript:, data:, vbscript:, file:, etc.)
 
 **Files Protected:**
-- `release/containers/web/src/components/GuacamoleClient.js`
 - `release/containers/web/src/index.js`
 - `release/containers/server/middleware/security.js`
 

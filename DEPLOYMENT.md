@@ -2,7 +2,6 @@
 
 Multiple deployment options for different use cases and infrastructure preferences.
 
-> **📋 Important**: This guide reflects the new KasmVNC architecture. The legacy Guacamole deployment is deprecated due to database complexity and limited multi-monitor support.
 
 ---
 
@@ -70,9 +69,6 @@ podman-compose up -d
 ```
 
 **Container Stack (6 containers):**
-- **postgres**: PostgreSQL 16-alpine with Guacamole schema
-- **guacd**: Guacamole daemon for RDP/VNC connections
-- **guacamole**: Guacamole web application
 - **mcp-server**: C# MCP server with HTTP transport
 - **overlay-web**: Node.js web interface for overlay management
 - **caddy**: Reverse proxy routing all services

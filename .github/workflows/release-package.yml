@@ -117,7 +117,6 @@ jobs:
         3. **VM Setup**: Downloads and caches Fedora Silverblue ISO
         4. **Infrastructure**: Provisions management containers and VM using OpenTofu
         5. **Networking**: Configures secure host-only access (or optional LAN exposure)
-        6. **Services**: Starts Guacamole stack and MCP WebSocket bridge
 
         ## 🌐 Access Your System
 
@@ -172,7 +171,6 @@ jobs:
 
         **Version**: ${{ steps.version.outputs.version }}
         **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-        **Architecture**: Single-user VM deployment with OpenTofu + Podman + Guacamole
         EOF
 
     - name: Create checksums
@@ -215,7 +213,6 @@ jobs:
           - **OpenTofu** infrastructure automation
           - **Podman** containerized services
           - **Fedora Silverblue** VM with Wayland/XRDP
-          - **Guacamole** web-based remote access
           - **MCP WebSocket** bridge for AI integration
 
           ## 📦 Installation

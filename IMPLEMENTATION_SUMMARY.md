@@ -2,13 +2,11 @@
 
 ## Overview
 
-This document summarizes the complete migration from Guacamole to KasmVNC architecture and the implementation of WebSocket communication between the C# MCP server and KasmVNC web interface.
 
 ## Completed Work
 
 ### 1. Architecture Migration ✅
 
-**From**: Guacamole-based (6 containers, PostgreSQL database)  
 **To**: KasmVNC-based (4 containers, YAML configuration)
 
 #### Benefits Achieved
@@ -68,9 +66,7 @@ public async Task<bool> TestConnectionAsync()
 
 ### 5. Credential Management Simplification ✅
 
-#### Before (Guacamole - Deprecated)
 - PostgreSQL database with complex schema
-- Multiple credential layers (DB → Guacamole → Target)
 - Admin web interface required
 - Complex backup and recovery
 
@@ -91,7 +87,6 @@ public async Task<bool> TestConnectionAsync()
 
 ### 7. Deprecation Management ✅
 
-#### Guacamole Components Marked as Deprecated
 - Runtime warnings in all setup scripts
 - Deprecation notices in web interfaces
 - Comprehensive migration documentation
@@ -101,7 +96,6 @@ public async Task<bool> TestConnectionAsync()
 - `host-setup.sh` → Use `host-setup-kasmvnc.sh`
 - `vm-setup.sh` → Use `vm-setup-kasmvnc.sh`
 - `infra/podman-compose.yml` → Use `infra/kasmvnc-compose.yml`
-- `GuacamoleClient.js` → Use `KasmVNCClient.js`
 - OpenTofu configurations → Create KasmVNC-based infrastructure
 
 ### 8. Quality Assurance ✅
@@ -152,8 +146,6 @@ Local Display Detection → KasmVNC API → Display Mapping → Overlay Placemen
 - **Storage**: No database storage requirements
 
 ### Latency Improvements
-- **Overlay Commands**: Direct WebSocket vs database → Guacamole chain
-- **Display Updates**: Native KasmVNC vs Guacamole canvas rendering
 - **Multi-Monitor**: Parallel windows vs single canvas scaling
 
 ## Security Enhancements
@@ -173,8 +165,6 @@ Local Display Detection → KasmVNC API → Display Mapping → Overlay Placemen
 
 ### Simplified Setup
 ```bash
-# Old (Guacamole): Complex database initialization
-psql -h postgres -U guacamole -d guacamole_db -f schema.sql
 # Multiple SQL scripts, user creation, permissions...
 
 # New (KasmVNC): Simple environment variables
@@ -206,7 +196,6 @@ podman-compose up -d
 
 ## Conclusion
 
-The migration from Guacamole to KasmVNC has been successfully completed with significant improvements in:
 
 - **Simplicity**: 33% fewer containers, no database complexity
 - **Functionality**: True multi-monitor support vs single canvas limitation

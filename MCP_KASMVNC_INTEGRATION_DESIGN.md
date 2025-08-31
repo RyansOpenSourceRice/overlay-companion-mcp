@@ -2,15 +2,11 @@
 
 ## Overview
 
-This document outlines the integration design between the C# MCP Server and KasmVNC, replacing the deprecated Guacamole architecture. The new design leverages KasmVNC's native web capabilities and multi-monitor support.
 
 ## Architecture Changes
 
-### Before (Guacamole - Deprecated)
 ```
-AI Client → Node.js Proxy → C# MCP Server → Guacamole → PostgreSQL
                 ↓
-         Web Interface → Guacamole Web → Single Canvas
 ```
 
 ### After (KasmVNC - Current)
@@ -421,7 +417,6 @@ dotnet add package Microsoft.Extensions.Http
 - Update MCP tools to use KasmVNC service
 
 ### 3. Update Web Interface
-- Replace GuacamoleClient with enhanced KasmVNCClient
 - Add overlay canvas management
 - Implement multi-monitor display mapping
 - Update WebSocket message handling

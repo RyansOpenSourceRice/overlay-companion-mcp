@@ -1,5 +1,4 @@
 # Custom Overlay Web Interface Container
-# This container provides the custom overlay website with Guacamole integration
 # and MCP-powered icons on the display
 
 # Stage 1: Build web frontend

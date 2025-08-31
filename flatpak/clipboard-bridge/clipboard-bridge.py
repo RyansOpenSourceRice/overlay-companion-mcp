@@ -429,57 +429,12 @@ def main():
     # Ensure log directory exists
     log_dir = Path.home() / ".local/share/overlay-companion"
     log_dir.mkdir(parents=True, exist_ok=True)
-
-
-    args = parse_args()
-    if args.show_gui:
-        try:
-            import gi
-            gi.require_version("Gtk", "3.0")
-            from gi.repository import Gtk
-
-            win = Gtk.Window(title="Clipboard Bridge")
-            win.set_default_size(320, 120)
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, margin_top=12, margin_bottom=12, margin_start=12, margin_end=12)
-
-            label = Gtk.Label(label=f"Running on {HOST}:{PORT}\nBackend: {clipboard_manager.backend}")
-            label.set_justify(Gtk.Justification.CENTER)
-            box.append(label) if hasattr(box, 'append') else box.pack_start(label, True, True, 0)
-
-            btn = Gtk.Button(label="Open API Docs")
-            def on_click(_):
-                import webbrowser
-                webbrowser.open(f"http://127.0.0.1:{PORT}/docs")
-            btn.connect("clicked", on_click)
-            box.append(btn) if hasattr(box, 'append') else box.pack_start(btn, False, False, 0)
-
-            win.set_child(box) if hasattr(win, 'set_child') else win.add(box)
-            win.connect("destroy", Gtk.main_quit)
-            win.show_all() if hasattr(win, 'show_all') else win.show()
-
-            # Run API in background thread and Gtk mainloop in foreground
-            def _run_server():
-                uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=True)
-            thread = threading.Thread(target=_run_server, daemon=True)
-            thread.start()
-            Gtk.main()
-            return
-        except Exception as e:
-            logger.warning(f"GUI not available: {e}")
-
-    logger.info(f"Starting Clipboard Bridge Service on {HOST}:{PORT}")
+logger.info(f"Starting Clipboard Bridge Service on {HOST}:{PORT}")
     logger.info(f"Clipboard backend: {clipboard_manager.backend}")
     logger.info("API Key authentication enabled")
 
     # Run the server
     uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=True)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Clipboard Bridge Service")
-    parser.add_argument("--show-gui", action="store_true", help="Show minimal configuration window")
-    return parser.parse_args()
-
 
 if __name__ == "__main__":
     main()

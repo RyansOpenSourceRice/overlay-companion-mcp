@@ -90,12 +90,8 @@ The server implements standard MCP error responses:
 
 ### Authentication & Credentials
 
-**Guacamole Database:**
 - **Database**: PostgreSQL 16-alpine
-- **Default Credentials**: guacamole/guacpass (database user)
-- **Schema**: Automatically initialized with Guacamole 1.5.5 schema
 
-**Guacamole Web Interface:**
 - **Default Admin**: guacadmin/guacadmin
 - **Access**: http://localhost:8080/guac/
 - **Future Enhancement**: Dynamic credential generation with secure random passwords

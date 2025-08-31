@@ -9,12 +9,7 @@ finish-args:
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
-  - --device=dri
   - --socket=session-bus
-
-  # Clipboard-specific permissions via portals
-  - --talk-name=org.freedesktop.portal.Desktop
-  - --talk-name=org.freedesktop.portal.Clipboard
 
   # Network permissions for API server
   - --share=network

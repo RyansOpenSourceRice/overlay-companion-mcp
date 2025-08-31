@@ -4,11 +4,9 @@ This guide explains how to configure and use multi-monitor support with the Over
 
 ## Overview
 
-KasmVNC provides true multi-monitor support through its Display Manager, allowing each monitor to be accessed as a separate browser window or tab. This is a significant improvement over Guacamole's single-canvas approach.
 
 ## Architecture Comparison
 
-### Guacamole (Legacy)
 - **Single Canvas**: All monitors rendered as one large canvas
 - **Limited Control**: No individual monitor management
 - **Scaling Issues**: Difficult to handle different resolutions
@@ -28,7 +26,6 @@ KasmVNC provides true multi-monitor support through its Display Manager, allowin
 - **System RAM**: Additional 2GB RAM per extra monitor (recommended)
 
 ### Software Requirements
-- **KasmVNC Setup**: Use `host-setup-kasmvnc.sh` instead of legacy Guacamole setup
 - **Modern Browser**: Chrome, Firefox, or Edge with popup support enabled
 - **Network**: Stable connection for multiple video streams
 

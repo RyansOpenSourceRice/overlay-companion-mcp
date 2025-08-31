@@ -1,5 +1,7 @@
 # Overlay Companion MCP
 
+For the Clipboard Bridge Flatpak, see docs/CLIPBOARD_BRIDGE.md.
+
 AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through simplified containerized infrastructure using KasmVNC.
 
 > Note: This project uses the KasmVNC-based architecture. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for migration details.
@@ -19,7 +21,6 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 
 **Connection Flow**: Host containers → KasmVNC → Remote Desktop
 
-## Key Improvements over Guacamole
 
 ✅ **No Database Required**: Eliminates PostgreSQL complexity and credential management  
 ✅ **True Multi-Monitor Support**: KasmVNC provides native multi-monitor with separate windows  
