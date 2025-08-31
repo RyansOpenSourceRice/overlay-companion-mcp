@@ -457,9 +457,11 @@ def main():
             win.connect("destroy", Gtk.main_quit)
             win.show_all() if hasattr(win, 'show_all') else win.show()
 
-            # Run API in background and Gtk mainloop in foreground
-            loop = asyncio.get_event_loop()
-            loop.create_task(asyncio.to_thread(uvicorn.run, app, host=HOST, port=PORT, log_level="info", access_log=True))
+            # Run API in background thread and Gtk mainloop in foreground
+            def _run_server():
+                uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=True)
+            thread = threading.Thread(target=_run_server, daemon=True)
+            thread.start()
             Gtk.main()
             return
         except Exception as e:
