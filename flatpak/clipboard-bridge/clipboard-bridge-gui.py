@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
+import json
+import os
 import subprocess
 import threading
-import os
-import sys
-import json
-import urllib.request
 import urllib.error
+import urllib.request
+
 import gi
 
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+gi.require_version("Gtk", "3.0")
+from gi.repository import GLib, Gtk  # noqa: E402
 
 APP_NAME = "Overlay Companion Clipboard Bridge"
 DEFAULT_HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.getenv("CLIPBOARD_BRIDGE_PORT", "8765"))
 DEFAULT_API_KEY = os.getenv("CLIPBOARD_BRIDGE_API_KEY", "overlay-companion-mcp")
 DEFAULT_BASE_URL = f"http://127.0.0.1:{DEFAULT_PORT}"
+
 
 class BridgeGUI(Gtk.Window):
     def __init__(self):
@@ -111,18 +112,22 @@ class BridgeGUI(Gtk.Window):
         self.toggle_btn.set_label("Start")
 
     def on_test(self, _):
-        base = self.entry_url.get_text().rstrip('/')
+        base = self.entry_url.get_text().rstrip("/")
         url = f"{base}/health"
+
         def task():
             try:
                 req = urllib.request.Request(url)
                 with urllib.request.urlopen(req, timeout=3) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                GLib.idle_add(self.update_status, f"healthy ({data.get('backend','n/a')})")
+                    data = json.loads(resp.read().decode("utf-8"))
+                GLib.idle_add(
+                    self.update_status, f"healthy ({data.get('backend', 'n/a')})"
+                )
             except urllib.error.URLError as e:
                 GLib.idle_add(self.update_status, f"unreachable: {e}")
             except Exception as e:
                 GLib.idle_add(self.update_status, f"error: {e}")
+
         threading.Thread(target=task, daemon=True).start()
 
     def update_status(self, text):
@@ -131,6 +136,7 @@ class BridgeGUI(Gtk.Window):
     def on_destroy(self, *_):
         self.stop_service()
         Gtk.main_quit()
+
 
 if __name__ == "__main__":
     win = BridgeGUI()

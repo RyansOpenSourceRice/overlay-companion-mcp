@@ -2,7 +2,6 @@
 ## Executive Summary
 
 
-
 ### Architecture
 - **Database-Driven**: Uses PostgreSQL for all user and connection management
 - **Complex Schema**: Requires multiple tables for users, connections, permissions

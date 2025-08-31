@@ -24,7 +24,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import argparse
 
 # Configure logging
 log_dir = Path.home() / ".local/share/overlay-companion"
@@ -255,18 +254,21 @@ class ClipboardManager:
     async def _get_gtk_clipboard(self) -> tuple[str, str]:
         """Get clipboard using GTK (portal-friendly)"""
         import asyncio
+
         return await asyncio.to_thread(self._gtk_get_text_blocking)
 
     async def _set_gtk_clipboard(self, content: str, content_type: str) -> bool:
         """Set clipboard using GTK (portal-friendly)"""
         import asyncio
+
         return await asyncio.to_thread(self._gtk_set_text_blocking, content)
 
     def _gtk_get_text_blocking(self) -> tuple[str, str]:
         try:
             import gi
+
             gi.require_version("Gtk", "3.0")
-            from gi.repository import Gtk, Gdk
+            from gi.repository import Gdk, Gtk
 
             # Initialize GTK if needed
             try:
@@ -288,8 +290,9 @@ class ClipboardManager:
     def _gtk_set_text_blocking(self, content: str) -> bool:
         try:
             import gi
+
             gi.require_version("Gtk", "3.0")
-            from gi.repository import Gtk, Gdk
+            from gi.repository import Gdk, Gtk
 
             try:
                 Gtk.init([])
@@ -436,6 +439,7 @@ def main():
 
     # Run the server
     uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=True)
+
 
 if __name__ == "__main__":
     main()

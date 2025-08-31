@@ -135,25 +135,25 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
+
           TAG_NAME="${{ steps.version.outputs.version-tag }}"
-          
+
           # Fetch all tags from remote to ensure we have the latest tag information
           git fetch --tags
-          
+
           # Check if tag already exists locally or remotely
           if git tag -l | grep -q "^${TAG_NAME}$" || git ls-remote --tags origin | grep -q "refs/tags/${TAG_NAME}$"; then
             echo "Tag ${TAG_NAME} already exists (locally or remotely), skipping tag creation"
             exit 0
           fi
-          
+
           # Create the tag
           git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
-          
+
           # Push the tag using the GitHub token
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "${TAG_NAME}"
-          
+
           echo "Successfully created and pushed tag: ${TAG_NAME}"
 
   cleanup-old-images:
@@ -202,10 +202,10 @@ jobs:
           else
             TAG="${{ needs.build-and-push.outputs.version-tag }}"
           fi
-          
+
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Image tag to scan: ${TAG}"
-          
+
           # Verify tag is not empty
           if [ -z "${TAG}" ]; then
             echo "Error: Image tag is empty"

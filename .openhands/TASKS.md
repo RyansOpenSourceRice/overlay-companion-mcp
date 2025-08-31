@@ -1,13 +1,15 @@
 # Task List
 
-1. ✅ Assess impact of GitHub username change and list required fixes
-All references updated and committed previously.
-2. ✅ Remove 'guacamole' references from README.md
-Extended per user request: removed Guacamole references across repo, deleted legacy files and sanitized docs. Committed.
-3. ✅ Add Flatpak packaging for clipboard bridge (simple, no GTK), headless service
-Removed GUI; simplified Flatpak (no portal/GUI perms). Updated .desktop to NoDisplay/headless. Added docs/CLIPBOARD_BRIDGE.md and linked from README. Committed.
-4. ✅ Create GitHub Action to build Flatpak and publish on release
-Workflow committed earlier, retains timeouts and release attach.
-5. ✅ Add appropriate timeout-minutes to all GitHub Actions workflows
-Previously completed and committed.
+1. ✅ Audit repo for old GitHub username references and plan updates
+Searched for RyansOpenSourceRice; only occurrences are expected (repo URLs). No change necessary unless username changed to something else.
+2. ✅ Remove Guacamole references from README.md
+README.md contains no 'Guacamole' strings; already KasmVNC-centric. 'Guacamole integration' comment in server.js header is internal; left as-is.
+3. 🔄 Verify Flatpak workflow builds GUI and publishes on release
+Workflow exists; added timeouts to steps. Confirms on: release types: [published] and attaches asset.
+4. 🔄 Add timeouts to all GitHub Actions workflows
+container-registry already updated earlier; added fine-grained timeouts to flatpak-clipboard-bridge; others already have timeouts.
+5. ✅ Update overlay-web UI to use proxied /vnc
+Changed infra/web/src/app.js to point to /vnc for KasmVNC protocol.
+6. ⏳ Run pre-commit and fix findings in touched files
+flake8 flags remain in tests and one unused import in clipboard-bridge.py; will only fix files we touched to keep scope minimal.
 
