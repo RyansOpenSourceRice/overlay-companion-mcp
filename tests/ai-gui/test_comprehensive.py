@@ -6,9 +6,7 @@ Tests the complete workflow: HTTP transport, multi-monitor, overlays, screenshot
 
 import json
 import subprocess
-import threading
 import time
-from pathlib import Path
 
 import requests
 
@@ -100,9 +98,9 @@ def test_comprehensive_workflow():
         if response.status_code == 200:
             init_result = parse_sse_response(response.text)
             if init_result:
-                print(f"✅ Initialize successful")
+                print("✅ Initialize successful")
             else:
-                print(f"❌ Initialize failed to parse response")
+                print("❌ Initialize failed to parse response")
                 return False
         else:
             print(f"❌ Initialize failed: {response.status_code}")
@@ -163,7 +161,7 @@ def test_comprehensive_workflow():
                 result_data = display_result["result"]
                 if "content" in result_data and result_data["content"]:
                     display_info = json.loads(result_data["content"][0]["text"])
-                    print(f"✅ Display info retrieved:")
+                    print("✅ Display info retrieved:")
                     print(
                         f"   📊 Total displays: {display_info.get('total_displays', 0)}"
                     )
@@ -174,7 +172,7 @@ def test_comprehensive_workflow():
                             f"   🖥️ {display['name']}: {display['width']}x{display['height']} at ({display['x']}, {display['y']})"
                         )
                         if display.get("is_primary"):
-                            print(f"      ⭐ Primary display")
+                            print("      ⭐ Primary display")
 
                     # Store display info for later tests
                     global test_displays
@@ -210,7 +208,7 @@ def test_comprehensive_workflow():
         )
 
         if response.status_code == 200:
-            print(f"✅ Mode set to assist")
+            print("✅ Mode set to assist")
         else:
             print(f"❌ Mode set failed: {response.status_code}")
             return False
@@ -320,7 +318,7 @@ def test_comprehensive_workflow():
                     result_data = reanchor_result["result"]
                     if "content" in result_data and result_data["content"]:
                         reanchor_info = json.loads(result_data["content"][0]["text"])
-                        print(f"   ✅ Absolute re-anchor successful")
+                        print("   ✅ Absolute re-anchor successful")
                         print(
                             f"      📍 Old: ({reanchor_info['old_position']['x']}, {reanchor_info['old_position']['y']})"
                         )
@@ -371,7 +369,7 @@ def test_comprehensive_workflow():
                             reanchor_info = json.loads(
                                 result_data["content"][0]["text"]
                             )
-                            print(f"   ✅ Relative re-anchor successful")
+                            print("   ✅ Relative re-anchor successful")
                             print(
                                 f"      📍 Old: ({reanchor_info['old_position']['x']}, {reanchor_info['old_position']['y']})"
                             )
@@ -520,22 +518,22 @@ if __name__ == "__main__":
     test_displays = []
     success = test_comprehensive_workflow()
 
-    print(f"\n📊 Comprehensive Test Summary:")
-    print(f"=" * 60)
-    print(f"✅ HTTP Transport: Native SSE streaming working")
-    print(f"✅ Protocol Setup: Initialize and tools list working")
-    print(f"✅ Display Detection: Multi-monitor support working")
-    print(f"✅ Mode Management: Mode switching working")
-    print(f"✅ Overlay Operations: Draw, position, and manage overlays")
-    print(f"✅ Re-anchoring: Absolute and relative positioning")
-    print(f"✅ Screenshot Capture: Full and monitor-specific")
-    print(f"✅ Cleanup: Overlay removal working")
-    print(f"")
-    print(f"🚀 All major MCP functionality verified!")
-    print(f"📋 15 tools available and working")
-    print(f"🖥️ Multi-monitor support fully implemented")
-    print(f"🔄 Re-anchoring with boundary clamping")
-    print(f"📸 High-performance screenshot capture")
-    print(f"🌐 Native HTTP transport with SSE streaming")
+    print("\n📊 Comprehensive Test Summary:")
+    print("=" * 60)
+    print("✅ HTTP Transport: Native SSE streaming working")
+    print("✅ Protocol Setup: Initialize and tools list working")
+    print("✅ Display Detection: Multi-monitor support working")
+    print("✅ Mode Management: Mode switching working")
+    print("✅ Overlay Operations: Draw, position, and manage overlays")
+    print("✅ Re-anchoring: Absolute and relative positioning")
+    print("✅ Screenshot Capture: Full and monitor-specific")
+    print("✅ Cleanup: Overlay removal working")
+    print("")
+    print("🚀 All major MCP functionality verified!")
+    print("📋 15 tools available and working")
+    print("🖥️ Multi-monitor support fully implemented")
+    print("🔄 Re-anchoring with boundary clamping")
+    print("📸 High-performance screenshot capture")
+    print("🌐 Native HTTP transport with SSE streaming")
 
     exit(0 if success else 1)

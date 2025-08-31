@@ -6,16 +6,31 @@ import threading
 import urllib.error
 import urllib.request
 
-import gi
-
-gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+try:
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import GLib, Gtk  # noqa: E402
+    HAVE_GTK = True
+except Exception:
+    HAVE_GTK = False
+    GLib = None
+    Gtk = None
 
 APP_NAME = "Overlay Companion Clipboard Bridge"
 DEFAULT_HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.getenv("CLIPBOARD_BRIDGE_PORT", "8765"))
 DEFAULT_API_KEY = os.getenv("CLIPBOARD_BRIDGE_API_KEY", "overlay-companion-mcp")
 DEFAULT_BASE_URL = f"http://127.0.0.1:{DEFAULT_PORT}"
+
+if not HAVE_GTK:
+    # Fallback: run the bridge headless if GTK unavailable
+    def main():
+        print("GTK not available; starting clipboard-bridge headless...")
+        env = os.environ.copy()
+        env["CLIPBOARD_BRIDGE_HOST"] = env.get("CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST)
+        env["CLIPBOARD_BRIDGE_PORT"] = str(DEFAULT_PORT)
+        env["CLIPBOARD_BRIDGE_API_KEY"] = DEFAULT_API_KEY
+        subprocess.call(["clipboard-bridge"], env=env)
 
 
 class BridgeGUI(Gtk.Window):

@@ -5,9 +5,7 @@ Test multi-monitor support for MCP server
 
 import json
 import subprocess
-import threading
 import time
-from pathlib import Path
 
 import requests
 
@@ -85,9 +83,9 @@ def test_multimonitor_support():
         if response.status_code == 200:
             init_result = parse_sse_response(response.text)
             if init_result:
-                print(f"✅ Initialize successful")
+                print("✅ Initialize successful")
             else:
-                print(f"⚠️ Initialize returned 200 but couldn't parse SSE response")
+                print("⚠️ Initialize returned 200 but couldn't parse SSE response")
                 return False
         else:
             print(f"❌ Initialize failed: {response.status_code}")
@@ -115,7 +113,7 @@ def test_multimonitor_support():
                 result_data = display_result["result"]
                 if "content" in result_data and result_data["content"]:
                     display_info = json.loads(result_data["content"][0]["text"])
-                    print(f"✅ Display info retrieved:")
+                    print("✅ Display info retrieved:")
                     print(
                         f"   📊 Total displays: {display_info.get('total_displays', 0)}"
                     )
@@ -126,7 +124,7 @@ def test_multimonitor_support():
                             f"   🖥️ {display['name']}: {display['width']}x{display['height']} at ({display['x']}, {display['y']})"
                         )
                         if display.get("is_primary"):
-                            print(f"      ⭐ Primary display")
+                            print("      ⭐ Primary display")
 
                     # Store display info for overlay tests
                     global test_displays
@@ -158,7 +156,7 @@ def test_multimonitor_support():
         )
 
         if response.status_code == 200:
-            print(f"✅ Mode set successful")
+            print("✅ Mode set successful")
         else:
             print(f"❌ Mode set failed: {response.status_code}")
             return False
@@ -202,7 +200,7 @@ def test_multimonitor_support():
                     result_data = overlay_result["result"]
                     if "content" in result_data and result_data["content"]:
                         overlay_info = json.loads(result_data["content"][0]["text"])
-                        print(f"✅ Overlay drawn on primary monitor:")
+                        print("✅ Overlay drawn on primary monitor:")
                         print(f"   🎯 Overlay ID: {overlay_info.get('overlay_id')}")
                         print(
                             f"   🖥️ Monitor: {overlay_info.get('monitor_name')} (index {overlay_info.get('monitor_index')})"
@@ -299,7 +297,7 @@ def test_multimonitor_support():
                     result_data = overlay_result["result"]
                     if "content" in result_data and result_data["content"]:
                         overlay_info = json.loads(result_data["content"][0]["text"])
-                        print(f"✅ Overlay drawn on secondary monitor:")
+                        print("✅ Overlay drawn on secondary monitor:")
                         print(
                             f"   🖥️ Monitor: {overlay_info.get('monitor_name')} (index {overlay_info.get('monitor_index')})"
                         )
@@ -333,11 +331,11 @@ if __name__ == "__main__":
     test_displays = []
     success = test_multimonitor_support()
 
-    print(f"\n📊 Multi-Monitor Test Summary:")
-    print(f"✅ Display Detection: Working")
-    print(f"✅ Monitor-Specific Overlays: Working")
-    print(f"✅ Monitor-Specific Screenshots: Working")
-    print(f"✅ Coordinate Translation: Working")
+    print("\n📊 Multi-Monitor Test Summary:")
+    print("✅ Display Detection: Working")
+    print("✅ Monitor-Specific Overlays: Working")
+    print("✅ Monitor-Specific Screenshots: Working")
+    print("✅ Coordinate Translation: Working")
 
     if len(test_displays) > 1:
         print(f"✅ Multi-Monitor Setup: {len(test_displays)} displays detected")

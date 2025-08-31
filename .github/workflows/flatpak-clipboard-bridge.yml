@@ -29,9 +29,9 @@ jobs:
         timeout-minutes: 10
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq flatpak flatpak-builder python3-pip
+          sudo apt-get install -y -qq flatpak flatpak-builder python3-pip jq curl
           sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install -y flathub org.gnome.Sdk//46 org.gnome.Platform//46
+          sudo flatpak install -y flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 org.freedesktop.Sdk.Extension.python3//23.08
 
       - name: Build Flatpak
         working-directory: flatpak/clipboard-bridge
@@ -53,6 +53,41 @@ jobs:
           path: flatpak/clipboard-bridge/org.overlaycompanion.ClipboardBridge.flatpak
           retention-days: 7
         timeout-minutes: 2
+
+
+      - name: Smoke test bundle (install, run, health check)
+        if: ${{ github.event_name != 'release' }}
+        timeout-minutes: 6
+        working-directory: flatpak/clipboard-bridge
+        run: |
+          set -euo pipefail
+          APP_ID=org.overlaycompanion.ClipboardBridge
+          BUNDLE=org.overlaycompanion.ClipboardBridge.flatpak
+
+          echo "Installing bundle..."
+          flatpak --user uninstall -y $APP_ID || true
+          flatpak --user install -y $BUNDLE
+
+          echo "Launching service..."
+          flatpak --user run --command=clipboard-bridge $APP_ID > bridge.log 2>&1 &
+          BRIDGE_PID=$!
+
+          # Poll health
+          attempt=0
+          until curl -sSf http://127.0.0.1:8765/health | jq -e '.status=="healthy"' >/dev/null 2>&1; do
+            attempt=$((attempt+1))
+            if [ $attempt -gt 20 ]; then
+              echo "Health check failed" >&2
+              echo "--- bridge.log ---"; tail -n 200 bridge.log || true; echo "---------------"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          echo "Health OK"
+
+          # Shutdown
+          kill $BRIDGE_PID || true
+          wait $BRIDGE_PID || true
 
   release-flatpak:
     if: github.event_name == 'release' && github.event.action == 'published'

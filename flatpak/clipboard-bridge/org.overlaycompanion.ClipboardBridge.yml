@@ -1,7 +1,11 @@
 app-id: org.overlaycompanion.ClipboardBridge
-runtime: org.gnome.Platform
-runtime-version: '46'
-sdk: org.gnome.Sdk
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.python3
+runtime-extensions:
+  - org.freedesktop.Sdk.Extension.python3
 command: clipboard-bridge-gui
 
 finish-args:

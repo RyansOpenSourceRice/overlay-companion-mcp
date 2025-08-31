@@ -5,9 +5,7 @@ Test native HTTP transport for MCP server using ModelContextProtocol.AspNetCore
 
 import json
 import subprocess
-import threading
 import time
-from pathlib import Path
 
 import requests
 
@@ -105,7 +103,7 @@ def test_native_http_transport():
                 print(f"✅ HTTP Initialize successful: {server_name}")
             else:
                 print(
-                    f"⚠️ HTTP Initialize returned 200 but couldn't parse SSE response"
+                    "⚠️ HTTP Initialize returned 200 but couldn't parse SSE response"
                 )
                 print(f"Raw response: {response.text[:200]}...")
         else:
@@ -135,7 +133,7 @@ def test_native_http_transport():
                 )
             else:
                 print(
-                    f"⚠️ HTTP Tools list returned 200 but couldn't parse SSE response"
+                    "⚠️ HTTP Tools list returned 200 but couldn't parse SSE response"
                 )
         else:
             print(f"❌ HTTP Tools list failed: {response.status_code} - {response.text}")
@@ -161,9 +159,9 @@ def test_native_http_transport():
             # Parse SSE response
             mode_result = parse_sse_response(response.text)
             if mode_result:
-                print(f"✅ HTTP Set mode successful")
+                print("✅ HTTP Set mode successful")
             else:
-                print(f"⚠️ HTTP Set mode returned 200 but couldn't parse SSE response")
+                print("⚠️ HTTP Set mode returned 200 but couldn't parse SSE response")
         else:
             print(f"❌ HTTP Set mode failed: {response.status_code} - {response.text}")
 
@@ -198,10 +196,10 @@ def test_native_http_transport():
             # Parse SSE response
             overlay_result = parse_sse_response(response.text)
             if overlay_result:
-                print(f"✅ HTTP Draw overlay successful")
+                print("✅ HTTP Draw overlay successful")
             else:
                 print(
-                    f"⚠️ HTTP Draw overlay returned 200 but couldn't parse SSE response"
+                    "⚠️ HTTP Draw overlay returned 200 but couldn't parse SSE response"
                 )
         else:
             print(
@@ -241,7 +239,7 @@ def test_native_http_transport():
                     print("⚠️ HTTP Screenshot returned but no content found")
             else:
                 print(
-                    f"⚠️ HTTP Screenshot returned 200 but couldn't parse SSE response"
+                    "⚠️ HTTP Screenshot returned 200 but couldn't parse SSE response"
                 )
         else:
             print(f"❌ HTTP Screenshot failed: {response.status_code} - {response.text}")
@@ -268,7 +266,7 @@ def test_native_http_transport():
                     result = parse_sse_response(resp.text)
                     return result is not None
                 return False
-            except:
+            except Exception:
                 return False
 
         # Make 3 concurrent requests
@@ -312,7 +310,7 @@ def test_native_http_transport():
         try:
             process.terminate()
             process.wait(timeout=5)
-        except:
+        except Exception:
             process.kill()
 
 
