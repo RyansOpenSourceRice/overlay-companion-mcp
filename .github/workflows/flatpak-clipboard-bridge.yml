@@ -28,17 +28,23 @@ jobs:
       - name: Install Flatpak and flatpak-builder
         timeout-minutes: 10
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq flatpak flatpak-builder python3-pip jq curl
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install -y flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 org.freedesktop.Sdk.Extension.python3//23.08
+          set -euo pipefail
+          sudo apt-get -yq update
+          sudo apt-get -yq install -o=Dpkg::Use-Pty=0 --no-install-recommends flatpak flatpak-builder jq curl
+          flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
+          flatpak --user   remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
       - name: Build Flatpak
         working-directory: flatpak/clipboard-bridge
         timeout-minutes: 12
+        env:
+          FLATPAK_USER_DIR: ${{ runner.temp }}/flatpak-user
         run: |
+          set -euo pipefail
+          mkdir -p "$FLATPAK_USER_DIR"
+          flatpak --user update --appstream || true
           rm -rf build repo
-          flatpak-builder --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml
+          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml
 
       - name: Export bundle
         working-directory: flatpak/clipboard-bridge
@@ -59,6 +65,8 @@ jobs:
         if: ${{ github.event_name != 'release' }}
         timeout-minutes: 6
         working-directory: flatpak/clipboard-bridge
+        env:
+          FLATPAK_USER_DIR: ${{ runner.temp }}/flatpak-user
         run: |
           set -euo pipefail
           APP_ID=org.overlaycompanion.ClipboardBridge
@@ -66,7 +74,7 @@ jobs:
 
           echo "Installing bundle..."
           flatpak --user uninstall -y $APP_ID || true
-          flatpak --user install -y $BUNDLE
+          flatpak --user install -y --noninteractive $BUNDLE
 
           echo "Launching service..."
           flatpak --user run --command=clipboard-bridge $APP_ID > bridge.log 2>&1 &
@@ -76,7 +84,7 @@ jobs:
           attempt=0
           until curl -sSf http://127.0.0.1:8765/health | jq -e '.status=="healthy"' >/dev/null 2>&1; do
             attempt=$((attempt+1))
-            if [ $attempt -gt 20 ]; then
+            if [ $attempt -gt 40 ]; then
               echo "Health check failed" >&2
               echo "--- bridge.log ---"; tail -n 200 bridge.log || true; echo "---------------"
               exit 1
