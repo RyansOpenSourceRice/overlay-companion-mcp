@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Overlay Companion MCP</title>
+    <meta name="description" content="AI-powered screen overlay system with secure credential management">
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="loading" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Overlay Companion MCP</div>
+        <div class="loading-subtitle">Initializing AI-powered screen interaction...</div>
+    </div>
+
+    <div id="app" style="display: none;">
+        <!-- Navigation Header -->
+        <header class="main-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-layer-group"></i>
+                    <h1>Overlay Companion MCP</h1>
+                </div>
+                <nav class="main-nav">
+                    <button class="nav-btn active" data-page="home">
+                        <i class="fas fa-home"></i> Home
+                    </button>
+                    <button class="nav-btn" data-page="connections">
+                        <i class="fas fa-desktop"></i> Connections
+                    </button>
+                    <button class="nav-btn" data-page="settings">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Home Page -->
+            <div id="home-page" class="page active">
+                <div class="hero-section">
+                    <div class="hero-content">
+                        <h2>AI-Powered Screen Overlay System</h2>
+                        <p class="hero-description">
+                            Connect to remote virtual machines and enable AI-assisted screen interaction
+                            with real-time overlays, multi-monitor support, and seamless KasmVNC integration.
+                        </p>
+                        <div class="hero-actions">
+                            <button class="btn btn-primary" id="quick-connect-btn">
+                                <i class="fas fa-rocket"></i> Quick Connect
+                            </button>
+                            <button class="btn btn-secondary" data-page="connections">
+                                <i class="fas fa-plus"></i> New Connection
+                            </button>
+                        </div>
+                    </div>
+                    <div class="hero-visual">
+                        <div class="feature-grid">
+                            <div class="feature-card">
+                                <i class="fas fa-tv"></i>
+                                <h3>Multi-Monitor</h3>
+                                <p>Native support for multiple displays with KasmVNC</p>
+                            </div>
+                            <div class="feature-card">
+                                <i class="fas fa-robot"></i>
+                                <h3>AI Integration</h3>
+                                <p>MCP-powered intelligent screen overlays</p>
+                            </div>
+                            <div class="feature-card">
+                                <i class="fas fa-shield-alt"></i>
+                                <h3>Secure</h3>
+                                <p>Browser-based credential management</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-section">
+                    <h3><i class="fas fa-heartbeat"></i> System Status</h3>
+                    <div id="system-status" class="status-grid">
+                        <div class="status-card">
+                            <div class="status-indicator" id="mcp-status"></div>
+                            <div class="status-info">
+                                <h4>MCP Server</h4>
+                                <p id="mcp-status-text">Checking...</p>
+                            </div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-indicator" id="kasmvnc-status"></div>
+                            <div class="status-info">
+                                <h4>KasmVNC</h4>
+                                <p id="kasmvnc-status-text">Checking...</p>
+                            </div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-indicator" id="websocket-status"></div>
+                            <div class="status-info">
+                                <h4>WebSocket</h4>
+                                <p id="websocket-status-text">Checking...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-connections">
+                    <h3><i class="fas fa-history"></i> Recent Connections</h3>
+                    <div id="recent-connections-list" class="connections-list">
+                        <div class="empty-state">
+                            <i class="fas fa-desktop"></i>
+                            <p>No recent connections</p>
+                            <button class="btn btn-primary" data-page="connections">Add Your First Connection</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connections Page -->
+            <div id="connections-page" class="page">
+                <div class="page-header">
+                    <h2><i class="fas fa-desktop"></i> Connection Management</h2>
+                    <button class="btn btn-primary" id="add-connection-btn">
+                        <i class="fas fa-plus"></i> Add Connection
+                    </button>
+                </div>
+
+                <div class="connections-container">
+                    <div id="connections-list" class="connections-grid">
+                        <div class="empty-state">
+                            <i class="fas fa-desktop"></i>
+                            <p>No connections configured</p>
+                            <button class="btn btn-primary" id="add-first-connection-btn">
+                                <i class="fas fa-plus"></i> Add Your First Connection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connection Form Modal -->
+                <div id="connection-modal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="modal-title">Add New Connection</h3>
+                            <button class="modal-close">&times;</button>
+                        </div>
+
+                        <!-- Security Notice -->
+                        <div class="security-notice">
+                            <i class="fas fa-info-circle"></i>
+                            <div class="notice-content">
+                                <strong>Security Tip:</strong> For enhanced security, consider storing your credentials
+                                in a password manager like Bitwarden, 1Password, or your browser's built-in password manager.
+                                This ensures your credentials are encrypted and easily accessible across devices.
+                            </div>
+                        </div>
+
+                        <form id="connection-form" class="connection-form">
+                            <div class="form-group">
+                                <label for="connection-name">Connection Name</label>
+                                <input type="text" id="connection-name" name="name" required
+                                       placeholder="My Development VM">
+                                <small class="form-help">A friendly name to identify this connection</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="connection-host">Host/IP Address</label>
+                                <input type="text" id="connection-host" name="host" required
+                                       placeholder="192.168.1.100 or vm.example.com">
+                                <small class="form-help">The IP address or hostname of your VM</small>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="connection-port">Port</label>
+                                    <input type="number" id="connection-port" name="port"
+                                           value="6901" min="1" max="65535">
+                                </div>
+                                <div class="form-group">
+                                    <label for="connection-protocol">Protocol</label>
+                                    <select id="connection-protocol" name="protocol">
+                                        <option value="kasmvnc">KasmVNC (Recommended)</option>
+                                        <option value="vnc">Standard VNC</option>
+                                        <option value="rdp">RDP</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="connection-username">Username (Optional)</label>
+                                <input type="text" id="connection-username" name="username"
+                                       placeholder="Leave empty for VNC password-only authentication">
+                                <small class="form-help">Required for RDP, optional for VNC</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="connection-password">Password</label>
+                                <div class="password-input-container">
+                                    <input type="password" id="connection-password" name="password" required
+                                           placeholder="Connection password">
+                                    <button type="button" class="password-toggle-btn" id="toggle-password">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                <small class="form-help">
+                                    <i class="fas fa-shield-alt"></i>
+                                    Stored securely in your browser's encrypted storage
+                                </small>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="connection-ssl" name="ssl">
+                                    <span class="checkmark"></span>
+                                    Use SSL/TLS encryption
+                                </label>
+                                <small class="form-help">Recommended for connections over the internet</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="connection-description">Description (Optional)</label>
+                                <textarea id="connection-description" name="description"
+                                          placeholder="Development environment for AI overlay testing"></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="test-connection-btn">
+                                    <i class="fas fa-plug"></i> Test Connection
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Save Connection
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div id="settings-page" class="page">
+                <div class="page-header">
+                    <h2><i class="fas fa-cog"></i> Settings</h2>
+                </div>
+
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <h3><i class="fas fa-robot"></i> MCP Configuration</h3>
+                        <div id="mcp-config-content">
+                            <div class="config-card">
+                                <h4>Cherry Studio Integration</h4>
+                                <p>Copy this configuration to connect Cherry Studio to your MCP server:</p>
+                                <div class="config-display">
+                                    <pre id="mcp-config-json">Loading...</pre>
+                                    <button class="btn btn-secondary" id="copy-config-btn">
+                                        <i class="fas fa-copy"></i> Copy Configuration
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3><i class="fas fa-display"></i> Display Settings</h3>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="auto-scale" checked>
+                                    <span class="checkmark"></span>
+                                    Auto-scale remote desktop to fit window
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="show-cursor" checked>
+                                    <span class="checkmark"></span>
+                                    Show remote cursor
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="multi-monitor" checked>
+                                    <span class="checkmark"></span>
+                                    Enable multi-monitor support
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3><i class="fas fa-shield-alt"></i> Security & Privacy</h3>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <label for="session-timeout">Session timeout (minutes)</label>
+                                <input type="number" id="session-timeout" value="30" min="5" max="480">
+                                <small class="form-help">Automatically disconnect after inactivity</small>
+                            </div>
+                            <div class="setting-item">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="remember-passwords" checked>
+                                    <span class="checkmark"></span>
+                                    Remember passwords in browser storage
+                                </label>
+                                <small class="form-help">Passwords are encrypted using browser security features</small>
+                            </div>
+                            <div class="setting-item">
+                                <button class="btn btn-danger" id="clear-stored-data">
+                                    <i class="fas fa-trash"></i> Clear All Stored Data
+                                </button>
+                                <small class="form-help">Remove all connections and settings from browser</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VM Connection View -->
+            <div id="vm-view" class="page vm-page">
+                <div class="vm-header">
+                    <button class="btn btn-secondary" id="back-to-connections">
+                        <i class="fas fa-arrow-left"></i> Back to Connections
+                    </button>
+                    <div class="vm-info">
+                        <h3 id="current-vm-name">VM Connection</h3>
+                        <span id="current-vm-status" class="status-badge">Connecting...</span>
+                    </div>
+                    <div class="vm-controls">
+                        <button class="btn btn-secondary" id="vm-settings-btn" title="Connection Settings">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button class="btn btn-secondary" id="fullscreen-btn" title="Toggle Fullscreen">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                        <button class="btn btn-danger" id="disconnect-btn">
+                            <i class="fas fa-times"></i> Disconnect
+                        </button>
+                    </div>
+                </div>
+                <div class="vm-content">
+                    <div id="kasmvnc-container" class="kasmvnc-container">
+                        <!-- KasmVNC iframe will be inserted here -->
+                    </div>
+                    <div id="overlay-canvas-container" class="overlay-container">
+                        <!-- Overlay canvas will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay" style="display: none;">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p id="loading-message">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script>
+        // Show loading screen initially, then load the app
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('app').style.display = 'block';
+
+                // Initialize the application
+                if (window.OverlayCompanionApp) {
+                    window.app = new OverlayCompanionApp();
+                }
+            }, 1000);
+        });
+    </script>
+    <script type="module" src="index.js"></script>
+</body>
+</html>
