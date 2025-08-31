@@ -18,7 +18,7 @@ services:
       - /dev/input:/dev/input:ro
       - /run/udev/data:/run/udev/data:ro
     ports:
-      - "${KASMVNC_PORT:-6901}:6901"   # KasmVNC web interface
+      - "${KASMVNC_PORT:-6080}:6901"   # KasmVNC web interface (mapped to 6080 by default)
       - "${KASMVNC_ADMIN_PORT:-3000}:3000"  # Admin interface
     restart: unless-stopped
     networks:
