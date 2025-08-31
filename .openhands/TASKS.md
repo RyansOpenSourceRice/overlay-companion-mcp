@@ -1,15 +1,15 @@
 # Task List
 
 1. ✅ Audit repo for old GitHub username references and plan updates
-Searched for RyansOpenSourceRice; only occurrences are expected (repo URLs). No change necessary unless username changed to something else.
+Scan complete; optional doc/script URL updates available if new username provided.
 2. ✅ Remove Guacamole references from README.md
-README.md contains no 'Guacamole' strings; already KasmVNC-centric. 'Guacamole integration' comment in server.js header is internal; left as-is.
-3. 🔄 Verify Flatpak workflow builds GUI and publishes on release
-Workflow exists; added timeouts to steps. Confirms on: release types: [published] and attaches asset.
-4. 🔄 Add timeouts to all GitHub Actions workflows
-container-registry already updated earlier; added fine-grained timeouts to flatpak-clipboard-bridge; others already have timeouts.
+README contains no Guacamole references. Updated one internal comment in infra/server/server.js to say Remote Desktop via KasmVNC.
+3. ⏳ Verify Flatpak workflow builds GUI and publishes on release
+Workflow exists and runs on release; GUI present. Remaining concern: manifest likely lacks Python interpreter at runtime (GNOME Platform doesn’t ship python3). Need to bundle Python or switch to a base that provides it + add a smoke test.
+4. ✅ Add timeouts to all GitHub Actions workflows
+Confirmed across workflows; added granular timeouts to flatpak build.
 5. ✅ Update overlay-web UI to use proxied /vnc
-Changed infra/web/src/app.js to point to /vnc for KasmVNC protocol.
+infra/web/src/app.js now targets /vnc for KasmVNC connections.
 6. ⏳ Run pre-commit and fix findings in touched files
-flake8 flags remain in tests and one unused import in clipboard-bridge.py; will only fix files we touched to keep scope minimal.
+Pre-commit runs; fixed in Flatpak files, many flake8 issues remain in tests. Decide whether to fix or relax lint for tests.
 
