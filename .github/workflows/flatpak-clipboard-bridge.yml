@@ -29,8 +29,11 @@ jobs:
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          sudo apt-get -yq update
-          sudo apt-get -yq install -o=Dpkg::Use-Pty=0 --no-install-recommends flatpak flatpak-builder jq curl
+          export DEBIAN_FRONTEND=noninteractive
+          echo "Installing flatpak and flatpak-builder (quiet)..."
+          sudo apt-get -yqq update > apt-update.log 2>&1 || { echo "apt update failed"; tail -n 200 apt-update.log; exit 1; }
+          sudo apt-get -yqq install -o=Dpkg::Use-Pty=0 --no-install-recommends flatpak flatpak-builder jq curl > apt-install.log 2>&1 || { echo "apt install failed"; tail -n 200 apt-install.log; exit 1; }
+          echo "Configuring Flathub remotes..."
           flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
           flatpak --user   remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
