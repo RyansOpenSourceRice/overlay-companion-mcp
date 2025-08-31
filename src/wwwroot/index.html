@@ -29,14 +29,20 @@
   <div id="display-layer"></div>
   <div id="overlay-layer"></div>
   <div id="guac-container" style="position:absolute; inset:0; z-index:0;"></div>
+  <!-- Optional Guacamole iframe as a first step before guacamole-common-js embed -->
   <iframe id="guac-iframe" src="/guac" style="position:absolute; inset:0; border:0; z-index:1;"></iframe>
 
 
+    <script src="/guac/js/guacamole-common.min.js"></script>
     <script>
       (function initGuac() {
+        if (!window.Guacamole) return;
         const iframe = document.getElementById('guac-iframe');
         const container = document.getElementById('guac-container');
+        const display = new Guacamole.Display();
         container.appendChild(display.getElement());
+        const tunnel = new Guacamole.HTTPTunnel('/guac/tunnel');
+        const client = new Guacamole.Client(tunnel);
         client.onstatechange = function(state) {
           // 0=idle,1=connecting,2=waiting,3=connected,4=disconnecting,5=disconnected
           console.log('Guac state:', state);
@@ -59,12 +65,15 @@
           }
           // Recompute overlay transforms
           if (typeof layoutLayers === 'function') layoutLayers();
+          // Scale Guacamole canvas to fit current virtual screen
           const s = Math.min(w / (virtual.width || w), h / (virtual.height || h));
           display.scale(s);
         }
         window.addEventListener('resize', resizeGuac);
         resizeGuac();
         // Mouse/keyboard passthrough (optional)
+        const mouse = new Guacamole.Mouse(display.getElement());
+        const keyboard = new Guacamole.Keyboard(document);
         mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = function(state) {
           client.sendMouseState(state);
         };
@@ -161,6 +170,7 @@
         displayLayer.appendChild(el);
       });
     }
+      // Resize potential Guacamole container to fill viewport
       guacContainer.style.width = window.innerWidth + 'px';
       guacContainer.style.height = window.innerHeight + 'px';
 

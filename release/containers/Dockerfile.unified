@@ -1,0 +1,116 @@
+# Unified MCP + Management Container
+# This container combines the C# MCP server and Node.js management web interface
+# Database (PostgreSQL) and Guacamole remain as separate containers
+
+# Stage 1: Build web frontend
+FROM node:20-alpine AS web-builder
+
+WORKDIR /app/web
+COPY release/containers/web/ ./
+RUN npm ci && npm run build
+
+# Stage 2: Build C# MCP server
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-builder
+
+WORKDIR /src
+COPY ["src/OverlayCompanion.csproj", "src/"]
+RUN dotnet restore "src/OverlayCompanion.csproj"
+
+COPY src/ src/
+RUN dotnet build "src/OverlayCompanion.csproj" -c Release -o /app/build
+RUN dotnet publish "src/OverlayCompanion.csproj" -c Release -o /app/publish
+
+# Stage 3: Production container with both services
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Node.js for web server
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    # X11 and display dependencies for MCP server
+    xvfb \
+    x11-utils \
+    x11-xserver-utils \
+    xauth \
+    # Image processing and screenshot tools
+    imagemagick \
+    scrot \
+    # Input simulation tools
+    xdotool \
+    # Process management
+    supervisor \
+    # Network tools
+    wget \
+    jq \
+    # Clean up
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -g 1001 appuser && \
+    useradd -r -u 1001 -g appuser appuser
+
+WORKDIR /app
+
+# Copy built web frontend
+COPY --from=web-builder /app/web/dist ./web/
+
+# Copy Node.js server
+COPY release/containers/server/ ./server/
+RUN cd server && npm ci --production
+
+# Copy built C# MCP server
+COPY --from=dotnet-builder /app/publish ./mcp-server/
+
+# Create supervisor configuration
+RUN mkdir -p /etc/supervisor/conf.d
+COPY <<EOF /etc/supervisor/conf.d/overlay-companion.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:web-server]
+command=node server.js
+directory=/app/server
+user=appuser
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/supervisor/web-server.log
+stderr_logfile=/var/log/supervisor/web-server.log
+environment=PORT=8080,MCP_SERVER_URL=http://localhost:8081
+
+[program:mcp-server]
+command=dotnet OverlayCompanion.dll
+directory=/app/mcp-server
+user=appuser
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/supervisor/mcp-server.log
+stderr_logfile=/var/log/supervisor/mcp-server.log
+environment=ASPNETCORE_URLS=http://localhost:8081,DISPLAY=:99
+
+[program:xvfb]
+command=/usr/bin/Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset
+user=appuser
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/supervisor/xvfb.log
+stderr_logfile=/var/log/supervisor/xvfb.log
+EOF
+
+# Set permissions
+RUN chown -R appuser:appuser /app
+RUN mkdir -p /var/log/supervisor && chown -R appuser:appuser /var/log/supervisor
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health && curl -f http://localhost:8081/health || exit 1
+
+# Expose single port
+EXPOSE 8080
+
+# Start supervisor to manage both services
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]

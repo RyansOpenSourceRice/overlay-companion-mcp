@@ -1,0 +1,130 @@
+# ⚠️ DEPRECATED: Guacamole-based Container Infrastructure
+#
+# This file defines the LEGACY Guacamole-based container stack.
+#
+# ⚠️ WARNING: This configuration is DEPRECATED in favor of KasmVNC.
+# Use infra/kasmvnc-compose.yml instead for:
+# ✅ No PostgreSQL database required
+# ✅ True multi-monitor support
+# ✅ 33% fewer containers (4 vs 6)
+# ✅ Simpler configuration
+
+version: "3.8"
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guacpass}
+      POSTGRES_DB: ${POSTGRES_DB:-guacamole_db}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  guacd:
+    image: docker.io/guacamole/guacd:1.5.5
+    restart: unless-stopped
+
+  guac-db-init:
+    image: docker.io/alpine:3.19
+    depends_on:
+      - postgres
+    environment:
+      PGPASSWORD: guacpass  # pragma: allowlist secret
+    entrypoint: ["/bin/sh","-c"]
+    command: |
+      apk add --no-cache curl tar postgresql-client >/dev/null &&
+      echo "Waiting for Postgres..." &&
+      for i in $$(seq 1 60); do psql -h postgres -U guacamole -d guacamole_db -c 'SELECT 1' && break || sleep 2; done &&
+      EXISTS=$$(psql -tA -h postgres -U guacamole -d guacamole_db -c "SELECT to_regclass('public.guacamole_user')") &&
+      if [ "$$EXISTS" = "guacamole_user" ]; then echo 'Guacamole DB schema already present'; exit 0; fi &&
+      echo 'Fetching Guacamole JDBC auth schema...' &&
+      curl -fsSL -o /tmp/guac-client.tar.gz https://github.com/apache/guacamole-client/archive/refs/tags/1.5.5.tar.gz &&
+      tar -xzf /tmp/guac-client.tar.gz -C /tmp &&
+      SCHEMA_DIR=/tmp/guacamole-client-1.5.5/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema &&
+      for f in $$(ls -1 "$$SCHEMA_DIR"/*.sql | sort); do echo "Applying $$f"; psql -v ON_ERROR_STOP=1 -h postgres -U guacamole -d guacamole_db -f "$$f"; done &&
+      echo 'Guacamole DB schema initialized'
+    restart: "no"
+
+  guacamole:
+    image: docker.io/guacamole/guacamole:1.5.5
+    depends_on:
+      - postgres
+      - guacd
+    environment:
+      GUACD_HOSTNAME: guacd
+      POSTGRES_HOSTNAME: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DATABASE: ${POSTGRES_DB:-guacamole_db}
+      POSTGRES_USER: ${POSTGRES_USER:-guacamole}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guacpass}
+    ports:
+      - "${GUACAMOLE_PORT:-8081}:8080" # Expose Guacamole web (Tomcat)
+    restart: unless-stopped
+
+  guac-init:
+    image: docker.io/alpine:3.19
+    depends_on:
+      - guacamole
+      - guac-db-init
+    environment:
+      GUAC_BASE_URL: http://guacamole:8080/guacamole
+      GUAC_ADMIN_USER: ${GUAC_ADMIN_USER:-guacadmin}
+      GUAC_ADMIN_PASS: ${GUAC_ADMIN_PASS:-guacadmin}
+      GUAC_CONN_NAME: ${GUAC_CONN_NAME:-fedora-vm}
+      GUAC_RDP_HOST: ${GUAC_RDP_HOST:-vm.example.local}
+      GUAC_RDP_PORT: ${GUAC_RDP_PORT:-3389}
+      GUAC_RDP_USERNAME: ${GUAC_RDP_USERNAME:-}
+      GUAC_RDP_PASSWORD: ${GUAC_RDP_PASSWORD:-}
+      GUAC_RDP_DOMAIN: ${GUAC_RDP_DOMAIN:-}
+      GUAC_RDP_SECURITY: ${GUAC_RDP_SECURITY:-any}
+      GUAC_RDP_IGNORE_CERT: ${GUAC_RDP_IGNORE_CERT:-true}
+      GUAC_RDP_WIDTH: ${GUAC_RDP_WIDTH:-1920}
+      GUAC_RDP_HEIGHT: ${GUAC_RDP_HEIGHT:-1080}
+    volumes:
+      - ./scripts:/scripts:ro
+    entrypoint: ["/bin/sh","-c"]
+    command: "apk add --no-cache curl >/dev/null && /bin/sh /scripts/guac-init.sh"
+    restart: "no"
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.mcp
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:3000
+    ports:
+      - "${MCP_PORT:-3000}:3000"
+    depends_on:
+      - guacamole
+    restart: unless-stopped
+
+  overlay-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    environment:
+      PORT: 8080
+      MCP_SERVER_URL: http://mcp-server:3000
+      GUACAMOLE_URL: http://guacamole:8080/guacamole
+    ports:
+      - "${WEB_PORT:-8082}:8080"  # Custom overlay web interface
+    depends_on:
+      - mcp-server
+      - guacamole
+    restart: unless-stopped
+
+  caddy:
+    image: docker.io/library/caddy:2.8.4
+    ports:
+      - "${CONTAINER_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - mcp-server
+      - overlay-web
+      - guacamole
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -14,10 +14,10 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-// const fs = require('fs').promises; // Reserved for future file operations
+const fs = require('fs').promises;
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const rateLimit = require('express-rate-limit');
-const ConnectionManager = require('./connection-manager');
+const helmet = require('helmet');
+const { rateLimiters, validatePath, validationRules, validateInput } = require('./middleware/security');
 
 // Configuration
 const config = {
@@ -25,9 +25,8 @@ const config = {
   bindAddress: process.env.BIND_ADDRESS || '0.0.0.0',
   httpPort: parseInt(process.env.HTTP_PORT) || 8080,
   wsPort: parseInt(process.env.WS_PORT) || 8081,
-  kasmvncUrl: process.env.KASMVNC_URL || 'http://localhost:6901',
-  kasmvncApiUrl: process.env.KASMVNC_API_URL || 'http://localhost:6902',
-  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:3001',
+  guacamoleUrl: process.env.GUACAMOLE_URL || 'http://localhost:8080',
+  mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:8081',
   mcpWsEnabled: process.env.MCP_WS_ENABLED === 'true',
   nodeEnv: process.env.NODE_ENV || 'development'
 };
@@ -47,7 +46,27 @@ const log = {
 // Express app setup
 const app = express();
 const server = http.createServer(app);
-const connectionManager = new ConnectionManager();
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Apply general rate limiting to all routes
+app.use(rateLimiters.general);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -150,8 +169,7 @@ if (config.mcpWsEnabled) {
 }
 
 // Broadcast overlay command to all connected clients
-function broadcastOverlay(payload) {
-  // Note: excludeClientId parameter removed as it's not currently used
+function broadcastOverlay(payload, excludeClientId = null) {
   const message = JSON.stringify({
     type: 'overlay_broadcast',
     payload,
@@ -190,110 +208,13 @@ app.use('/mcp', createProxyMiddleware({
       message: 'The C# MCP server is not responding. It may not be running or configured.'
     });
   },
-  onProxyReq: (proxyReq, req) => {
-    // Note: res parameter removed as it's not used in this context
+  onProxyReq: (proxyReq, req, res) => {
     log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
   }
 }));
 
-// SECURITY: Rate limiting for connection testing to prevent abuse
-const connectionTestLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // Limit each IP to 10 connection tests per minute
-  message: {
-    success: false,
-    error: 'Too many connection test attempts. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Connection testing endpoint with SSRF protection
-app.post('/api/test-connection', connectionTestLimiter, async (req, res) => {
-  try {
-    const connection = req.body;
-
-    // SECURITY: Additional input validation
-    if (!connection || typeof connection !== 'object') {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid connection configuration'
-      });
-    }
-
-    // SECURITY: Sanitize/allow only expected fields
-    let sanitizedConnection;
-    if (typeof connection.protocol === 'string' && connection.protocol.toLowerCase() === 'kasmvnc') {
-      // Only allow client to specify a known targetId
-      sanitizedConnection = {
-        targetId: typeof connection.targetId === 'string' ? connection.targetId : '',
-        protocol: 'kasmvnc'
-      };
-    } else {
-      sanitizedConnection = {
-        host: typeof connection.host === 'string' ? connection.host.trim() : '',
-        port: parseInt(connection.port),
-        protocol: typeof connection.protocol === 'string' ? connection.protocol.toLowerCase() : '',
-        ssl: Boolean(connection.ssl)
-      };
-    }
-
-    // Validate connection configuration (for non-kasmvnc only)
-    if (sanitizedConnection.protocol !== 'kasmvnc') {
-      const validation = connectionManager.validateConnection(sanitizedConnection);
-      if (!validation.valid) {
-        log.warn(`🚫 SECURITY: Invalid connection attempt from ${req.ip}:`, validation.errors);
-        return res.status(400).json({
-          success: false,
-          errors: validation.errors
-        });
-      }
-    }
-
-    // Test the connection (includes SSRF protection)
-    const result = await connectionManager.testConnection(sanitizedConnection);
-
-    // SECURITY: Log connection test attempts for monitoring
-    let logTarget;
-    if (sanitizedConnection.protocol === 'kasmvnc') {
-      logTarget = sanitizedConnection.targetId;
-    } else {
-      logTarget = `${sanitizedConnection.host}:${sanitizedConnection.port}`;
-    }
-    log.info(`Connection test: ${sanitizedConnection.protocol} - ${logTarget} - ${result.success ? 'SUCCESS' : 'FAILED'}`);
-
-    res.json(result);
-  } catch (error) {
-    log.error('Connection test failed:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error during connection test'
-    });
-  }
-});
-
-// Protocol defaults endpoint
-app.get('/api/protocol-defaults/:protocol', (req, res) => {
-  const { protocol } = req.params;
-  const defaults = connectionManager.getProtocolDefaults(protocol);
-
-  if (Object.keys(defaults).length === 0) {
-    return res.status(404).json({
-      error: 'Unknown protocol'
-    });
-  }
-
-  res.json(defaults);
-});
-
-// Connection manager stats endpoint
-app.get('/api/connection-stats', (req, res) => {
-  const stats = connectionManager.getStats();
-  res.json(stats);
-});
-
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', rateLimiters.health, async (req, res) => {
   // Check MCP server health
   let mcpServerStatus = 'unknown';
   try {
@@ -306,18 +227,6 @@ app.get('/health', async (req, res) => {
     mcpServerStatus = 'unavailable';
   }
 
-  // Check KasmVNC health
-  let kasmvncStatus = 'unknown';
-  try {
-    const response = await fetch(`${config.kasmvncApiUrl}/api/health`, {
-      timeout: 5000,
-      signal: AbortSignal.timeout(5000)
-    });
-    kasmvncStatus = response.ok ? 'healthy' : 'unhealthy';
-  } catch (error) {
-    kasmvncStatus = 'unavailable';
-  }
-
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -328,15 +237,12 @@ app.get('/health', async (req, res) => {
       httpPort: config.httpPort,
       wsPort: config.wsPort,
       mcpWsEnabled: config.mcpWsEnabled,
-      mcpServerUrl: config.mcpServerUrl,
-      kasmvncUrl: config.kasmvncUrl,
-      kasmvncApiUrl: config.kasmvncApiUrl
+      mcpServerUrl: config.mcpServerUrl
     },
     services: {
       webServer: 'running',
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
       mcpServer: mcpServerStatus,
-      kasmvnc: kasmvncStatus,
       connectedClients: overlayClients.size
     }
   };
@@ -345,7 +251,7 @@ app.get('/health', async (req, res) => {
 });
 
 // MCP configuration endpoint for Cherry Studio integration
-app.get('/mcp-config', (req, res) => {
+app.get('/mcp-config', validationRules.mcpConfig, validateInput, (req, res) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
   const wsProtocol = req.secure ? 'wss' : 'ws';
@@ -360,9 +266,7 @@ app.get('/mcp-config', (req, res) => {
       token: `dev-token-${Date.now()}`
     },
     desktop: {
-      target: 'kasmvnc-session',
-      kasmvnc_url: config.kasmvncUrl,
-      kasmvnc_api_url: config.kasmvncApiUrl,
+      target: 'fedora-silverblue',
       viewport: {
         w: 1920,
         h: 1080,
@@ -381,26 +285,24 @@ app.get('/mcp-config', (req, res) => {
   res.json(mcpConfig);
 });
 
-// Serve static files (web frontend)
-app.use(express.static(path.join(__dirname, '../public'), {
+// Serve static files (web frontend) with rate limiting
+app.use(rateLimiters.fileSystem, express.static(path.join(__dirname, '../public'), {
   maxAge: config.nodeEnv === 'production' ? '1d' : '0',
   etag: true,
   lastModified: true
 }));
 
-// Rate limiter for SPA route to prevent abuse
-const spaLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
+// Catch-all route for SPA with rate limiting and input validation
+app.get('*', rateLimiters.fileSystem, validatePath, (req, res) => {
+  // Validate that the request path doesn't contain directory traversal attempts
+  const safePath = path.normalize(req.path);
+  if (safePath.includes('..') || safePath.includes('~')) {
+    return res.status(400).json({
+      error: 'Invalid path detected',
+      message: 'Path traversal attempts are not allowed'
+    });
   }
-});
 
-// Catch-all route for SPA
-app.get('*', spaLimiter, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 

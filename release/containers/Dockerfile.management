@@ -1,0 +1,73 @@
+# Multi-stage build for Overlay Companion MCP Management Container
+# This container includes: Guacamole integration, MCP WebSocket bridge, Web frontend
+
+FROM node:20-alpine AS web-builder
+
+WORKDIR /app/web
+
+# Copy web frontend source
+COPY web/ ./
+
+# Install dependencies and build
+RUN npm ci --production && \
+    npm run build
+
+# Production container
+FROM node:20-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    jq \
+    && rm -rf /var/cache/apk/*
+
+# Create app user
+RUN addgroup -g 1001 -S appuser && \
+    adduser -S appuser -u 1001 -G appuser
+
+WORKDIR /app
+
+# Copy built web assets
+COPY --from=web-builder /app/web/dist ./public/
+COPY --from=web-builder /app/web/package*.json ./
+
+# Copy server application
+COPY server/ ./
+
+# Install server dependencies
+RUN npm ci --production && \
+    npm cache clean --force
+
+# Create required directories
+RUN mkdir -p /app/data /app/config /app/logs && \
+    chown -R appuser:appuser /app
+
+# Copy configuration templates
+COPY config/ ./config/
+
+# Health check script
+COPY scripts/healthcheck.sh /usr/local/bin/healthcheck
+RUN chmod +x /usr/local/bin/healthcheck
+
+# Switch to non-root user
+USER appuser
+
+# Expose ports
+EXPOSE 8080 8081
+
+# Environment variables
+ENV NODE_ENV=production \
+    PROJECT_NAME=overlay-companion-mcp \
+    BIND_ADDRESS=0.0.0.0 \
+    HTTP_PORT=8080 \
+    WS_PORT=8081 \
+    GUACAMOLE_URL=http://localhost:8080 \
+    MCP_WS_ENABLED=true
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /usr/local/bin/healthcheck
+
+# Start application
+CMD ["node", "server.js"]
