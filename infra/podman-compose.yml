@@ -11,7 +11,9 @@
 
 version: "3.8"
 services:
+  # Legacy Guacamole stack (disabled by default, enable with COMPOSE_PROFILES=legacy)
   postgres:
+    profiles: [legacy]
     image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-guacamole}
@@ -22,10 +24,12 @@ services:
     restart: unless-stopped
 
   guacd:
+    profiles: [legacy]
     image: docker.io/guacamole/guacd:1.5.5
     restart: unless-stopped
 
   guac-db-init:
+    profiles: [legacy]
     image: docker.io/alpine:3.19
     depends_on:
       - postgres
@@ -47,6 +51,7 @@ services:
     restart: "no"
 
   guacamole:
+    profiles: [legacy]
     image: docker.io/guacamole/guacamole:1.5.5
     depends_on:
       - postgres
@@ -63,6 +68,7 @@ services:
     restart: unless-stopped
 
   guac-init:
+    profiles: [legacy]
     image: docker.io/alpine:3.19
     depends_on:
       - guacamole
@@ -87,31 +93,50 @@ services:
     command: "apk add --no-cache curl >/dev/null && /bin/sh /scripts/guac-init.sh"
     restart: "no"
 
+  # New default: KasmVNC service (preferred)
+  kasmvnc:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.kasmvnc
+    environment:
+      # Ports can be customized per user via env
+      KASM_PORT: ${KASM_PORT:-6901}
+    ports:
+      - "${KASMVNC_PORT:-6901}:6901"
+      - "${KASMVNC_ADMIN_PORT:-3000}:3000"
+    restart: unless-stopped
+
   mcp-server:
     build:
       context: ..
       dockerfile: infra/Dockerfile.mcp
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:3000
+      # Prefer KasmVNC; provide API URL for health/metadata
+      KASMVNC_URL: http://kasmvnc:6901
+      KASMVNC_API_URL: http://kasmvnc:3000
     ports:
       - "${MCP_PORT:-3000}:3000"
     depends_on:
-      - guacamole
+      - kasmvnc
     restart: unless-stopped
 
   overlay-web:
     build:
       context: ..
-      dockerfile: infra/Dockerfile.web
+    	dockerfile: infra/Dockerfile.web
     environment:
       PORT: 8080
       MCP_SERVER_URL: http://mcp-server:3000
-      GUACAMOLE_URL: http://guacamole:8080/guacamole
+      # Back-compat: GUACAMOLE_URL now points to KasmVNC
+      GUACAMOLE_URL: http://kasmvnc:6901
+      # New variable for clarity
+      KASMVNC_URL: http://kasmvnc:6901
     ports:
       - "${WEB_PORT:-8082}:8080"  # Custom overlay web interface
     depends_on:
       - mcp-server
-      - guacamole
+      - kasmvnc
     restart: unless-stopped
 
   caddy:
@@ -123,7 +148,7 @@ services:
     depends_on:
       - mcp-server
       - overlay-web
-      - guacamole
+      - kasmvnc
     restart: unless-stopped
 
 volumes:

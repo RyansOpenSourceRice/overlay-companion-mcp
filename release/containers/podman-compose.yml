@@ -37,6 +37,7 @@ services:
 
   # Guacamole web interface
   guacamole:
+    profiles: [legacy]
     image: docker.io/guacamole/guacamole:1.5.4
     container_name: overlay-companion-guacamole
     depends_on:
@@ -52,14 +53,25 @@ services:
       - guacamole_data:/config
     restart: unless-stopped
 
+  # New preferred KasmVNC service
+  kasmvnc:
+    image: lscr.io/linuxserver/kasm:latest
+    container_name: overlay-companion-kasmvnc
+    environment:
+      - KASM_PORT=${KASM_PORT:-6901}
+    ports:
+      - "${KASMVNC_PORT:-6901}:6901"
+      - "${KASMVNC_ADMIN_PORT:-3000}:3000"
+    restart: unless-stopped
+
   # Unified MCP server + Management web interface
   overlay-companion:
     image: overlay-companion:latest
     container_name: overlay-companion
     depends_on:
-      - guacamole
+      - kasmvnc
     ports:
-      - "8080:8080"
+      - "${WEB_PORT:-8080}:8080"
     volumes:
       - overlay-companion-data:/app/data
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
@@ -67,7 +79,9 @@ services:
       - DISPLAY=:99
       - PORT=8080
       - MCP_SERVER_URL=http://localhost:8081
-      - GUACAMOLE_URL=http://overlay-companion-guacamole:8080
+      - GUACAMOLE_URL=http://overlay-companion-kasmvnc:6901
+      - KASMVNC_URL=http://overlay-companion-kasmvnc:6901
+      - KASMVNC_API_URL=http://overlay-companion-kasmvnc:3000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
