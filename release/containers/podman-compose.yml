@@ -38,7 +38,6 @@ services:
       - DISPLAY=:99
       - PORT=8080
       - MCP_SERVER_URL=http://localhost:8081
-      - GUACAMOLE_URL=http://overlay-companion-kasmvnc:6901
       - KASMVNC_URL=http://overlay-companion-kasmvnc:6901
       - KASMVNC_API_URL=http://overlay-companion-kasmvnc:3000
     restart: unless-stopped

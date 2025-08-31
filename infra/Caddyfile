@@ -18,15 +18,14 @@
     reverse_proxy mcp-server:3000
   }
 
-  # Guacamole web app (Tomcat); rewrite /guac/* -> /guacamole/*
-  handle_path /guac/* {
-    rewrite * /guacamole{path}
-    reverse_proxy guacamole:8080
+  # KasmVNC web client
+  handle_path /vnc/* {
+    reverse_proxy kasmvnc:6901
   }
 
-  # Direct Guacamole access (for debugging)
-  handle_path /guacamole/* {
-    reverse_proxy guacamole:8080
+  # KasmVNC admin/API (optional)
+  handle_path /vnc-api/* {
+    reverse_proxy kasmvnc:3000
   }
 
   # Default: route to custom overlay web interface
