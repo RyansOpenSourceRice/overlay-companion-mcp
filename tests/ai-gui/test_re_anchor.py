@@ -5,9 +5,7 @@ Test re_anchor_element tool functionality
 
 import json
 import subprocess
-import threading
 import time
-from pathlib import Path
 
 import requests
 
@@ -95,9 +93,9 @@ def test_re_anchor_element():
         if response.status_code == 200:
             init_result = parse_sse_response(response.text)
             if init_result:
-                print(f"✅ Initialize successful")
+                print("✅ Initialize successful")
             else:
-                print(f"⚠️ Initialize returned 200 but couldn't parse SSE response")
+                print("⚠️ Initialize returned 200 but couldn't parse SSE response")
                 return False
         else:
             print(f"❌ Initialize failed: {response.status_code}")
@@ -120,7 +118,7 @@ def test_re_anchor_element():
         )
 
         if response.status_code == 200:
-            print(f"✅ Mode set successful")
+            print("✅ Mode set successful")
         else:
             print(f"❌ Mode set failed: {response.status_code}")
             return False
@@ -159,7 +157,7 @@ def test_re_anchor_element():
                 if "content" in result_data and result_data["content"]:
                     overlay_info = json.loads(result_data["content"][0]["text"])
                     overlay_id = overlay_info.get("overlay_id")
-                    print(f"✅ Initial overlay drawn:")
+                    print("✅ Initial overlay drawn:")
                     print(f"   🎯 Overlay ID: {overlay_id}")
                     print(
                         f"   📍 Position: ({overlay_info['bounds']['x']}, {overlay_info['bounds']['y']})"
@@ -208,7 +206,7 @@ def test_re_anchor_element():
                 result_data = reanchor_result["result"]
                 if "content" in result_data and result_data["content"]:
                     reanchor_info = json.loads(result_data["content"][0]["text"])
-                    print(f"✅ Absolute re-anchor successful:")
+                    print("✅ Absolute re-anchor successful:")
                     print(f"   🎯 Overlay ID: {reanchor_info.get('overlay_id')}")
                     print(
                         f"   📍 Old Position: ({reanchor_info['old_position']['x']}, {reanchor_info['old_position']['y']})"
@@ -261,7 +259,7 @@ def test_re_anchor_element():
                 result_data = reanchor_result["result"]
                 if "content" in result_data and result_data["content"]:
                     reanchor_info = json.loads(result_data["content"][0]["text"])
-                    print(f"✅ Relative re-anchor successful:")
+                    print("✅ Relative re-anchor successful:")
                     print(f"   🎯 Overlay ID: {reanchor_info.get('overlay_id')}")
                     print(
                         f"   📍 Old Position: ({reanchor_info['old_position']['x']}, {reanchor_info['old_position']['y']})"
@@ -312,8 +310,8 @@ def test_re_anchor_element():
                 result_data = reanchor_result["result"]
                 if "content" in result_data and result_data["content"]:
                     reanchor_info = json.loads(result_data["content"][0]["text"])
-                    print(f"✅ Boundary clamping test successful:")
-                    print(f"   📍 Requested Position: (2000, 2000)")
+                    print("✅ Boundary clamping test successful:")
+                    print("   📍 Requested Position: (2000, 2000)")
                     print(
                         f"   📍 Actual Position: ({reanchor_info['new_position']['x']}, {reanchor_info['new_position']['y']})"
                     )
@@ -365,9 +363,9 @@ def test_re_anchor_element():
         else:
             reanchor_result = parse_sse_response(response.text)
             if reanchor_result and "error" in reanchor_result:
-                print(f"✅ Invalid overlay ID properly rejected with error")
+                print("✅ Invalid overlay ID properly rejected with error")
             else:
-                print(f"⚠️ Invalid overlay ID should have been rejected")
+                print("⚠️ Invalid overlay ID should have been rejected")
 
         print("\n🎉 Re-Anchor Element test completed!")
         return True
@@ -384,11 +382,11 @@ def test_re_anchor_element():
 if __name__ == "__main__":
     success = test_re_anchor_element()
 
-    print(f"\n📊 Re-Anchor Element Test Summary:")
-    print(f"✅ Absolute Positioning: Working")
-    print(f"✅ Relative Positioning: Working")
-    print(f"✅ Boundary Clamping: Working")
-    print(f"✅ Error Handling: Working")
-    print(f"✅ Monitor Support: Working")
+    print("\n📊 Re-Anchor Element Test Summary:")
+    print("✅ Absolute Positioning: Working")
+    print("✅ Relative Positioning: Working")
+    print("✅ Boundary Clamping: Working")
+    print("✅ Error Handling: Working")
+    print("✅ Monitor Support: Working")
 
     exit(0 if success else 1)

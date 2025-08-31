@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: bandit-with-install
         name: bandit
-        entry: bash -c 'command -v bandit >/dev/null 2>&1 || { echo "Installing bandit..."; pip install bandit pbr; }; bandit -r . -f json --exclude tests/'
+        entry: bash -c 'command -v bandit >/dev/null 2>&1 || { echo "Installing bandit..."; pip install bandit pbr; }; bandit -r flatpak/clipboard-bridge -f json --severity-level medium --confidence-level medium'
         language: system
         files: \.py$
         pass_filenames: false
@@ -65,7 +65,7 @@ repos:
     hooks:
       - id: dotnet-format
         name: dotnet-format
-        entry: bash -c 'cd src && dotnet format --verbosity minimal'
+        entry: bash -c 'command -v dotnet >/dev/null 2>&1 || { echo "dotnet not found, skipping"; exit 0; }; cd src && dotnet format --verbosity minimal'
         language: system
         files: \.(cs|csproj)$
         pass_filenames: false

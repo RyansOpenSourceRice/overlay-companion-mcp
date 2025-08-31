@@ -8,7 +8,6 @@ _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 The Overlay Companion MCP is a containerized system that provides AI-assisted screen interaction through a **simplified multi-container architecture**. The system is built using the **official ModelContextProtocol C# SDK** with HTTP transport and deployed via Docker Compose/Podman for reliable container orchestration.
 
-> **📋 Important**: The system has migrated from Guacamole to **KasmVNC architecture** for improved security, performance, and multi-monitor support. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for migration details.
 
 ### System Components (Current - KasmVNC Architecture)
 

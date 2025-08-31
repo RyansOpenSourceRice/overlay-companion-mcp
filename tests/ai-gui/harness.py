@@ -40,14 +40,14 @@ def run(
 def capture_screenshot(path: Path) -> bool:
     # Prefer ImageMagick import if available (works with Xvfb)
     if subprocess.call("command -v import >/dev/null", shell=True) == 0:
-        cp = run(f"import -window root {shlex.quote(str(path))}")
+        _ = run("import -window root " + shlex.quote(str(path)))
         return path.exists() and path.stat().st_size > 0
     # Fallback: no reliable pure-Python screenshot in headless without extra libs
     return False
 
 
 def start_app() -> subprocess.Popen:
-    env = os.environ.copy()
+    # env omitted
     # Ensure GUI is allowed; don't set HEADLESS here
     args = [str(APP_BIN)]
     # Use binary mode pipes for stdio framing compatibility
@@ -86,7 +86,6 @@ def smoke_test() -> dict:
     else:
         evidence["ok"] = False
         evidence["error"] = "screenshot_failed"
-    return evidence
 
 
 # Simple verification helper
@@ -102,8 +101,6 @@ def verify_overlay(img_path: Path, rect: dict) -> dict:
         res["ok"] = False
         res["error"] = str(e)
     return res
-
-    return evidence
 
 
 def main():
@@ -246,8 +243,6 @@ def mcp_roundtrip_with_sdk() -> dict:
             except Exception:
                 pass
 
-    return evidence
-
 
 def mcp_roundtrip(app_proc: subprocess.Popen) -> dict:
     """MCP roundtrip using working raw JSON client"""
@@ -320,8 +315,6 @@ def mcp_roundtrip(app_proc: subprocess.Popen) -> dict:
         import traceback
 
         evidence["traceback"] = traceback.format_exc()
-
-    return evidence
 
 
 if __name__ == "__main__":

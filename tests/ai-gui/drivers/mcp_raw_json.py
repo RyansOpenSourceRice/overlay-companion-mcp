@@ -6,7 +6,6 @@ Based on the successful debug_server.py approach
 
 import json
 import subprocess
-import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -92,7 +91,7 @@ class McpRawJsonClient:
             try:
                 process.terminate()
                 process.wait(timeout=2)
-            except:
+            except Exception:
                 process.kill()
 
     def initialize(

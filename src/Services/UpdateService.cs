@@ -12,7 +12,7 @@ public class UpdateService
 {
     private readonly ILogger<UpdateService> _logger;
     private readonly HttpClient _httpClient;
-    private const string GITHUB_API_URL = "https://api.github.com/repos/RyansOpenSauceRice/overlay-companion-mcp/releases/latest";
+    private const string GITHUB_API_URL = "https://api.github.com/repos/RyansOpenSourceRice/overlay-companion-mcp/releases/latest";
 
     public UpdateService(ILogger<UpdateService> logger, HttpClient httpClient)
     {

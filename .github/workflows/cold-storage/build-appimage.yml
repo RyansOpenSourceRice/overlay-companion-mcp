@@ -23,6 +23,7 @@ env:
 jobs:
   build-appimage:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -141,13 +142,14 @@ jobs:
   create-release:
     needs: build-appimage
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only attempt releases on the upstream repo owner; skip silently elsewhere
     if: |
       (
         (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true') ||
         (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
         github.event_name == 'release'
-      ) && github.repository_owner == 'RyansOpenSauceRice'
+      ) && github.repository_owner == 'RyansOpenSourceRice'
     permissions:
       contents: write
 
@@ -184,7 +186,7 @@ jobs:
         # Generate zsync file for AppImageUpdate support
         if command -v zsyncmake >/dev/null 2>&1; then
           echo "🔄 Generating zsync file for AppImageUpdate..."
-          zsyncmake -u "https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
+          zsyncmake -u "https://github.com/RyansOpenSourceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
           if [ -f "$ZSYNC_PATH" ]; then
             echo "✅ zsync file generated successfully"
             echo "zsync-available=true" >> $GITHUB_OUTPUT
@@ -197,7 +199,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq zsync
           echo "🔄 Generating zsync file for AppImageUpdate..."
-          zsyncmake -u "https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
+          zsyncmake -u "https://github.com/RyansOpenSourceRice/overlay-companion-mcp/releases/latest/download/${{ needs.build-appimage.outputs.appimage-name }}" "$APPIMAGE_PATH"
           if [ -f "$ZSYNC_PATH" ]; then
             echo "✅ zsync file generated successfully"
             echo "zsync-available=true" >> $GITHUB_OUTPUT

@@ -1,6 +1,5 @@
 version: "3.8"
 services:
-  # KasmVNC container - replaces Guacamole stack (postgres, guacd, guacamole, guac-init)
   kasmvnc:
     image: lscr.io/linuxserver/kasm:latest
     container_name: overlay-companion-kasmvnc
@@ -32,7 +31,6 @@ services:
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:3000
       KASMVNC_URL: http://kasmvnc:6901
-      # Remove Guacamole-specific environment variables
     ports:
       - "${MCP_PORT:-3001}:3000"
     depends_on:
@@ -49,7 +47,6 @@ services:
       PORT: 8080
       MCP_SERVER_URL: http://mcp-server:3000
       KASMVNC_URL: http://kasmvnc:6901
-      # Remove GUACAMOLE_URL
     ports:
       - "${WEB_PORT:-8082}:8080"
     depends_on:

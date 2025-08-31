@@ -2,7 +2,6 @@
 
 # Overlay Companion MCP - KasmVNC Host Setup Script
 # This script sets up the simplified KasmVNC-based container infrastructure
-# Replaces the complex Guacamole stack with KasmVNC for better multi-monitor support
 #
 # Usage:
 #   ./host-setup-kasmvnc.sh                       # Interactive port selection
@@ -113,8 +112,6 @@ PORTS:
     Web Interface:      PORT+2 (default: 8082)
 
 WHAT GETS INSTALLED:
-    ✅ 4 containers (vs 6 with Guacamole):
-       - KasmVNC container (replaces postgres + guacd + guacamole + guac-init)
        - MCP server container
        - Web interface container
        - Caddy proxy container
@@ -326,12 +323,12 @@ setup_repository() {
             warning "Config directory exists but is not a git repository, recreating..."
             rm -rf "$config_dir"
             mkdir -p "$(dirname "$config_dir")"
-            git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
+            git clone "https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git" "$config_dir"
         fi
     else
         info "Cloning repository..."
         mkdir -p "$(dirname "$config_dir")"
-        git clone "https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git" "$config_dir"
+        git clone "https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git" "$config_dir"
     fi
 
     cd "$config_dir"

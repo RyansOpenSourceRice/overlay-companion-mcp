@@ -23,7 +23,7 @@ Add the following information to the AppImage during build:
 
 ```bash
 # In build-appimage.sh
-export UPDATE_INFORMATION="gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync"
+export UPDATE_INFORMATION="gh-releases-zsync|RyansOpenSourceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync"
 ```
 
 #### B. Desktop File Enhancement
@@ -32,7 +32,7 @@ Update the `.desktop` file to include GearLever-specific metadata:
 ```ini
 [Desktop Entry]
 # ... existing entries ...
-X-AppImage-UpdateInformation=gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync
+X-AppImage-UpdateInformation=gh-releases-zsync|RyansOpenSourceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync
 X-AppImage-Version=2025.08.23.6
 ```
 
@@ -42,7 +42,7 @@ X-AppImage-Version=2025.08.23.6
 ```bash
 # Add GearLever compatibility
 echo "🔧 Adding GearLever update information..."
-export UPDATE_INFORMATION="gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync"
+export UPDATE_INFORMATION="gh-releases-zsync|RyansOpenSourceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync"
 
 # Embed update information in AppImage
 if [ -n "$UPDATE_INFORMATION" ]; then
@@ -57,7 +57,7 @@ Ensure the workflow generates the necessary files:
 ```yaml
 - name: Generate GearLever metadata
   run: |
-    echo "UPDATE_INFORMATION=gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync" >> $GITHUB_ENV
+    echo "UPDATE_INFORMATION=gh-releases-zsync|RyansOpenSourceRice|overlay-companion-mcp|latest|overlay-companion-mcp-*-x86_64.AppImage.zsync" >> $GITHUB_ENV
 ```
 
 ### 3. Testing and Validation
@@ -68,7 +68,7 @@ Ensure the workflow generates the necessary files:
 ./overlay-companion-mcp-*.AppImage --appimage-extract-and-run --appimage-updateinformation
 
 # Verify zsync file is accessible
-curl -I "https://github.com/RyansOpenSauceRice/overlay-companion-mcp/releases/latest/download/overlay-companion-mcp-latest-x86_64.AppImage.zsync"
+curl -I "https://github.com/RyansOpenSourceRice/overlay-companion-mcp/releases/latest/download/overlay-companion-mcp-latest-x86_64.AppImage.zsync"
 ```
 
 #### B. GearLever Integration Test

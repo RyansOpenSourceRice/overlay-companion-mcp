@@ -128,8 +128,6 @@ overlay-companion-release.tar.gz
 - [x] Disable AppImage builds
 - [ ] Create install.sh script with dependency management
 - [ ] Build OpenTofu modules for container + VM provisioning
-- [ ] Implement management container with Guacamole stack
-- [ ] Create web frontend with guacamole-common-js
 - [ ] Setup Fedora Silverblue VM with XRDP
 
 ### Phase 2: Integration & Polish

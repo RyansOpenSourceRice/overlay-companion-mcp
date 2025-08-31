@@ -54,7 +54,7 @@ echo -e "${YELLOW}Continue with deprecated Guacamole setup? (y/N)${NC}"
 read -r response
 if [[ ! "$response" =~ ^[Yy]$ ]]; then
     echo -e "${BLUE}Recommended: Download KasmVNC setup instead:${NC}"
-    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash"
     exit 0
 fi
 echo -e "${YELLOW}Proceeding with deprecated Guacamole setup...${NC}"
@@ -461,7 +461,7 @@ setup_project() {
         git pull origin main >> "$LOG_FILE" 2>&1 || true
     else
         log "Cloning repository..."
-        git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git "$project_dir" >> "$LOG_FILE" 2>&1
+        git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git "$project_dir" >> "$LOG_FILE" 2>&1
         cd "$project_dir"
     fi
 

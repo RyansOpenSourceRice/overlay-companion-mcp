@@ -322,10 +322,10 @@ cat > "$APPDIR/usr/share/metainfo/io.github.ryansopensaucerice.overlay-companion
     <keyword>Screen</keyword>
     <keyword>Automation</keyword>
   </keywords>
-  <url type="homepage">https://github.com/RyansOpenSauceRice/overlay-companion-mcp</url>
-  <url type="bugtracker">https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues</url>
+  <url type="homepage">https://github.com/RyansOpenSourceRice/overlay-companion-mcp</url>
+  <url type="bugtracker">https://github.com/RyansOpenSourceRice/overlay-companion-mcp/issues</url>
   <developer id="io.github.ryansopensaucerice">
-    <name>RyansOpenSauceRice</name>
+    <name>RyansOpenSourceRice</name>
   </developer>
   <content_rating type="oars-1.1">
     <content_attribute id="violence-cartoon">none</content_attribute>
@@ -481,7 +481,7 @@ export VERSION="$APP_VERSION"
 
 # Add update information for AppImageUpdate support
 echo -e "${YELLOW}🔄 Adding update information for automatic updates...${NC}"
-UPDATE_INFO="gh-releases-zsync|RyansOpenSauceRice|overlay-companion-mcp|latest|${APP_NAME}-*-${ARCH}.AppImage.zsync"
+UPDATE_INFO="gh-releases-zsync|RyansOpenSourceRice|overlay-companion-mcp|latest|${APP_NAME}-*-${ARCH}.AppImage.zsync"
 export UPDATE_INFORMATION="$UPDATE_INFO"
 
 # Build AppImage with better error handling

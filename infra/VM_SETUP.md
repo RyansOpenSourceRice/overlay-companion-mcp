@@ -1,10 +1,8 @@
 Fedora VM (xrdp) provisioning guide
 
-Goal: Create a Fedora Workstation/Silverblue VM with RDP (xrdp) for Apache Guacamole.
 
 Prereqs
 - Host with KVM/libvirt (virt-manager/virsh) or any hypervisor
-- Network: VM reachable from Podman host running Guacamole
 
 Steps (Workstation example)
 
@@ -29,7 +27,6 @@ Steps (Workstation example)
 
 4. Desktop session
    ```bash
-   # Use Xorg session for stability with Guacamole/FreeRDP
    # On the login screen, pick the gear icon and choose "GNOME on Xorg"
    # Optionally enforce Xorg default:
    sudo sh -c 'echo Xorg > /etc/X11/default-display-manager || true'
@@ -50,10 +47,7 @@ Steps (Workstation example)
 
 7. Resolution
    - For a combined desktop (e.g., 3840x1080), set display settings inside the VM
-   - Guacamole will stream that single, wide desktop. Multi-monitor via RDP is advanced and can be deferred.
 
-8. Guacamole connection
-   - In the Guacamole web UI (http://localhost:8081), add a new connection:
      Protocol: RDP
      Hostname: VM_IP
      Username/Password: your credentials
@@ -64,4 +58,3 @@ Steps (Workstation example)
 Notes
 - Wayland sessions may exhibit issues; prefer Xorg initially
 - Ensure the VM IP is reachable from the container network (podman network inspect)
-- If using SSH tunnels or VPN, adjust Guacamole connection host accordingly

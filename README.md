@@ -1,8 +1,10 @@
 # Overlay Companion MCP
 
+For the Clipboard Bridge Flatpak, see docs/CLIPBOARD_BRIDGE.md.
+
 AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through simplified containerized infrastructure using KasmVNC.
 
-> **📋 Important**: The Guacamole-based architecture has been deprecated. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for details on the migration to KasmVNC.
+> Note: This project uses the KasmVNC-based architecture. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for migration details.
 
 ## Architecture
 
@@ -19,7 +21,6 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 
 **Connection Flow**: Host containers → KasmVNC → Remote Desktop
 
-## Key Improvements over Guacamole
 
 ✅ **No Database Required**: Eliminates PostgreSQL complexity and credential management  
 ✅ **True Multi-Monitor Support**: KasmVNC provides native multi-monitor with separate windows  
@@ -35,35 +36,22 @@ AI-powered screen overlay system with Model Context Protocol (MCP) integration. 
 Use the new KasmVNC-based setup for better multi-monitor support and simpler configuration:
 ```bash
 # Quick start with KasmVNC (no database required)
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
 **Benefits**: No database, true multi-monitor support, 4 containers instead of 6, simpler maintenance.
 
-### Option B: Legacy Guacamole Setup (⚠️ DEPRECATED)
-
-> **⚠️ DEPRECATED**: The Guacamole-based architecture is deprecated in favor of KasmVNC. 
-> Guacamole requires complex PostgreSQL setup and lacks true multi-monitor support.
-> Use Option A (KasmVNC) for new installations.
-
-For compatibility with existing setups only:
-```bash
-# Legacy Guacamole setup (requires PostgreSQL) - DEPRECATED
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh | bash
-```
-
-### Step 1: Set up containers on your HOST Fedora Linux
 Run this on your main Fedora Linux system:
 
 **KasmVNC installation (recommended):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
 **Custom port installation:**
 ```bash
 # Method 1: Download and run with port argument (recommended)
-wget https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/host-setup.sh
+wget https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh
 chmod +x host-setup.sh
 ./host-setup.sh 8081
 
@@ -91,13 +79,6 @@ If port 8080 is in use, the script will automatically detect this and offer opti
 - **No Database**: Eliminates PostgreSQL complexity
 - **Ports**: All service ports configurable with automatic conflict resolution
 
-**What gets installed on HOST (Legacy Guacamole):**
-- MCP server container (C# overlay functionality)
-- Management web interface container (Node.js)
-- PostgreSQL container (database with secure credentials)
-- Guacamole container (web-based RDP client with generated admin account)
-- **Security**: Cryptographically secure passwords generated and stored in `~/.credentials`
-- **Ports**: All service ports configurable with automatic conflict resolution
 
 ### Step 2: Create a VM or Remote System (Optional)
 For remote desktop access, create a VM or use an existing system:
@@ -117,12 +98,12 @@ SSH into your VM/system or open a terminal, then run:
 
 **For KasmVNC (recommended):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
 ```
 
 **For legacy XRDP/VNC:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companion-mcp/main/vm-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup.sh | bash
 ```
 
 **What gets installed (KasmVNC):**
@@ -145,12 +126,6 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 3. Use "Add Display" button for multi-monitor support
 4. Copy MCP configuration for Cherry Studio integration
 
-**For legacy Guacamole setup:**
-1. Access management interface: `http://localhost:PORT` (where PORT is the port you configured)
-2. Add your VM using its IP address in Guacamole
-3. Configure RDP connection settings
-4. Start using AI overlay functionality
-
 **Note:** If you used a custom port, replace `8080` with your chosen port in all URLs below.
 
 ## Usage
@@ -161,13 +136,6 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSauceRice/overlay-companio
 - **KasmVNC Desktop**: `http://localhost:8080/vnc/` (web-native VNC access)
 - **System Status**: Container health and remote desktop connections
 
-### Web Interface (Legacy Guacamole)
-- **Main Interface**: `http://localhost:8080` (Caddy proxy - configurable port)
-- **Management**: `http://localhost:8080/` (overlay management interface)
-- **Guacamole**: `http://localhost:8080/guac/` (RDP access with generated credentials)
-- **System Status**: Container health and VM connections
-
-### MCP Server
 - **Direct Access**: `http://localhost:3001` (configurable port)
 - **Via Proxy**: `http://localhost:8080/mcp` (through Caddy)
 - **Protocol**: Model Context Protocol over HTTP
@@ -208,13 +176,6 @@ Configure the clipboard bridge through the web interface at `http://localhost:30
 
 **Documentation:** See [flatpak/clipboard-bridge/README.md](flatpak/clipboard-bridge/README.md) for detailed setup and usage instructions.
 
-### Generated Credentials
-After installation, find your secure credentials in:
-- **File**: `~/.credentials` (owner-only readable)
-- **Guacamole Login**: `admin_[8-char-hex]` with 32-character password
-- **Database**: Secure PostgreSQL credentials
-
-### AI Client Configuration
 Configure your AI client (Cherry Studio, etc.) to use:
 ```
 MCP Server URL: http://localhost:3000
@@ -231,8 +192,6 @@ podman ps
 
 # View logs
 podman logs overlay-companion
-podman logs overlay-companion-postgres
-podman logs overlay-companion-guacamole
 
 # Restart services
 cd ~/.config/overlay-companion-mcp
@@ -275,16 +234,16 @@ sudo systemctl status vncserver@1
 
 ### Building from Source
 ```bash
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 ./host-setup.sh
 ```
 
 ### Container Architecture
-- **Dockerfile.unified**: Combined MCP server + Management web interface
-- **podman-compose.yml**: Multi-container orchestration
-- **PostgreSQL**: Separate container for database isolation
-- **Guacamole**: Separate containers for RDP functionality
+- **KasmVNC container**: Web-native VNC with multi-monitor support
+- **MCP server container**: C# overlay functionality
+- **Web interface container**: Management UI
+- **Caddy proxy container**: Unified access point
 
 ## Contributing
 

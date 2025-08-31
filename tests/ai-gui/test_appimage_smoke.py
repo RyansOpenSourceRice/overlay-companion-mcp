@@ -14,6 +14,8 @@ def test_appimage_window_ready(tmp_path):
     ready = tmp_path / "window-ready.txt"
     env = os.environ.copy()
     env["OC_SMOKE_TEST"] = "1"
+    env["HEADLESS"] = "1"
+    env["DISPLAY"] = ":99"
     env["OC_WINDOW_READY_FILE"] = str(ready)
 
     # Start AppImage; use xvfb-run to provide a display in CI

@@ -29,10 +29,10 @@ class McpStdioClient:
                 try:
                     proc.terminate()
                     proc.wait(timeout=2)
-                except:
+                except Exception:
                     try:
                         proc.kill()
-                    except:
+                    except Exception:
                         pass
             # We need the command to create server parameters
             # For now, assume it's the same command that was used to create the process

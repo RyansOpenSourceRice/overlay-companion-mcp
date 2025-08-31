@@ -409,7 +409,7 @@ public class Program
                     description = "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
                     tags = new[] { "screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse" },
                     provider = "Overlay Companion",
-                    provider_url = "https://github.com/RyansOpenSauceRice/overlay-companion-mcp"
+                    provider_url = "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
                 }
             }
         };

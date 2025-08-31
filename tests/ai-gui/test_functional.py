@@ -1,21 +1,18 @@
-#!/usr/bin/env python3
 """
 Comprehensive functional test for MCP overlay system.
 Tests the complete overlay workflow without requiring visual verification.
 """
 
 import base64
-import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 # Add the drivers directory to the path
 sys.path.insert(0, str(Path(__file__).parent / "drivers"))
 
-from mcp_raw_json import McpRawJsonClient
+from mcp_raw_json import McpRawJsonClient  # noqa: E402
 
 
 def test_overlay_functionality():
@@ -306,7 +303,7 @@ def test_overlay_functionality():
         # Clean up
         try:
             client.cleanup()
-        except:
+        except Exception:
             pass
 
 

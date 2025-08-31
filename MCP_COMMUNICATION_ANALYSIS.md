@@ -162,16 +162,13 @@ Web UI → Node.js WebSocket (/ws) → Overlay Commands → C# Server
 ## KasmVNC Integration Requirements
 
 ### Current State
-The existing architecture assumes **Guacamole integration** but needs to be adapted for **KasmVNC**.
 
 ### Required Changes
 
 #### 1. Update Node.js Server Configuration
 ```javascript
-// Replace Guacamole URL with KasmVNC URL
 const config = {
   kasmvncUrl: process.env.KASMVNC_URL || 'http://localhost:6901',
-  // Remove guacamoleUrl
 };
 ```
 

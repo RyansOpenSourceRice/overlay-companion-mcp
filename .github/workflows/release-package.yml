@@ -22,6 +22,7 @@ permissions:
 jobs:
   build-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
     - name: Checkout code
@@ -116,7 +117,6 @@ jobs:
         3. **VM Setup**: Downloads and caches Fedora Silverblue ISO
         4. **Infrastructure**: Provisions management containers and VM using OpenTofu
         5. **Networking**: Configures secure host-only access (or optional LAN exposure)
-        6. **Services**: Starts Guacamole stack and MCP WebSocket bridge
 
         ## 🌐 Access Your System
 
@@ -153,7 +153,7 @@ jobs:
         ## 📞 Support
 
         - **Documentation**: See ARCHITECTURE.md and DEPLOYMENT.md
-        - **Issues**: https://github.com/RyansOpenSauceRice/overlay-companion-mcp/issues
+        - **Issues**: https://github.com/RyansOpenSourceRice/overlay-companion-mcp/issues
         - **Logs**: Check /tmp/overlay-companion-mcp-install.log
 
         ## 🎯 Integration with Cherry Studio
@@ -171,7 +171,6 @@ jobs:
 
         **Version**: ${{ steps.version.outputs.version }}
         **Built**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-        **Architecture**: Single-user VM deployment with OpenTofu + Podman + Guacamole
         EOF
 
     - name: Create checksums
@@ -214,7 +213,6 @@ jobs:
           - **OpenTofu** infrastructure automation
           - **Podman** containerized services
           - **Fedora Silverblue** VM with Wayland/XRDP
-          - **Guacamole** web-based remote access
           - **MCP WebSocket** bridge for AI integration
 
           ## 📦 Installation

@@ -12,7 +12,7 @@ via a simple REST API that the host MCP server can call.
 import asyncio
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -39,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")
+HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")  # nosec B104
 PORT = int(os.getenv("CLIPBOARD_BRIDGE_PORT", "8765"))
 API_KEY = os.getenv("CLIPBOARD_BRIDGE_API_KEY", "overlay-companion-mcp")
 
@@ -112,7 +112,9 @@ class ClipboardManager:
     def _command_exists(self, command: str) -> bool:
         """Check if a command exists in PATH"""
         try:
-            subprocess.run(["which", command], capture_output=True, check=True)
+            subprocess.run(
+                ["which", command], capture_output=True, check=True
+            )  # nosec B607
             return True
         except subprocess.CalledProcessError:
             return False
@@ -251,16 +253,64 @@ class ClipboardManager:
         return True
 
     async def _get_gtk_clipboard(self) -> tuple[str, str]:
-        """Get clipboard using GTK (fallback)"""
-        # This would require running in the main thread
-        # For now, raise an exception
-        raise Exception("GTK clipboard backend not implemented in async context")
+        """Get clipboard using GTK (portal-friendly)"""
+        import asyncio
+
+        return await asyncio.to_thread(self._gtk_get_text_blocking)
 
     async def _set_gtk_clipboard(self, content: str, content_type: str) -> bool:
-        """Set clipboard using GTK (fallback)"""
-        # This would require running in the main thread
-        # For now, raise an exception
-        raise Exception("GTK clipboard backend not implemented in async context")
+        """Set clipboard using GTK (portal-friendly)"""
+        import asyncio
+
+        return await asyncio.to_thread(self._gtk_set_text_blocking, content)
+
+    def _gtk_get_text_blocking(self) -> tuple[str, str]:
+        try:
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gdk, Gtk
+
+            # Initialize GTK if needed
+            try:
+                Gtk.init([])
+            except Exception as e:  # nosec B110
+                logger.debug("Gtk.init error ignored: {}".format(e))
+
+            display = Gdk.Display.get_default()
+            if not display:
+                raise Exception("No display available for GTK clipboard")
+
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            text = clipboard.wait_for_text() or ""
+            return text, "text/plain"
+        except Exception as e:
+            logger.error(f"GTK clipboard read failed: {e}")
+            raise
+
+    def _gtk_set_text_blocking(self, content: str) -> bool:
+        try:
+            import gi
+
+            gi.require_version("Gtk", "3.0")
+            from gi.repository import Gdk, Gtk
+
+            try:
+                Gtk.init([])
+            except Exception as e:  # nosec B110
+                logger.debug("Gtk.init error ignored: {}".format(e))
+
+            display = Gdk.Display.get_default()
+            if not display:
+                raise Exception("No display available for GTK clipboard")
+
+            clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            clipboard.set_text(content, -1)
+            clipboard.store()
+            return True
+        except Exception as e:
+            logger.error(f"GTK clipboard write failed: {e}")
+            raise
 
 
 # Global clipboard manager

@@ -4,7 +4,7 @@
  * Overlay Companion MCP - Management Server
  *
  * This server provides:
- * - Web interface with Guacamole integration
+ * - Web interface with Remote Desktop integration (via KasmVNC)
  * - MCP WebSocket bridge for overlay broadcasting
  * - Static file serving for frontend assets
  * - Health monitoring and status endpoints

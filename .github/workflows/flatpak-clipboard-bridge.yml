@@ -1,0 +1,111 @@
+name: Build Flatpak - Clipboard Bridge
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'flatpak/clipboard-bridge/**'
+      - '.github/workflows/flatpak-clipboard-bridge.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'flatpak/clipboard-bridge/**'
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-flatpak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flatpak and flatpak-builder
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq flatpak flatpak-builder python3-pip jq curl
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 org.freedesktop.Sdk.Extension.python3//23.08
+
+      - name: Build Flatpak
+        working-directory: flatpak/clipboard-bridge
+        timeout-minutes: 12
+        run: |
+          rm -rf build repo
+          flatpak-builder --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml
+
+      - name: Export bundle
+        working-directory: flatpak/clipboard-bridge
+        timeout-minutes: 3
+        run: |
+          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: org.overlaycompanion.ClipboardBridge.flatpak
+          path: flatpak/clipboard-bridge/org.overlaycompanion.ClipboardBridge.flatpak
+          retention-days: 7
+        timeout-minutes: 2
+
+
+      - name: Smoke test bundle (install, run, health check)
+        if: ${{ github.event_name != 'release' }}
+        timeout-minutes: 6
+        working-directory: flatpak/clipboard-bridge
+        run: |
+          set -euo pipefail
+          APP_ID=org.overlaycompanion.ClipboardBridge
+          BUNDLE=org.overlaycompanion.ClipboardBridge.flatpak
+
+          echo "Installing bundle..."
+          flatpak --user uninstall -y $APP_ID || true
+          flatpak --user install -y $BUNDLE
+
+          echo "Launching service..."
+          flatpak --user run --command=clipboard-bridge $APP_ID > bridge.log 2>&1 &
+          BRIDGE_PID=$!
+
+          # Poll health
+          attempt=0
+          until curl -sSf http://127.0.0.1:8765/health | jq -e '.status=="healthy"' >/dev/null 2>&1; do
+            attempt=$((attempt+1))
+            if [ $attempt -gt 20 ]; then
+              echo "Health check failed" >&2
+              echo "--- bridge.log ---"; tail -n 200 bridge.log || true; echo "---------------"
+              exit 1
+            fi
+            sleep 0.5
+          done
+          echo "Health OK"
+
+          # Shutdown
+          kill $BRIDGE_PID || true
+          wait $BRIDGE_PID || true
+
+  release-flatpak:
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: build-flatpak
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: org.overlaycompanion.ClipboardBridge.flatpak
+          path: ./dist
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/org.overlaycompanion.ClipboardBridge.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

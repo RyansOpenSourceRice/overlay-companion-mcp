@@ -5,7 +5,7 @@
 **🚀 One-Command Setup (Recommended):**
 ```bash
 # Clone and set up everything automatically
-git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 ./scripts/setup-dev-environment.sh
 ```
@@ -34,7 +34,7 @@ If the automatic setup fails or you prefer manual control:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp.git
+   git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
    cd overlay-companion-mcp
    ```
 
@@ -258,7 +258,7 @@ alias pcu="pre-commit autoupdate"
 
 1. **First-time contributors**:
    ```bash
-   git clone https://github.com/RyansOpenSauceRice/overlay-companion-mcp
+   git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp
    cd overlay-companion-mcp
    pip install pre-commit
    pre-commit install

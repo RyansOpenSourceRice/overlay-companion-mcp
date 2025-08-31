@@ -1,9 +1,14 @@
 # Task List
 
-1. ✅ Modernize web interface with accessible UI library
-Updated CSS with black text, white backgrounds, blue/yellow accents. Added accessibility features, focus management, reduced motion support, and responsive design improvements.
-2. ✅ Fix SELinux permission issues for Caddy proxy
-Added SELinux detection and automatic context application to setup script
-3. ✅ Enhance setup script to handle SELinux automatically
-Enhanced setup script with SELinux detection, context application, and helpful error messages
+1. ✅ Checkout branch chore/flatpak-gui-timeouts-readme and sync latest changes
+
+2. ⏳ Switch Flatpak manifest to Freedesktop runtime with python3 extension
+Proceed to switch manifest now as per approval
+3. 🔄 Add CI Flatpak smoke test (install, run, health check, shutdown) with timeouts
+
+4. 🔄 Fix all flake8 issues under tests and other Python files flagged by pre-commit
+
+5. ⏳ Run pre-commit --all-files and ensure clean pass
+
+6. ⏳ Commit and push updates to existing branch; do not mark PR ready
 
