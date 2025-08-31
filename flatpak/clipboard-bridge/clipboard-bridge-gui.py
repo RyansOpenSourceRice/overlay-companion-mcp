@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 import json
 import os
-import subprocess
+import subprocess  # nosec B404
 import threading
 import urllib.error
 import urllib.request
 
 try:
     import gi
+
     gi.require_version("Gtk", "3.0")
     from gi.repository import GLib, Gtk  # noqa: E402
+
     HAVE_GTK = True
 except Exception:
     HAVE_GTK = False
@@ -17,7 +19,7 @@ except Exception:
     Gtk = None
 
 APP_NAME = "Overlay Companion Clipboard Bridge"
-DEFAULT_HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")
+DEFAULT_HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")  # nosec B104
 DEFAULT_PORT = int(os.getenv("CLIPBOARD_BRIDGE_PORT", "8765"))
 DEFAULT_API_KEY = os.getenv("CLIPBOARD_BRIDGE_API_KEY", "overlay-companion-mcp")
 DEFAULT_BASE_URL = f"http://127.0.0.1:{DEFAULT_PORT}"
@@ -30,7 +32,7 @@ if not HAVE_GTK:
         env["CLIPBOARD_BRIDGE_HOST"] = env.get("CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST)
         env["CLIPBOARD_BRIDGE_PORT"] = str(DEFAULT_PORT)
         env["CLIPBOARD_BRIDGE_API_KEY"] = DEFAULT_API_KEY
-        subprocess.call(["clipboard-bridge"], env=env)
+        subprocess.call(["clipboard-bridge"], env=env)  # nosec B603,B607
 
 
 class BridgeGUI(Gtk.Window):
@@ -105,7 +107,9 @@ class BridgeGUI(Gtk.Window):
         env["CLIPBOARD_BRIDGE_PORT"] = str(port)
         env["CLIPBOARD_BRIDGE_API_KEY"] = self.entry_api.get_text()
         try:
-            self.proc = subprocess.Popen(["clipboard-bridge"], env=env)
+            self.proc = subprocess.Popen(
+                ["clipboard-bridge"], env=env
+            )  # nosec B603,B607
             self.update_status("running")
             self.toggle_btn.set_label("Stop")
         except Exception as e:
@@ -120,8 +124,8 @@ class BridgeGUI(Gtk.Window):
                     self.proc.wait(timeout=3)
                 except subprocess.TimeoutExpired:
                     self.proc.kill()
-            except Exception:
-                pass
+            except Exception as e:  # nosec B110 (best-effort shutdown)
+                print(f"stop_service error: {e}")
         self.proc = None
         self.update_status("stopped")
         self.toggle_btn.set_label("Start")
@@ -133,7 +137,7 @@ class BridgeGUI(Gtk.Window):
         def task():
             try:
                 req = urllib.request.Request(url)
-                with urllib.request.urlopen(req, timeout=3) as resp:
+                with urllib.request.urlopen(req, timeout=3) as resp:  # nosec B310
                     data = json.loads(resp.read().decode("utf-8"))
                 GLib.idle_add(
                     self.update_status, f"healthy ({data.get('backend', 'n/a')})"

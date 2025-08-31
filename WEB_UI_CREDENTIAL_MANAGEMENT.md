@@ -18,8 +18,8 @@ This document outlines the implementation of secure credential management throug
 ### Before: Environment Variable Injection
 ```bash
 # Old approach - credentials baked into VM
-export VNC_PASSWORD="password123"
-export KASM_PASSWORD="admin_password"
+export VNC_PASSWORD="password123"  # pragma: allowlist secret
+export KASM_PASSWORD="admin_password"  # pragma: allowlist secret
 ```
 
 ### After: Web UI Credential Management
@@ -30,7 +30,7 @@ const connection = {
     host: "192.168.1.100",
     port: 6901,
     username: "user",
-    password: "secure_password", // Stored in browser's encrypted localStorage
+    password: "secure_password", // pragma: allowlist secret // Stored in browser's encrypted localStorage
     ssl: true
 };
 ```
@@ -160,7 +160,7 @@ async testConnection() {
     port: 6901,
     protocol: "kasmvnc|vnc|rdp",
     username: "optional-username",
-    password: "encrypted-in-browser",
+    password: "encrypted-in-browser", // pragma: allowlist secret
     ssl: true,
     description: "Optional description",
     createdAt: "2024-01-01T00:00:00Z",

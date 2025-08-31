@@ -102,9 +102,7 @@ def test_native_http_transport():
                 )
                 print(f"✅ HTTP Initialize successful: {server_name}")
             else:
-                print(
-                    "⚠️ HTTP Initialize returned 200 but couldn't parse SSE response"
-                )
+                print("⚠️ HTTP Initialize returned 200 but couldn't parse SSE response")
                 print(f"Raw response: {response.text[:200]}...")
         else:
             print(f"❌ HTTP Initialize failed: {response.status_code} - {response.text}")
@@ -132,9 +130,7 @@ def test_native_http_transport():
                     f"🔧 Tools: {', '.join(tool_names[:5])}{'...' if len(tool_names) > 5 else ''}"
                 )
             else:
-                print(
-                    "⚠️ HTTP Tools list returned 200 but couldn't parse SSE response"
-                )
+                print("⚠️ HTTP Tools list returned 200 but couldn't parse SSE response")
         else:
             print(f"❌ HTTP Tools list failed: {response.status_code} - {response.text}")
             return False
@@ -238,9 +234,7 @@ def test_native_http_transport():
                 else:
                     print("⚠️ HTTP Screenshot returned but no content found")
             else:
-                print(
-                    "⚠️ HTTP Screenshot returned 200 but couldn't parse SSE response"
-                )
+                print("⚠️ HTTP Screenshot returned 200 but couldn't parse SSE response")
         else:
             print(f"❌ HTTP Screenshot failed: {response.status_code} - {response.text}")
 

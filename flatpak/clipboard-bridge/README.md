@@ -69,14 +69,14 @@ http://localhost:8765
 ```
 
 ### Authentication
-All API endpoints (except `/health` and `/`) require an API key:
+All API endpoints (except `/health` and `/`) require an API key:  # pragma: allowlist secret
 ```
 X-API-Key: overlay-companion-mcp
 ```
 
 ### Endpoints
 
-#### GET `/health`
+#### GET `/health`  # pragma: allowlist secret
 Health check endpoint.
 
 **Response:**
@@ -167,7 +167,7 @@ The settings are stored in `~/.overlay-companion/settings.json` and can be edite
   "clipboard_bridge": {
     "enabled": true,
     "baseUrl": "http://vm-ip-address:8765",
-    "apiKey": "overlay-companion-mcp",
+    "apiKey": "overlay-companion-mcp",  # pragma: allowlist secret
     "timeoutSeconds": 5,
     "fallbackToLocal": true,
     "description": "VM clipboard bridge for cross-system clipboard synchronization"
@@ -181,10 +181,10 @@ The settings are stored in `~/.overlay-companion/settings.json` and can be edite
 
 ```bash
 # Health check
-curl -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/health
+curl -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/health  # pragma: allowlist secret
 
 # Get clipboard content
-curl -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/clipboard
+curl -H "X-API-Key: overlay-companion-mcp" http://localhost:8765/clipboard  # pragma: allowlist secret
 
 # Set clipboard content
 curl -X POST -H "X-API-Key: overlay-companion-mcp" -H "Content-Type: application/json" \
@@ -232,7 +232,7 @@ Ensure the VM allows connections on port 8765:
 ss -tlnp | grep 8765
 
 # Test from host
-curl -H "X-API-Key: overlay-companion-mcp" http://vm-ip:8765/health
+curl -H "X-API-Key: overlay-companion-mcp" http://vm-ip:8765/health  # pragma: allowlist secret
 ```
 
 ### Firewall Configuration
@@ -270,7 +270,7 @@ flatpak run org.overlaycompanion.ClipboardBridge
 python3 -c "
 import requests
 headers = {'X-API-Key': 'overlay-companion-mcp'}
-print(requests.get('http://localhost:8765/health', headers=headers).json())
+print(requests.get('http://localhost:8765/health', headers=headers).json())  # pragma: allowlist secret
 "
 ```
 

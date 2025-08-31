@@ -1,11 +1,10 @@
-import os
-#!/usr/bin/env python3
 """
 Comprehensive functional test for MCP overlay system.
 Tests the complete overlay workflow without requiring visual verification.
 """
 
 import base64
+import os
 import subprocess
 import sys
 from pathlib import Path

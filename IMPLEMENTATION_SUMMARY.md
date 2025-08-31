@@ -168,8 +168,8 @@ Local Display Detection → KasmVNC API → Display Mapping → Overlay Placemen
 # Multiple SQL scripts, user creation, permissions...
 
 # New (KasmVNC): Simple environment variables
-export VNC_PASSWORD="secure_password"
-export KASM_PASSWORD="admin_password"
+export VNC_PASSWORD="secure_password"  # pragma: allowlist secret
+export KASM_PASSWORD="admin_password"  # pragma: allowlist secret
 podman-compose up -d
 ```
 

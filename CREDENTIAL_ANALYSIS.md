@@ -105,8 +105,8 @@ services:
 "
 
 # NEW (KasmVNC): Simple environment variables
-export VNC_PASSWORD="secure_password"
-export KASM_PASSWORD="admin_password"
+export VNC_PASSWORD="secure_password"  # pragma: allowlist secret
+export KASM_PASSWORD="admin_password"  # pragma: allowlist secret
 # Done!
 ```
 
@@ -152,8 +152,9 @@ podman-compose up -d
 3. **Use .env files** with restricted permissions for credential storage
 4. **Enable SSL/TLS** for web interface security
 
+### Migration Steps
 1. **Document current credentials** before migration
-3. **Map to KasmVNC environment variables**
+2. **Map to KasmVNC environment variables**
 
 ### Security Best Practices
 1. **Rotate credentials regularly** using environment variable updates

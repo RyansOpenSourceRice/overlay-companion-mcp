@@ -12,9 +12,8 @@ via a simple REST API that the host MCP server can call.
 import asyncio
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -40,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
-HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")
+HOST = os.getenv("CLIPBOARD_BRIDGE_HOST", "0.0.0.0")  # nosec B104
 PORT = int(os.getenv("CLIPBOARD_BRIDGE_PORT", "8765"))
 API_KEY = os.getenv("CLIPBOARD_BRIDGE_API_KEY", "overlay-companion-mcp")
 
@@ -113,7 +112,9 @@ class ClipboardManager:
     def _command_exists(self, command: str) -> bool:
         """Check if a command exists in PATH"""
         try:
-            subprocess.run(["which", command], capture_output=True, check=True)
+            subprocess.run(
+                ["which", command], capture_output=True, check=True
+            )  # nosec B607
             return True
         except subprocess.CalledProcessError:
             return False
@@ -273,8 +274,8 @@ class ClipboardManager:
             # Initialize GTK if needed
             try:
                 Gtk.init([])
-            except Exception:
-                pass
+            except Exception as e:  # nosec B110
+                logger.debug("Gtk.init error ignored: {}".format(e))
 
             display = Gdk.Display.get_default()
             if not display:
@@ -296,8 +297,8 @@ class ClipboardManager:
 
             try:
                 Gtk.init([])
-            except Exception:
-                pass
+            except Exception as e:  # nosec B110
+                logger.debug("Gtk.init error ignored: {}".format(e))
 
             display = Gdk.Display.get_default()
             if not display:

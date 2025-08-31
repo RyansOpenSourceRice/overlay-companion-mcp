@@ -12,4 +12,3 @@ Proceed to switch manifest now as per approval
 
 6. ⏳ Commit and push updates to existing branch; do not mark PR ready
 
-

@@ -43,7 +43,7 @@ services:
   overlay-web:
     build:
       context: ..
-    	dockerfile: infra/Dockerfile.web
+      dockerfile: infra/Dockerfile.web
     environment:
       PORT: 8080
       MCP_SERVER_URL: http://mcp-server:3000
