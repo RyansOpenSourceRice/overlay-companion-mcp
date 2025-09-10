@@ -30,6 +30,6 @@
   "devDependencies": {
     "cspell": "^6.13.0",
     "eslint": "^8.46.0",
-    "eslint-plugin-security": "^1.8.0"
+    "eslint-plugin-security": "^1.7.0"
   }
 }
