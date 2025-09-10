@@ -1,14 +1,13 @@
 # Task List
 
-1. ✅ Checkout branch chore/flatpak-gui-timeouts-readme and sync latest changes
-
-2. ⏳ Switch Flatpak manifest to Freedesktop runtime with python3 extension
-Proceed to switch manifest now as per approval
-3. 🔄 Add CI Flatpak smoke test (install, run, health check, shutdown) with timeouts
-
-4. 🔄 Fix all flake8 issues under tests and other Python files flagged by pre-commit
-
-5. ⏳ Run pre-commit --all-files and ensure clean pass
-
-6. ⏳ Commit and push updates to existing branch; do not mark PR ready
+1. ✅ Switch Flatpak manifest to Freedesktop 23.08 with Python available (use Sdk runtime)
+runtime: org.freedesktop.Sdk//23.08; removed extension requirements; added runtime python check
+2. ✅ Add headless run mode and document it
+--headless supported via GUI script; docs updated
+3. ✅ Fix CI: ensure flathub remote is added under FLATPAK_USER_DIR and reduce log noise
+Added remote-add in Build step; captured builder logs to file and tail on failure
+4. ✅ Implement CI smoke test (install bundle, run service, health poll, shutdown)
+Smoke test step present in workflow; uses --command=clipboard-bridge
+5. ⏳ Push updates to existing PR branch and keep draft
+Cannot push due to missing token in environment. Need permission or user to push.
 

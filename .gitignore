@@ -109,3 +109,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
+
+# Flatpak build artifacts
+flatpak/clipboard-bridge/.flatpak-builder/
+flatpak/clipboard-bridge/build/
+flatpak/clipboard-bridge/repo/
+flatpak/clipboard-bridge/*.flatpak
+

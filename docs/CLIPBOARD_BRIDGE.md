@@ -14,7 +14,12 @@ Run (Flatpak):
    - flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
 2) Install and run:
    - flatpak install --user ./org.overlaycompanion.ClipboardBridge.flatpak
-   - flatpak run org.overlaycompanion.ClipboardBridge
+   - flatpak run org.overlaycompanion.ClipboardBridge            # GUI if available
+   - flatpak run org.overlaycompanion.ClipboardBridge -- --headless  # force headless service (CI-friendly)
+
+CI smoke test:
+- GitHub Actions builds the Flatpak headlessly, installs the bundle, launches the service, polls /health until healthy, then shuts down.
+- The smoke test uses the headless server only; no GTK is required.
 
 API examples:
 

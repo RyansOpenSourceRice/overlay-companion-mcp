@@ -1,12 +1,11 @@
 app-id: org.overlaycompanion.ClipboardBridge
-runtime: org.freedesktop.Platform
+runtime: org.freedesktop.Sdk
 runtime-version: '23.08'
 sdk: org.freedesktop.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.python3
-runtime-extensions:
-  - org.freedesktop.Sdk.Extension.python3
 command: clipboard-bridge-gui
+
+# Also allow passing --headless to run just the service
+# Users can run: flatpak run org.overlaycompanion.ClipboardBridge -- --headless
 
 finish-args:
   # Clipboard and GUI permissions
@@ -28,6 +27,11 @@ finish-args:
   - --env=GTK_USE_PORTAL=1
 
 modules:
+  - name: python-runtime-check
+    buildsystem: simple
+    build-commands:
+      - python3 --version
+      - pip3 --version
   - name: python3-dependencies
     buildsystem: simple
     build-commands:

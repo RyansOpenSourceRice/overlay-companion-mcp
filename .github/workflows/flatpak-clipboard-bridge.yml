@@ -45,9 +45,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$FLATPAK_USER_DIR"
+          # Ensure the 'flathub' remote exists in this user-scoped dir
+          flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak --user update --appstream || true
           rm -rf build repo
-          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml
+          # Build quietly, print tail on failure
+          if ! flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml > builder.log 2>&1; then
+            echo "flatpak-builder failed; last 200 lines:" >&2
+            tail -n 200 builder.log || true
+            exit 1
+          fi
 
       - name: Export bundle
         working-directory: flatpak/clipboard-bridge
