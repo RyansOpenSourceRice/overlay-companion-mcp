@@ -115,4 +115,3 @@ flatpak/clipboard-bridge/.flatpak-builder/
 flatpak/clipboard-bridge/build/
 flatpak/clipboard-bridge/repo/
 flatpak/clipboard-bridge/*.flatpak
-

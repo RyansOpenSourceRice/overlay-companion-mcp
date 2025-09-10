@@ -30,12 +30,15 @@ def run_headless():
     env = os.environ.copy()
     env["CLIPBOARD_BRIDGE_HOST"] = env.get("CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST)
     env["CLIPBOARD_BRIDGE_PORT"] = env.get("CLIPBOARD_BRIDGE_PORT", str(DEFAULT_PORT))
-    env["CLIPBOARD_BRIDGE_API_KEY"] = env.get("CLIPBOARD_BRIDGE_API_KEY", DEFAULT_API_KEY)
+    env["CLIPBOARD_BRIDGE_API_KEY"] = env.get(
+        "CLIPBOARD_BRIDGE_API_KEY", DEFAULT_API_KEY
+    )
     print("Starting clipboard-bridge (headless)...")
     subprocess.call(["clipboard-bridge"], env=env)  # nosec B603,B607
 
 
 if HAVE_GTK:
+
     class BridgeGUI(Gtk.Window):
         def __init__(self):
             super().__init__(title=APP_NAME)
@@ -99,7 +102,9 @@ if HAVE_GTK:
                 return
             env = os.environ.copy()
             # Keep host binding configurable; Base URL uses 127.0.0.1 by default for testing
-            env["CLIPBOARD_BRIDGE_HOST"] = env.get("CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST)
+            env["CLIPBOARD_BRIDGE_HOST"] = env.get(
+                "CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST
+            )
             # Derive port from base URL if user edited it
             try:
                 port = int(self.entry_url.get_text().split(":")[-1])
@@ -108,7 +113,9 @@ if HAVE_GTK:
             env["CLIPBOARD_BRIDGE_PORT"] = str(port)
             env["CLIPBOARD_BRIDGE_API_KEY"] = self.entry_api.get_text()
             try:
-                self.proc = subprocess.Popen(["clipboard-bridge"], env=env)  # nosec B603,B607
+                self.proc = subprocess.Popen(
+                    ["clipboard-bridge"], env=env
+                )  # nosec B603,B607
                 self.update_status("running")
                 self.toggle_btn.set_label("Stop")
             except Exception as e:
@@ -138,7 +145,9 @@ if HAVE_GTK:
                     req = urllib.request.Request(url)
                     with urllib.request.urlopen(req, timeout=3) as resp:  # nosec B310
                         data = json.loads(resp.read().decode("utf-8"))
-                    GLib.idle_add(self.update_status, f"healthy ({data.get('backend', 'n/a')})")
+                    GLib.idle_add(
+                        self.update_status, f"healthy ({data.get('backend', 'n/a')})"
+                    )
                 except urllib.error.URLError as e:
                     GLib.idle_add(self.update_status, f"unreachable: {e}")
                 except Exception as e:
