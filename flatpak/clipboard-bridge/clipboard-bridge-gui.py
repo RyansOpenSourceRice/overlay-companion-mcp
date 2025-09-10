@@ -101,7 +101,7 @@ if HAVE_GTK:
             if self.proc and self.proc.poll() is None:
                 return
             env = os.environ.copy()
-            # Keep host binding configurable; Base URL uses 127.0.0.1 by default for testing
+            # Keep host binding configurable; default base URL for testing
             env["CLIPBOARD_BRIDGE_HOST"] = env.get(
                 "CLIPBOARD_BRIDGE_HOST", DEFAULT_HOST
             )
