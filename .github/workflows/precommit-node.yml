@@ -14,7 +14,12 @@ jobs:
       - name: Install Node deps (infra/server)
         working-directory: infra/server
         run: |
-          npm ci
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          else
+            echo "No lockfile found; running npm install to populate node_modules"
+            npm install --no-audit --no-fund
+          fi
       - name: Install dotnet
         uses: actions/setup-dotnet@v3
         with:
