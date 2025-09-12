@@ -12,18 +12,6 @@ IMAGES=( \
   "docker.io/library/caddy:2.8.4" \
 )
 
-# Container names (keeps stable names so logs are easy to find)
-CN_KASM="overlay-companion-kasmvnc"
-CN_MCP="overlay-companion-mcp"
-CN_WEB="overlay-companion-web"
-CN_CADDY="overlay-companion-proxy"
-
-# Ports mapped to host
-PORT_KASM=${KASMVNC_PORT:-6901}
-PORT_KASM_ADMIN=${KASMVNC_ADMIN_PORT:-3000}
-PORT_MCP=${MCP_PORT:-3001}
-PORT_WEB=${WEB_PORT:-8082}
-PORT_CADDY=${CONTAINER_PORT:-8080}
 
 # Pull required images
 pull_images() {
