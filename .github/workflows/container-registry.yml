@@ -212,6 +212,31 @@ jobs:
             exit 1
           fi
 
+      - name: Login to GHCR for image pull
+        run: |
+          echo "Logging in to ${REGISTRY} to check image availability"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u "${{ github.actor }}" --password-stdin
+
+      - name: Check and pull image (with retries)
+        id: image-check
+        run: |
+          set -euo pipefail
+          IMG="${{ env.REGISTRY }}/${{ toLower(github.repository) }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}"
+          echo "Checking image: $IMG"
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt to pull $IMG"
+            if docker pull "$IMG"; then
+              echo "image_available=true" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            attempt=$((attempt+1))
+            sleep 10
+          done
+          echo "Image not available after $max_attempts attempts"
+          echo "image_available=false" >> $GITHUB_OUTPUT
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
