@@ -113,7 +113,7 @@ repos:
         name: cspell
         # Prefer repo-local cspell (infra/server/node_modules/.bin/cspell) for reproducibility.
         # Fallback to global install only if local binary not found.
-        entry: bash -c 'if [ -x "./infra/server/node_modules/.bin/cspell" ]; then ./infra/server/node_modules/.bin/cspell --no-progress "$@"; else command -v cspell >/dev/null 2>&1 || { echo "Installing global cspell..."; npm install -g cspell; }; cspell --no-progress "$@"'
+        entry: bash -c 'if [ -x "./infra/server/node_modules/.bin/cspell" ]; then exec ./infra/server/node_modules/.bin/cspell --no-progress "$@"; else command -v cspell >/dev/null 2>&1 || { echo "Installing global cspell..."; npm install -g cspell; }; exec cspell --no-progress "$@"; fi' --
         language: system
         files: \.md$
 
