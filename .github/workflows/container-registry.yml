@@ -237,6 +237,19 @@ jobs:
           echo "Image not available after $max_attempts attempts"
           echo "image_available=false" >> $GITHUB_OUTPUT
 
+
+      - name: Create Trivy-skip artifact if image unavailable
+        if: steps.image-check.outputs.image_available == 'false'
+        run: |
+          echo "Trivy scan skipped for image: ${{ env.REGISTRY }}/${{ toLower(github.repository) }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}" > trivy-skip.txt
+          echo "Reason: image not available after retry attempts" >> trivy-skip.txt
+        # Upload artifact so maintainers can see why Trivy was skipped
+      - name: Upload Trivy-skip artifact
+        if: steps.image-check.outputs.image_available == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-skip-${{ matrix.image }}-${{ steps.tag.outputs.tag }}
+          path: trivy-skip.txt
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
