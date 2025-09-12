@@ -24,8 +24,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_MCP: ${{ github.repository }}/mcp-server
-  IMAGE_NAME_WEB: ${{ github.repository }}/web-interface
+  IMAGE_NAME_MCP: ${{ toLower(github.repository) }}/mcp-server
+  IMAGE_NAME_WEB: ${{ toLower(github.repository) }}/web-interface
 
 jobs:
   build-and-push:
@@ -215,7 +215,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
+          image-ref: ${{ env.REGISTRY }}/${{ toLower(github.repository) }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
           format: 'sarif'
           output: 'trivy-results.sarif'
 
