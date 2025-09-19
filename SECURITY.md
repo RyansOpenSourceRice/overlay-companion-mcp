@@ -62,7 +62,7 @@
 - [Contact Information](#contact-information)
 - [Appendix: Web UI credential management (consolidated)](#appendix-web-ui-credential-management-consolidated)
 - [Web UI Credential Management Implementation](#web-ui-credential-management-implementation)
-- [Overview](#overview-2)
+- [Overview](#overview-1)
 - [Key Requirements Addressed](#key-requirements-addressed)
 - [Architecture Changes](#architecture-changes)
   - [Before: Environment Variable Injection](#before-environment-variable-injection)

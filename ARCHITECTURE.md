@@ -68,7 +68,7 @@
   - [Current Container Network](#current-container-network)
 - [KasmVNC Architecture (4 containers)](#kasmvnc-architecture-4-containers)
   - [Communication Paths](#communication-paths)
-- [Security Considerations](#security-considerations-2)
+- [Security Considerations](#security-considerations-1)
   - [Current Security](#current-security)
   - [KasmVNC Security Integration](#kasmvnc-security-integration)
 - [Performance Characteristics](#performance-characteristics)

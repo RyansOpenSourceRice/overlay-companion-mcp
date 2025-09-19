@@ -81,7 +81,7 @@
   - [1. **Cherry Studio Compatibility**](#1-cherry-studio-compatibility)
   - [2. **Development Experience**](#2-development-experience)
   - [3. **Maintenance & Support**](#3-maintenance-support)
-- [Next Steps](#next-steps-2)
+- [Next Steps](#next-steps-1)
   - [1. **Complete Tool Implementation**](#1-complete-tool-implementation)
   - [2. **UI Framework Integration**](#2-ui-framework-integration)
   - [3. **Testing & Validation**](#3-testing-validation)
