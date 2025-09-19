@@ -1,5 +1,109 @@
 # Security Policy
 
+<!-- toc -->
+- [Overview](#overview)
+- [Implemented Security Measures](#implemented-security-measures)
+  - [1. Cross-Site Scripting (XSS) Prevention - CWE-79](#1-cross-site-scripting-xss-prevention-cwe-79)
+  - [2. Improper Encoding/Escaping - CWE-116](#2-improper-encodingescaping-cwe-116)
+  - [3. Missing Rate Limiting - CWE-307](#3-missing-rate-limiting-cwe-307)
+  - [4. Additional Security Headers - Helmet.js](#4-additional-security-headers-helmetjs)
+  - [5. Input Validation & Type Safety](#5-input-validation-type-safety)
+- [Security Middleware](#security-middleware)
+- [Testing Security Fixes](#testing-security-fixes)
+- [Reporting Security Issues](#reporting-security-issues)
+- [Security Scanning](#security-scanning)
+- [Dependencies Security](#dependencies-security)
+- [Best Practices Implemented](#best-practices-implemented)
+- [Security Configuration](#security-configuration)
+  - [Content Security Policy (CSP)](#content-security-policy-csp)
+  - [Rate Limiting Configuration](#rate-limiting-configuration)
+- [Compliance](#compliance)
+- [Appendix: Security fixes (consolidated)](#appendix-security-fixes-consolidated)
+- [Security Fixes - SSRF Vulnerability Remediation](#security-fixes-ssrf-vulnerability-remediation)
+- [Critical Security Issues Addressed](#critical-security-issues-addressed)
+  - [🚨 Server-Side Request Forgery (SSRF) Vulnerabilities](#server-side-request-forgery-ssrf-vulnerabilities)
+- [Security Fixes Implemented](#security-fixes-implemented)
+  - [1. Comprehensive SSRF Protection (Latest Update)](#1-comprehensive-ssrf-protection-latest-update)
+    - [POST Method Implementation](#post-method-implementation)
+    - [Enhanced Host Sanitization](#enhanced-host-sanitization)
+    - [Multiple Validation Layers](#multiple-validation-layers)
+  - [2. Host Validation and SSRF Protection (Previous Implementation)](#2-host-validation-and-ssrf-protection-previous-implementation)
+    - [Blocked Host Patterns](#blocked-host-patterns)
+    - [Allowed Host Patterns (Configurable)](#allowed-host-patterns-configurable)
+  - [2. Input Validation and Sanitization](#2-input-validation-and-sanitization)
+    - [Connection Input Sanitization](#connection-input-sanitization)
+    - [Host Normalization](#host-normalization)
+  - [3. Rate Limiting](#3-rate-limiting)
+    - [Connection Test Rate Limiting](#connection-test-rate-limiting)
+  - [4. Request Security Controls](#4-request-security-controls)
+    - [HTTP Request Protections](#http-request-protections)
+    - [Response Size Limiting](#response-size-limiting)
+  - [5. Socket Connection Security](#5-socket-connection-security)
+    - [Socket Security Options](#socket-security-options)
+  - [6. Security Configuration Management](#6-security-configuration-management)
+    - [Centralized Security Config (`security-config.js`)](#centralized-security-config-security-configjs)
+  - [7. Security Logging and Monitoring](#7-security-logging-and-monitoring)
+    - [Security Event Logging](#security-event-logging)
+- [Configuration Instructions](#configuration-instructions)
+  - [1. Configure Allowed Hosts](#1-configure-allowed-hosts)
+  - [2. Environment-Specific Configuration](#2-environment-specific-configuration)
+    - [Development Environment](#development-environment)
+    - [Production Environment](#production-environment)
+  - [3. Testing the Security Fixes](#3-testing-the-security-fixes)
+    - [Valid Connection Test](#valid-connection-test)
+    - [Blocked Connection Test (Should Fail)](#blocked-connection-test-should-fail)
+- [Security Best Practices](#security-best-practices)
+  - [1. Regular Security Reviews](#1-regular-security-reviews)
+  - [2. Network Segmentation](#2-network-segmentation)
+  - [3. Monitoring and Alerting](#3-monitoring-and-alerting)
+  - [4. Incident Response](#4-incident-response)
+- [Verification Checklist](#verification-checklist)
+- [Emergency Response](#emergency-response)
+- [Contact Information](#contact-information)
+- [Appendix: Web UI credential management (consolidated)](#appendix-web-ui-credential-management-consolidated)
+- [Web UI Credential Management Implementation](#web-ui-credential-management-implementation)
+- [Overview](#overview-2)
+- [Key Requirements Addressed](#key-requirements-addressed)
+- [Architecture Changes](#architecture-changes)
+  - [Before: Environment Variable Injection](#before-environment-variable-injection)
+- [Old approach - credentials baked into VM](#old-approach-credentials-baked-into-vm)
+  - [After: Web UI Credential Management](#after-web-ui-credential-management)
+- [Web UI Features Implemented](#web-ui-features-implemented)
+  - [1. Landing Page (`/`)](#1-landing-page)
+  - [2. Connection Management (`/connections`)](#2-connection-management-connections)
+  - [3. Connection Review Interface](#3-connection-review-interface)
+  - [4. VM Navigation](#4-vm-navigation)
+  - [5. Secure Credential Storage](#5-secure-credential-storage)
+- [Security Features](#security-features)
+  - [Credential Protection](#credential-protection)
+  - [Security Notice in UI](#security-notice-in-ui)
+  - [Connection Testing](#connection-testing)
+- [User Experience Enhancements](#user-experience-enhancements)
+  - [1. Intuitive Navigation](#1-intuitive-navigation)
+  - [2. Connection Management](#2-connection-management)
+  - [3. Status Monitoring](#3-status-monitoring)
+  - [4. Multi-Monitor Support](#4-multi-monitor-support)
+- [Implementation Details](#implementation-details)
+  - [Web UI Structure](#web-ui-structure)
+  - [Connection Storage Schema](#connection-storage-schema)
+  - [KasmVNC Integration](#kasmvnc-integration)
+- [Benefits of Web UI Credential Management](#benefits-of-web-ui-credential-management)
+  - [Security Benefits](#security-benefits)
+  - [User Experience Benefits](#user-experience-benefits)
+  - [Operational Benefits](#operational-benefits)
+- [Migration from Environment Variables](#migration-from-environment-variables)
+  - [Old Deployment (Deprecated)](#old-deployment-deprecated)
+- [docker-compose.yml - OLD APPROACH](#docker-composeyml-old-approach)
+  - [New Deployment (Current)](#new-deployment-current)
+- [docker-compose.yml - NEW APPROACH](#docker-composeyml-new-approach)
+- [No credential environment variables needed!](#no-credential-environment-variables-needed)
+- [Users configure credentials through web UI](#users-configure-credentials-through-web-ui)
+- [Future Enhancements](#future-enhancements)
+  - [Planned Security Improvements](#planned-security-improvements)
+  - [Planned UX Improvements](#planned-ux-improvements)
+- [Conclusion](#conclusion)
+<!-- tocstop -->
+
 ## Overview
 
 This document outlines the security measures implemented in the Overlay Companion MCP project to address common web application vulnerabilities.
@@ -173,8 +277,8 @@ This security implementation addresses:
 - Web Application Security best practices
 
 ---
-# Appendix: Security fixes (consolidated)
-# Security Fixes - SSRF Vulnerability Remediation
+## Appendix: Security fixes (consolidated)
+## Security Fixes - SSRF Vulnerability Remediation
 
 ## Critical Security Issues Addressed
 
@@ -503,8 +607,8 @@ For security issues or questions about these fixes:
 - Do not publicly disclose vulnerabilities before fixes are deployed
 
 ---
-# Appendix: Web UI credential management (consolidated)
-# Web UI Credential Management Implementation
+## Appendix: Web UI credential management (consolidated)
+## Web UI Credential Management Implementation
 
 ## Overview
 
@@ -523,7 +627,7 @@ This document outlines the implementation of secure credential management throug
 
 ### Before: Environment Variable Injection
 ```bash
-# Old approach - credentials baked into VM
+## Old approach - credentials baked into VM
 export VNC_PASSWORD="password123"  # pragma: allowlist secret
 export KASM_PASSWORD="admin_password"  # pragma: allowlist secret
 ```
@@ -721,7 +825,7 @@ class KasmVNCClient {
 
 ### Old Deployment (Deprecated)
 ```yaml
-# docker-compose.yml - OLD APPROACH
+## docker-compose.yml - OLD APPROACH
 environment:
   - VNC_PASSWORD=hardcoded_password
   - KASM_PASSWORD=another_hardcoded_password
@@ -729,9 +833,9 @@ environment:
 
 ### New Deployment (Current)
 ```yaml
-# docker-compose.yml - NEW APPROACH
-# No credential environment variables needed!
-# Users configure credentials through web UI
+## docker-compose.yml - NEW APPROACH
+## No credential environment variables needed!
+## Users configure credentials through web UI
 ```
 
 ## Future Enhancements

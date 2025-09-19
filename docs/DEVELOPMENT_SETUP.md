@@ -1,10 +1,92 @@
 # Development Setup Guide
 
+<!-- toc -->
+- [Automatic Setup for AllHands/AI Agents](#automatic-setup-for-allhandsai-agents)
+- [Clone and set up everything automatically](#clone-and-set-up-everything-automatically)
+- [Manual Setup (Alternative)](#manual-setup-alternative)
+  - [Prerequisites](#prerequisites)
+  - [Step-by-Step Setup](#step-by-step-setup)
+- [Pre-commit Hooks Setup](#pre-commit-hooks-setup)
+  - [Installation](#installation)
+  - [What Gets Checked](#what-gets-checked)
+    - [Python Files (`.py`)](#python-files-py)
+    - [C# Files (`.cs`, `.csproj`)](#c-files-cs-csproj)
+    - [Markdown Files (`.md`)](#markdown-files-md)
+    - [All Files](#all-files)
+    - [Git Commits](#git-commits)
+  - [Usage Examples](#usage-examples)
+    - [Normal Development](#normal-development)
+- [Edit some files](#edit-some-files)
+- [Add and commit (hooks run automatically)](#add-and-commit-hooks-run-automatically)
+- [↑ Pre-commit hooks run here automatically](#pre-commit-hooks-run-here-automatically)
+- [✅ All checks pass, commit succeeds](#all-checks-pass-commit-succeeds)
+  - [When Hooks Find Issues](#when-hooks-find-issues)
+- [Output:](#output)
+- [black....................................................................Failed](#blackfailed)
+- [- hook id: black](#hook-id-black)
+- [- files were modified by this hook](#files-were-modified-by-this-hook)
+- [isort....................................................................Passed](#isortpassed)
+- [flake8...................................................................Failed](#flake8failed)
+- [- hook id: flake8](#hook-id-flake8)
+- [- exit code: 1](#exit-code-1)
+- [Line 42: E501 line too long (95 > 88 characters)](#line-42-e501-line-too-long-95-88-characters)
+- [Fix the issues (or let auto-fixers handle them)](#fix-the-issues-or-let-auto-fixers-handle-them)
+- [✅ Now it passes](#now-it-passes)
+  - [Skip Hooks (Emergency Only)](#skip-hooks-emergency-only)
+- [Skip all hooks (not recommended)](#skip-all-hooks-not-recommended)
+- [Skip specific hook](#skip-specific-hook)
+  - [Run Hooks Manually](#run-hooks-manually)
+- [Run all hooks on all files](#run-all-hooks-on-all-files)
+- [Run specific hook](#run-specific-hook)
+- [Run hooks on specific files](#run-hooks-on-specific-files)
+  - [Configuration](#configuration)
+    - [Disable a Hook Temporarily](#disable-a-hook-temporarily)
+    - [Exclude Files](#exclude-files)
+    - [Add Custom Arguments](#add-custom-arguments)
+  - [Troubleshooting](#troubleshooting)
+    - [Hook Installation Issues](#hook-installation-issues)
+- [Reinstall hooks](#reinstall-hooks)
+  - [Update Hooks](#update-hooks)
+- [Update to latest versions](#update-to-latest-versions)
+- [Update specific hook](#update-specific-hook)
+  - [Performance Issues](#performance-issues)
+- [Run hooks in parallel (faster)](#run-hooks-in-parallel-faster)
+- [Skip slow hooks during development](#skip-slow-hooks-during-development)
+  - [IDE Integration](#ide-integration)
+    - [VS Code](#vs-code)
+    - [JetBrains (Rider, PyCharm)](#jetbrains-rider-pycharm)
+    - [Command Line](#command-line)
+- [Add to your shell profile (.bashrc, .zshrc)](#add-to-your-shell-profile-bashrc-zshrc)
+  - [Team Workflow](#team-workflow)
+  - [Benefits](#benefits)
+- [Appendix: GUI threading best practices (consolidated)](#appendix-gui-threading-best-practices-consolidated)
+- [GUI Threading Best Practices (Legacy Desktop)](#gui-threading-best-practices-legacy-desktop)
+- [🚨 The Problem: GUI Thread Blocking](#the-problem-gui-thread-blocking)
+  - [Common Symptoms:](#common-symptoms)
+- [✅ The Solution: Proper Async Threading](#the-solution-proper-async-threading)
+  - [1. **Background Thread Execution**](#1-background-thread-execution)
+  - [2. **UI Thread Marshaling with GLib.Idle.Add()**](#2-ui-thread-marshaling-with-glibidleadd)
+  - [3. **Operation Cancellation**](#3-operation-cancellation)
+  - [4. **Prevent Multiple Concurrent Operations**](#4-prevent-multiple-concurrent-operations)
+- [🔧 GTK4-Specific Threading Tools](#gtk4-specific-threading-tools)
+  - [**GLib.Idle.Add()**](#glibidleadd)
+  - [**GLib.Timeout.Add()**](#glibtimeoutadd)
+  - [**ConfigureAwait(false)**](#configureawaitfalse)
+- [📋 Implementation Checklist](#implementation-checklist)
+  - [For Long-Running Operations:](#for-long-running-operations)
+  - [For Button Click Handlers:](#for-button-click-handlers)
+- [🎯 Key Principles](#key-principles)
+- [🔍 Debugging Threading Issues](#debugging-threading-issues)
+  - [Tools:](#tools)
+  - [Common Issues:](#common-issues)
+- [📚 Additional Resources](#additional-resources)
+<!-- tocstop -->
+
 ## Automatic Setup for AllHands/AI Agents
 
 **🚀 One-Command Setup (Recommended):**
 ```bash
-# Clone and set up everything automatically
+## Clone and set up everything automatically
 git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 ./scripts/setup-dev-environment.sh
@@ -125,57 +207,57 @@ Pre-commit hooks run automatically before each commit to ensure code quality and
 
 #### Normal Development
 ```bash
-# Edit some files
+## Edit some files
 vim src/Program.cs
 vim tests/test_new_feature.py
 
-# Add and commit (hooks run automatically)
+## Add and commit (hooks run automatically)
 git add .
 git commit -m "feat: add multi-monitor support"
-# ↑ Pre-commit hooks run here automatically
-# ✅ All checks pass, commit succeeds
+## ↑ Pre-commit hooks run here automatically
+## ✅ All checks pass, commit succeeds
 ```
 
 #### When Hooks Find Issues
 ```bash
 git commit -m "feat: add new feature"
 
-# Output:
-# black....................................................................Failed
-# - hook id: black
-# - files were modified by this hook
-# 
-# isort....................................................................Passed
-# flake8...................................................................Failed
-# - hook id: flake8
-# - exit code: 1
-# 
-# Line 42: E501 line too long (95 > 88 characters)
+## Output:
+## black....................................................................Failed
+## - hook id: black
+## - files were modified by this hook
+## 
+## isort....................................................................Passed
+## flake8...................................................................Failed
+## - hook id: flake8
+## - exit code: 1
+## 
+## Line 42: E501 line too long (95 > 88 characters)
 
-# Fix the issues (or let auto-fixers handle them)
+## Fix the issues (or let auto-fixers handle them)
 git add .  # Add the auto-fixed files
 git commit -m "feat: add new feature"
-# ✅ Now it passes
+## ✅ Now it passes
 ```
 
 #### Skip Hooks (Emergency Only)
 ```bash
-# Skip all hooks (not recommended)
+## Skip all hooks (not recommended)
 git commit -m "hotfix: emergency fix" --no-verify
 
-# Skip specific hook
+## Skip specific hook
 SKIP=flake8 git commit -m "feat: work in progress"
 ```
 
 #### Run Hooks Manually
 ```bash
-# Run all hooks on all files
+## Run all hooks on all files
 pre-commit run --all-files
 
-# Run specific hook
+## Run specific hook
 pre-commit run black --all-files
 
-# Run hooks on specific files
+## Run hooks on specific files
 pre-commit run --files src/Program.cs tests/test_*.py
 ```
 
@@ -215,7 +297,7 @@ The configuration is in `.pre-commit-config.yaml`. You can:
 
 #### Hook Installation Issues
 ```bash
-# Reinstall hooks
+## Reinstall hooks
 pre-commit uninstall
 pre-commit install
 pre-commit install --hook-type commit-msg
@@ -223,19 +305,19 @@ pre-commit install --hook-type commit-msg
 
 #### Update Hooks
 ```bash
-# Update to latest versions
+## Update to latest versions
 pre-commit autoupdate
 
-# Update specific hook
+## Update specific hook
 pre-commit autoupdate --repo https://github.com/psf/black
 ```
 
 #### Performance Issues
 ```bash
-# Run hooks in parallel (faster)
+## Run hooks in parallel (faster)
 pre-commit run --all-files --show-diff-on-failure
 
-# Skip slow hooks during development
+## Skip slow hooks during development
 SKIP=bandit,detect-secrets git commit -m "wip: development"
 ```
 
@@ -249,7 +331,7 @@ Enable "Run pre-commit hooks" in VCS settings.
 
 #### Command Line
 ```bash
-# Add to your shell profile (.bashrc, .zshrc)
+## Add to your shell profile (.bashrc, .zshrc)
 alias pc="pre-commit run --all-files"
 alias pcu="pre-commit autoupdate"
 ```
@@ -285,8 +367,8 @@ alias pcu="pre-commit autoupdate"
 - 👥 **Team consistency** regardless of IDE/editor choice
 
 ---
-# Appendix: GUI threading best practices (consolidated)
-# GUI Threading Best Practices (Legacy Desktop)
+## Appendix: GUI threading best practices (consolidated)
+## GUI Threading Best Practices (Legacy Desktop)
 
 Note: The project is now web-only. This document is preserved for historical context and applies only to the former GTK/Avalonia desktop UI paths.
 

@@ -1,5 +1,94 @@
 # Implementation Guide
 
+<!-- toc -->
+- [Technology Stack](#technology-stack)
+  - [Core Framework](#core-framework)
+  - [MCP Integration](#mcp-integration)
+  - [Linux Integration](#linux-integration)
+- [Project Structure](#project-structure)
+- [Implementation Phases](#implementation-phases)
+  - [Phase 1: Core MCP Server](#phase-1-core-mcp-server)
+  - [Phase 2: Screen Interaction Core](#phase-2-screen-interaction-core)
+  - [Phase 3: Input Simulation](#phase-3-input-simulation)
+  - [Phase 4: Advanced Features](#phase-4-advanced-features)
+- [Code Extraction Guidelines](#code-extraction-guidelines)
+  - [From Previous Project - EXTRACT:](#from-previous-project-extract)
+  - [From Previous Project - AVOID:](#from-previous-project-avoid)
+- [MCP Tool Implementation Example](#mcp-tool-implementation-example)
+- [Mode System Implementation](#mode-system-implementation)
+- [Integration with Cherry Studio](#integration-with-cherry-studio)
+- [Privacy and Security](#privacy-and-security)
+- [Next Steps](#next-steps)
+- [Testing Strategy](#testing-strategy)
+- [Appendix: Implementation summary (consolidated)](#appendix-implementation-summary-consolidated)
+- [Implementation Summary: KasmVNC Migration and MCP Integration](#implementation-summary-kasmvnc-migration-and-mcp-integration)
+- [Overview](#overview)
+- [Completed Work](#completed-work)
+  - [1. Architecture Migration ✅](#1-architecture-migration)
+    - [Benefits Achieved](#benefits-achieved)
+  - [2. Complete KasmVNC Implementation ✅](#2-complete-kasmvnc-implementation)
+    - [Container Configuration](#container-configuration)
+    - [Configuration Files](#configuration-files)
+  - [3. WebSocket Communication Implementation ✅](#3-websocket-communication-implementation)
+    - [C# MCP Server Integration](#c-mcp-server-integration)
+    - [Key Features Implemented](#key-features-implemented)
+  - [4. Multi-Monitor Support ✅](#4-multi-monitor-support)
+    - [Display Detection](#display-detection)
+    - [Overlay Synchronization](#overlay-synchronization)
+  - [5. Credential Management Simplification ✅](#5-credential-management-simplification)
+    - [After (KasmVNC - Current)](#after-kasmvnc-current)
+  - [6. Documentation and Analysis ✅](#6-documentation-and-analysis)
+    - [Comprehensive Documentation Created](#comprehensive-documentation-created)
+  - [7. Deprecation Management ✅](#7-deprecation-management)
+    - [Files Marked as Deprecated](#files-marked-as-deprecated)
+  - [8. Quality Assurance ✅](#8-quality-assurance)
+    - [Pre-commit Checks](#pre-commit-checks)
+    - [Error Handling](#error-handling)
+- [Technical Architecture](#technical-architecture)
+  - [Container Communication Flow](#container-communication-flow)
+  - [WebSocket Message Flow](#websocket-message-flow)
+  - [Multi-Monitor Support](#multi-monitor-support)
+- [Performance Improvements](#performance-improvements)
+  - [Resource Usage](#resource-usage)
+  - [Latency Improvements](#latency-improvements)
+- [Security Enhancements](#security-enhancements)
+  - [Attack Surface Reduction](#attack-surface-reduction)
+  - [Authentication Simplification](#authentication-simplification)
+- [Development Experience](#development-experience)
+  - [Simplified Setup](#simplified-setup)
+- [Multiple SQL scripts, user creation, permissions...](#multiple-sql-scripts-user-creation-permissions)
+- [New (KasmVNC): Simple environment variables](#new-kasmvnc-simple-environment-variables)
+  - [Better Debugging](#better-debugging)
+- [Future Enhancements](#future-enhancements)
+  - [Recommended Next Steps](#recommended-next-steps)
+  - [Potential Improvements](#potential-improvements)
+- [Conclusion](#conclusion)
+- [Appendix: SDK integration summary (consolidated)](#appendix-sdk-integration-summary-consolidated)
+- [Official ModelContextProtocol SDK Integration Summary](#official-modelcontextprotocol-sdk-integration-summary)
+- [Decision: Official SDK Adoption](#decision-official-sdk-adoption)
+- [Why the Official SDK?](#why-the-official-sdk)
+  - [✅ **Advantages**](#advantages)
+  - [📋 **Comparison with Alternatives**](#comparison-with-alternatives)
+- [Implementation Changes Made](#implementation-changes-made)
+  - [1. **Project Structure Updates**](#1-project-structure-updates)
+  - [2. **MCP Server Implementation**](#2-mcp-server-implementation)
+  - [3. **Service Architecture**](#3-service-architecture)
+  - [4. **Documentation Updates**](#4-documentation-updates)
+- [Architecture Comparison](#architecture-comparison)
+  - [Before (Custom Implementation):](#before-custom-implementation)
+  - [After (Official SDK):](#after-official-sdk)
+- [Integration Benefits](#integration-benefits)
+  - [1. **Cherry Studio Compatibility**](#1-cherry-studio-compatibility)
+  - [2. **Development Experience**](#2-development-experience)
+  - [3. **Maintenance & Support**](#3-maintenance-support)
+- [Next Steps](#next-steps-2)
+  - [1. **Complete Tool Implementation**](#1-complete-tool-implementation)
+  - [2. **UI Framework Integration**](#2-ui-framework-integration)
+  - [3. **Testing & Validation**](#3-testing-validation)
+  - [4. **Deployment**](#4-deployment)
+- [Summary](#summary)
+<!-- tocstop -->
+
 ## Technology Stack
 
 ### Core Framework
@@ -232,8 +321,8 @@ public class PrivacyManager
 - **Performance benchmarks**
 
 ---
-# Appendix: Implementation summary (consolidated)
-# Implementation Summary: KasmVNC Migration and MCP Integration
+## Appendix: Implementation summary (consolidated)
+## Implementation Summary: KasmVNC Migration and MCP Integration
 
 ## Overview
 
@@ -400,9 +489,9 @@ Local Display Detection → KasmVNC API → Display Mapping → Overlay Placemen
 
 ### Simplified Setup
 ```bash
-# Multiple SQL scripts, user creation, permissions...
+## Multiple SQL scripts, user creation, permissions...
 
-# New (KasmVNC): Simple environment variables
+## New (KasmVNC): Simple environment variables
 export VNC_PASSWORD="secure_password"  # pragma: allowlist secret
 export KASM_PASSWORD="admin_password"  # pragma: allowlist secret
 podman-compose up -d
@@ -444,8 +533,8 @@ All code has been committed to the `feature/kasmvnc-architecture` branch with co
 
 
 ---
-# Appendix: SDK integration summary (consolidated)
-# Official ModelContextProtocol SDK Integration Summary
+## Appendix: SDK integration summary (consolidated)
+## Official ModelContextProtocol SDK Integration Summary
 
 ## Decision: Official SDK Adoption
 

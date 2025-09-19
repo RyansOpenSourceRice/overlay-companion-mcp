@@ -1,5 +1,127 @@
 # Overlay Companion MCP - Architecture Specification
 
+<!-- toc -->
+- [Vision](#vision)
+- [User Flow](#user-flow)
+- [System Architecture](#system-architecture)
+  - [Core Components](#core-components)
+  - [Technology Stack](#technology-stack)
+    - [Infrastructure Layer](#infrastructure-layer)
+    - [Container Stack (4 Containers - 33% Reduction)](#container-stack-4-containers-33-reduction)
+    - [Virtual Machine](#virtual-machine)
+    - [Client Integration](#client-integration)
+- [Network Architecture](#network-architecture)
+  - [Default Configuration (Secure)](#default-configuration-secure)
+  - [Optional LAN Exposure (With Warnings)](#optional-lan-exposure-with-warnings)
+  - [Security Considerations](#security-considerations)
+- [Release Package Structure](#release-package-structure)
+  - [Lightweight Release (Primary)](#lightweight-release-primary)
+  - [Installation Process](#installation-process)
+- [Development Phases](#development-phases)
+  - [Phase 1: Core Infrastructure (MVP)](#phase-1-core-infrastructure-mvp)
+  - [Phase 2: Integration & Polish](#phase-2-integration-polish)
+  - [Phase 3: Production Readiness](#phase-3-production-readiness)
+- [Platform Support Policy](#platform-support-policy)
+  - [Supported Platforms](#supported-platforms)
+  - [Explicitly Out of Scope](#explicitly-out-of-scope)
+- [Resource Requirements](#resource-requirements)
+  - [Minimum (Development/Testing)](#minimum-developmenttesting)
+  - [Recommended (Production Use)](#recommended-production-use)
+  - [Resource Allocation](#resource-allocation)
+- [Security Model](#security-model)
+  - [Isolation Boundaries](#isolation-boundaries)
+  - [Access Control](#access-control)
+  - [Data Protection](#data-protection)
+- [Future Enhancements](#future-enhancements)
+  - [Short Term](#short-term)
+  - [Long Term](#long-term)
+- [Integration Points](#integration-points)
+  - [Cherry Studio Integration](#cherry-studio-integration)
+  - [MCP Protocol Extensions](#mcp-protocol-extensions)
+- [Appendix: MCP communication analysis (consolidated)](#appendix-mcp-communication-analysis-consolidated)
+- [MCP Server Communication Analysis](#mcp-server-communication-analysis)
+- [Current Architecture Overview](#current-architecture-overview)
+- [C# MCP Server (Primary)](#c-mcp-server-primary)
+  - [Core Functionality](#core-functionality)
+  - [Key Components](#key-components)
+    - [1. HTTP MCP Server](#1-http-mcp-server)
+    - [2. WebSocket Hub (`OverlayWebSocketHub.cs`)](#2-websocket-hub-overlaywebsockethubcs)
+    - [3. WebSocket Endpoints (`WebSocketEndpoints.cs`)](#3-websocket-endpoints-websocketendpointscs)
+  - [MCP Tools Available](#mcp-tools-available)
+- [Node.js Management Server (Secondary)](#nodejs-management-server-secondary)
+  - [Purpose](#purpose)
+  - [Key Features](#key-features)
+    - [1. MCP Server Proxy](#1-mcp-server-proxy)
+    - [2. WebSocket Bridge](#2-websocket-bridge)
+    - [3. MCP Configuration Endpoint](#3-mcp-configuration-endpoint)
+- [Communication Flow](#communication-flow)
+  - [1. MCP Tool Execution](#1-mcp-tool-execution)
+  - [2. Overlay Event Broadcasting](#2-overlay-event-broadcasting)
+  - [3. Web Interface Integration](#3-web-interface-integration)
+- [KasmVNC Integration Requirements](#kasmvnc-integration-requirements)
+  - [Current State](#current-state)
+  - [Required Changes](#required-changes)
+    - [1. Update Node.js Server Configuration](#1-update-nodejs-server-configuration)
+    - [2. Update MCP Configuration Generation](#2-update-mcp-configuration-generation)
+    - [3. WebSocket Integration with KasmVNC](#3-websocket-integration-with-kasmvnc)
+- [Container Communication](#container-communication)
+  - [Current Container Network](#current-container-network)
+- [KasmVNC Architecture (4 containers)](#kasmvnc-architecture-4-containers)
+  - [Communication Paths](#communication-paths)
+- [Security Considerations](#security-considerations-2)
+  - [Current Security](#current-security)
+  - [KasmVNC Security Integration](#kasmvnc-security-integration)
+- [Performance Characteristics](#performance-characteristics)
+  - [WebSocket Performance](#websocket-performance)
+  - [Multi-Monitor Support](#multi-monitor-support)
+- [Development and Testing](#development-and-testing)
+  - [Local Development](#local-development)
+- [Start C# MCP server](#start-c-mcp-server)
+- [Start Node.js management server](#start-nodejs-management-server)
+- [Start KasmVNC container](#start-kasmvnc-container)
+  - [Health Monitoring](#health-monitoring)
+- [Recommendations](#recommendations)
+  - [1. Simplify Architecture](#1-simplify-architecture)
+  - [2. Direct KasmVNC Integration](#2-direct-kasmvnc-integration)
+  - [3. Enhanced Multi-Monitor Support](#3-enhanced-multi-monitor-support)
+  - [4. Improved Security](#4-improved-security)
+- [Appendix: KasmVNC integration design (consolidated)](#appendix-kasmvnc-integration-design-consolidated)
+- [MCP-KasmVNC Integration Design](#mcp-kasmvnc-integration-design)
+- [Overview](#overview)
+- [Architecture Changes](#architecture-changes)
+  - [After (KasmVNC - Current)](#after-kasmvnc-current)
+- [Integration Components](#integration-components)
+  - [1. KasmVNC Service Integration](#1-kasmvnc-service-integration)
+    - [Update C# MCP Server Configuration](#update-c-mcp-server-configuration)
+    - [KasmVNC Service Implementation](#kasmvnc-service-implementation)
+  - [2. Updated MCP Tools for KasmVNC](#2-updated-mcp-tools-for-kasmvnc)
+    - [Enhanced Display Info Tool](#enhanced-display-info-tool)
+    - [KasmVNC-Aware Overlay Tool](#kasmvnc-aware-overlay-tool)
+  - [3. Web Interface Updates](#3-web-interface-updates)
+    - [KasmVNC Client Integration](#kasmvnc-client-integration)
+  - [4. Container Configuration Updates](#4-container-configuration-updates)
+    - [Updated Docker Compose](#updated-docker-compose)
+- [infra/kasmvnc-compose.yml - Enhanced MCP integration](#infrakasmvnc-composeyml-enhanced-mcp-integration)
+  - [Enhanced KasmVNC Configuration](#enhanced-kasmvnc-configuration)
+- [infra/kasmvnc-config/kasmvnc.yaml - API and overlay support](#infrakasmvnc-configkasmvncyaml-api-and-overlay-support)
+- [API configuration for MCP integration](#api-configuration-for-mcp-integration)
+- [Enhanced overlay support](#enhanced-overlay-support)
+- [Multi-monitor configuration](#multi-monitor-configuration)
+  - [5. Health Monitoring and Status](#5-health-monitoring-and-status)
+    - [Enhanced Health Check](#enhanced-health-check)
+- [Migration Steps](#migration-steps)
+  - [1. Update MCP Server Dependencies](#1-update-mcp-server-dependencies)
+- [Add KasmVNC integration packages](#add-kasmvnc-integration-packages)
+  - [2. Implement KasmVNC Service](#2-implement-kasmvnc-service)
+  - [3. Update Web Interface](#3-update-web-interface)
+  - [4. Container Configuration](#4-container-configuration)
+  - [5. Testing and Validation](#5-testing-and-validation)
+- [Benefits of New Integration](#benefits-of-new-integration)
+  - [Simplified Architecture](#simplified-architecture)
+  - [Enhanced Functionality](#enhanced-functionality)
+  - [Developer Experience](#developer-experience)
+<!-- tocstop -->
+
 > **📋 Architecture Update**: This specification reflects the new KasmVNC-based architecture, eliminating database complexity and providing true multi-monitor support.
 
 ## Vision
@@ -234,8 +356,8 @@ overlay-companion-release.tar.gz
 This architecture provides a solid foundation for the single-user, lightweight release while maintaining extensibility for future enhancements.
 
 ---
-# Appendix: MCP communication analysis (consolidated)
-# MCP Server Communication Analysis
+## Appendix: MCP communication analysis (consolidated)
+## MCP Server Communication Analysis
 
 ## Current Architecture Overview
 
@@ -445,7 +567,7 @@ function bridgeToKasmVNC(overlayCommand) {
 
 ### Current Container Network
 ```yaml
-# KasmVNC Architecture (4 containers)
+## KasmVNC Architecture (4 containers)
 services:
   kasmvnc:
     ports:
@@ -513,13 +635,13 @@ services:
 
 ### Local Development
 ```bash
-# Start C# MCP server
+## Start C# MCP server
 cd src && dotnet run --urls http://0.0.0.0:3000
 
-# Start Node.js management server
+## Start Node.js management server
 cd infra/server && npm start
 
-# Start KasmVNC container
+## Start KasmVNC container
 podman-compose -f kasmvnc-compose.yml up kasmvnc
 ```
 
@@ -569,8 +691,8 @@ Implement **production-ready security**:
 This analysis provides the foundation for implementing proper MCP server integration with the new KasmVNC architecture.
 
 ---
-# Appendix: KasmVNC integration design (consolidated)
-# MCP-KasmVNC Integration Design
+## Appendix: KasmVNC integration design (consolidated)
+## MCP-KasmVNC Integration Design
 
 ## Overview
 
@@ -852,7 +974,7 @@ export class KasmVNCClient {
 
 #### Updated Docker Compose
 ```yaml
-# infra/kasmvnc-compose.yml - Enhanced MCP integration
+## infra/kasmvnc-compose.yml - Enhanced MCP integration
 services:
   kasmvnc:
     build:
@@ -897,7 +1019,7 @@ services:
 
 #### Enhanced KasmVNC Configuration
 ```yaml
-# infra/kasmvnc-config/kasmvnc.yaml - API and overlay support
+## infra/kasmvnc-config/kasmvnc.yaml - API and overlay support
 desktop:
   resolution:
     width: 1920
@@ -913,7 +1035,7 @@ network:
     pem: /etc/ssl/certs/self.pem
     require_ssl: false
 
-# API configuration for MCP integration
+## API configuration for MCP integration
 api:
   enabled: true
   endpoints:
@@ -924,7 +1046,7 @@ api:
     enabled: true
     origins: ["*"]  # Restrict in production
 
-# Enhanced overlay support
+## Enhanced overlay support
 overlay:
   enabled: true
   click_through: true
@@ -932,7 +1054,7 @@ overlay:
   websocket_commands: true  # Enable WebSocket overlay commands
   multi_monitor: true
 
-# Multi-monitor configuration
+## Multi-monitor configuration
 display_manager:
   enabled: true
   max_displays: 4
@@ -977,7 +1099,7 @@ app.MapGet("/health", async (IKasmVNCService kasmvnc, IOverlayService overlay) =
 
 ### 1. Update MCP Server Dependencies
 ```bash
-# Add KasmVNC integration packages
+## Add KasmVNC integration packages
 dotnet add package System.Net.WebSockets.Client
 dotnet add package Microsoft.Extensions.Http
 ```

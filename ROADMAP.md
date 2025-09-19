@@ -202,8 +202,8 @@ Based on your feedback, the immediate priorities are:
 **Recommendation**: Start with HTTP transport implementation since you identified it as needed, then add multi-monitor support as the next major feature.
 
 ---
-# Appendix: Historical updates (consolidated)
-# Recent Updates - Overlay Companion MCP
+## Appendix: Historical updates (consolidated)
+## Recent Updates - Overlay Companion MCP
 
 ## Summary of Changes
 
@@ -289,28 +289,28 @@ Cherry Studio → Management Server (/mcp/*) → C# MCP Server
 
 ### Fresh Installation
 ```bash
-# Standard installation
+## Standard installation
 ./install.sh
 
-# With LAN exposure (security risk)
+## With LAN exposure (security risk)
 ./install.sh --expose-lan
 ```
 
 ### Update Existing Installation
 ```bash
-# Update containers and services
+## Update containers and services
 ./install.sh --update
 
-# Update with LAN exposure
+## Update with LAN exposure
 ./install.sh --update --expose-lan
 ```
 
 ### Health Monitoring
 ```bash
-# Check system health
+## Check system health
 curl http://localhost:8080/health
 
-# Check MCP server specifically
+## Check MCP server specifically
 curl http://localhost:8080/mcp/health
 ```
 

@@ -1,5 +1,77 @@
 # Deployment Guide
 
+<!-- toc -->
+- [🏠 Option 1: Host + VM Architecture (Recommended)](#option-1-host-vm-architecture-recommended)
+  - [Architecture](#architecture)
+  - [Quick Start](#quick-start)
+- [🐳 Option 2: Podman (OCI Containers - Existing Infrastructure)](#option-2-podman-oci-containers-existing-infrastructure)
+- [🖥️ Option 3: Legacy VM-Only (Not Recommended)](#option-3-legacy-vm-only-not-recommended)
+- [🔧 Advanced Deployment](#advanced-deployment)
+  - [Custom Container Build](#custom-container-build)
+- [Build custom containers](#build-custom-containers)
+- [Deploy with custom configuration](#deploy-with-custom-configuration)
+- [Edit configuration as needed](#edit-configuration-as-needed)
+  - [Multiple VM Setup](#multiple-vm-setup)
+  - [Production Deployment](#production-deployment)
+- [📊 Comparison](#comparison)
+- [🚀 Getting Started](#getting-started)
+- [Appendix: Port configuration (consolidated)](#appendix-port-configuration-consolidated)
+- [Port Configuration Guide](#port-configuration-guide)
+- [Overview](#overview)
+- [Usage Options](#usage-options)
+  - [1. Default Installation](#1-default-installation)
+  - [2. Specify Custom Port](#2-specify-custom-port)
+- [Method 1: Command line argument (recommended)](#method-1-command-line-argument-recommended)
+- [Method 2: Explicit flag](#method-2-explicit-flag)
+- [Method 3: Environment variable](#method-3-environment-variable)
+- [Method 4: Get help](#method-4-get-help)
+  - [3. Interactive Port Selection](#3-interactive-port-selection)
+  - [4. Help and Usage Information](#4-help-and-usage-information)
+- [Get detailed help and usage examples](#get-detailed-help-and-usage-examples)
+- [Shows all available options and examples](#shows-all-available-options-and-examples)
+- [Port Conflict Detection](#port-conflict-detection)
+- [Configuration Changes](#configuration-changes)
+- [Examples](#examples)
+  - [OpenWebUI Conflict (Port 8080)](#openwebui-conflict-port-8080)
+- [OpenWebUI is using port 8080](#openwebui-is-using-port-8080)
+  - [Multiple Services](#multiple-services)
+- [If you have multiple services, use different ports](#if-you-have-multiple-services-use-different-ports)
+  - [Auto-Selection](#auto-selection)
+- [Let the script find the next available port](#let-the-script-find-the-next-available-port)
+- [Script detects 8080 is in use](#script-detects-8080-is-in-use)
+- [Choose option 1 to auto-select 8081](#choose-option-1-to-auto-select-8081)
+- [After Installation](#after-installation)
+- [Troubleshooting](#troubleshooting)
+  - [Check What's Using a Port](#check-whats-using-a-port)
+  - [Change Port After Installation](#change-port-after-installation)
+  - [Verify Port is Free](#verify-port-is-free)
+- [Check if port is available](#check-if-port-is-available)
+- [Security Notes](#security-notes)
+- [Appendix: Legacy AppImage validation fixes (consolidated)](#appendix-legacy-appimage-validation-fixes-consolidated)
+- [AppImage Validation and Error Detection Fixes](#appimage-validation-and-error-detection-fixes)
+- [Problem Summary (Legacy)](#problem-summary-legacy)
+  - [Original Errors](#original-errors)
+- [Solutions Implemented](#solutions-implemented)
+  - [1. Fixed Test Error Detection (`build-appimage.yml`)](#1-fixed-test-error-detection-build-appimageyml)
+  - [2. Added GTK4 System Dependencies (Historical)](#2-added-gtk4-system-dependencies-historical)
+  - [3. Created Comprehensive Validation Script (Applies to any AppImage)](#3-created-comprehensive-validation-script-applies-to-any-appimage)
+  - [4. Enhanced Build Script Diagnostics](#4-enhanced-build-script-diagnostics)
+  - [5. Added Pre-commit Validation Hooks (General)](#5-added-pre-commit-validation-hooks-general)
+- [Testing the Fixes](#testing-the-fixes)
+  - [Manual Testing](#manual-testing)
+- [Test the validation script](#test-the-validation-script)
+- [Run pre-commit hooks](#run-pre-commit-hooks)
+  - [CI Testing](#ci-testing)
+- [Expected Outcomes](#expected-outcomes)
+  - [Before Fixes](#before-fixes)
+  - [After Fixes](#after-fixes)
+- [Future Improvements](#future-improvements)
+- [Usage Guidelines](#usage-guidelines)
+  - [For Developers](#for-developers)
+  - [For CI/CD](#for-cicd)
+- [Current State](#current-state)
+<!-- tocstop -->
+
 Multiple deployment options for different use cases and infrastructure preferences.
 
 
@@ -111,12 +183,12 @@ If you must use this approach:
 git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
 
-# Build custom containers
+## Build custom containers
 podman build -f release/containers/Dockerfile.unified -t overlay-companion:custom .
 
-# Deploy with custom configuration
+## Deploy with custom configuration
 cp release/containers/podman-compose.yml ~/.config/overlay-companion-mcp/
-# Edit configuration as needed
+## Edit configuration as needed
 podman-compose up -d
 ```
 
@@ -155,8 +227,8 @@ podman-compose up -d
 Choose the deployment that best fits your infrastructure and expertise level.
 
 ---
-# Appendix: Port configuration (consolidated)
-# Port Configuration Guide
+## Appendix: Port configuration (consolidated)
+## Port Configuration Guide
 
 ## Overview
 
@@ -173,16 +245,16 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-compani
 
 ### 2. Specify Custom Port
 ```bash
-# Method 1: Command line argument (recommended)
+## Method 1: Command line argument (recommended)
 ./host-setup.sh 8081
 
-# Method 2: Explicit flag
+## Method 2: Explicit flag
 ./host-setup.sh --port 8081
 
-# Method 3: Environment variable
+## Method 3: Environment variable
 OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
 
-# Method 4: Get help
+## Method 4: Get help
 ./host-setup.sh --help
 ```
 
@@ -196,10 +268,10 @@ If the default port (8080) is in use, the script will:
 
 ### 4. Help and Usage Information
 ```bash
-# Get detailed help and usage examples
+## Get detailed help and usage examples
 ./host-setup.sh --help
 
-# Shows all available options and examples
+## Shows all available options and examples
 ```
 
 ## Port Conflict Detection
@@ -226,22 +298,22 @@ The script automatically updates:
 
 ### OpenWebUI Conflict (Port 8080)
 ```bash
-# OpenWebUI is using port 8080
+## OpenWebUI is using port 8080
 OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
 ```
 
 ### Multiple Services
 ```bash
-# If you have multiple services, use different ports
+## If you have multiple services, use different ports
 OVERLAY_COMPANION_PORT=8082 ./host-setup.sh
 ```
 
 ### Auto-Selection
 ```bash
-# Let the script find the next available port
+## Let the script find the next available port
 ./host-setup.sh
-# Script detects 8080 is in use
-# Choose option 1 to auto-select 8081
+## Script detects 8080 is in use
+## Choose option 1 to auto-select 8081
 ```
 
 ## After Installation
@@ -266,7 +338,7 @@ lsof -i :8080
 
 ### Verify Port is Free
 ```bash
-# Check if port is available
+## Check if port is available
 ss -tuln | grep ":8081" || echo "Port 8081 is available"
 ```
 
@@ -278,8 +350,8 @@ ss -tuln | grep ":8081" || echo "Port 8081 is available"
 - Internal container ports remain unchanged (8080 internally)
 
 ---
-# Appendix: Legacy AppImage validation fixes (consolidated)
-# AppImage Validation and Error Detection Fixes
+## Appendix: Legacy AppImage validation fixes (consolidated)
+## AppImage Validation and Error Detection Fixes
 
 ## Problem Summary (Legacy)
 
@@ -372,10 +444,10 @@ Enhanced `.pre-commit-config.yaml` with:
 
 ### Manual Testing
 ```bash
-# Test the validation script
+## Test the validation script
 ./scripts/validate-appimage.sh build/overlay-companion-mcp-*.AppImage
 
-# Run pre-commit hooks
+## Run pre-commit hooks
 pre-commit run --all-files
 ```
 

@@ -1,5 +1,120 @@
 # Overlay Companion (MCP) - Tool Specification
 
+<!-- toc -->
+- [Architecture Overview](#architecture-overview)
+  - [System Components (Current - KasmVNC Architecture)](#system-components-current-kasmvnc-architecture)
+    - [Core Architecture (Simplified)](#core-architecture-simplified)
+    - [Security Architecture (Enhanced)](#security-architecture-enhanced)
+    - [Network Architecture](#network-architecture)
+  - [Deployment Architecture](#deployment-architecture)
+    - [Container-Based Deployment (Current - KasmVNC)](#container-based-deployment-current-kasmvnc)
+    - [Quality Assurance & Security](#quality-assurance-security)
+- [Pre-commit Hooks Configuration](#pre-commit-hooks-configuration)
+  - [Python Code Quality](#python-code-quality)
+  - [File Validation](#file-validation)
+  - [Language-Specific Formatting](#language-specific-formatting)
+  - [Build and Deployment Validation](#build-and-deployment-validation)
+  - [Documentation Quality](#documentation-quality)
+  - [Security Analysis (CodeQL-like)](#security-analysis-codeql-like)
+  - [Git Commit Standards](#git-commit-standards)
+  - [Security Hook Details](#security-hook-details)
+- [ESLint security (auto-installed)](#eslint-security-auto-installed)
+- [Semgrep (auto-installed)](#semgrep-auto-installed)
+- [Spell checking](#spell-checking)
+  - [Container Build Considerations](#container-build-considerations)
+  - [HTTP Transport Benefits](#http-transport-benefits)
+- [MCP Tool Specification (JSON Format)](#mcp-tool-specification-json-format)
+- [Detailed Tool Descriptions](#detailed-tool-descriptions)
+  - [1. draw_overlay](#1-drawoverlay)
+  - [2. remove_overlay](#2-removeoverlay)
+  - [3. take_screenshot](#3-takescreenshot)
+  - [4. click_at](#4-clickat)
+  - [5. type_text](#5-typetext)
+  - [6. set_mode](#6-setmode)
+  - [7. set_screenshot_frequency](#7-setscreenshotfrequency)
+  - [8. get_clipboard](#8-getclipboard)
+  - [9. set_clipboard](#9-setclipboard)
+  - [10. batch_overlay](#10-batchoverlay)
+  - [11. subscribe_events](#11-subscribeevents)
+  - [12. unsubscribe_events](#12-unsubscribeevents)
+- [Error Handling](#error-handling)
+- [Security & Safety](#security-safety)
+  - [Human-in-the-Loop Controls](#human-in-the-loop-controls)
+  - [Privacy & Networking](#privacy-networking)
+  - [Platform Integration](#platform-integration)
+    - [Linux: Wayland-first with X11 fallback](#linux-wayland-first-with-x11-fallback)
+    - [General](#general)
+- [Implementation Roadmap](#implementation-roadmap)
+  - [High Priority (Core Functionality)](#high-priority-core-functionality)
+  - [Medium Priority (Enhanced Features)](#medium-priority-enhanced-features)
+  - [Low Priority (Polish)](#low-priority-polish)
+- [Versioning Schema](#versioning-schema)
+  - [Format: `YYYY.MM.DD[.N]`](#format-yyyymmddn)
+  - [Examples](#examples)
+  - [Release Automation](#release-automation)
+- [GitHub Actions & CI/CD](#github-actions-cicd)
+  - [1. **Markdown Linting** (`markdown-lint.yml`)](#1-markdown-linting-markdown-lintyml)
+  - [2. **C# Linting** (`csharp-lint.yml`)](#2-c-linting-csharp-lintyml)
+  - [3. **AppImage Build** (`build-appimage.yml`)](#3-appimage-build-build-appimageyml)
+  - [4. **CI/CD Pipeline** (`ci-cd.yml`)](#4-cicd-pipeline-ci-cdyml)
+  - [Workflow Dependencies](#workflow-dependencies)
+  - [Quality Standards](#quality-standards)
+  - [CI/CD Best Practices & Timeout Management](#cicd-best-practices-timeout-management)
+    - [Multi-Layered Timeout Strategy](#multi-layered-timeout-strategy)
+    - [Timeout Configuration by Workflow](#timeout-configuration-by-workflow)
+    - [Error Classification & Recovery](#error-classification-recovery)
+    - [Resource Management](#resource-management)
+    - [Monitoring & Observability](#monitoring-observability)
+- [Packaging Artifacts & Ignored Paths](#packaging-artifacts-ignored-paths)
+- [AI GUI Tests (AllHands-only)](#ai-gui-tests-allhands-only)
+- [Appendix: MCP specification (consolidated)](#appendix-mcp-specification-consolidated)
+- [Overlay Companion (MCP) - MCP Protocol Specification](#overlay-companion-mcp-mcp-protocol-specification)
+- [Overview & Purpose](#overview-purpose)
+  - [Design Principles](#design-principles)
+  - [Extension Strategy](#extension-strategy)
+- [MCP Protocol Implementation](#mcp-protocol-implementation)
+  - [Server Information](#server-information)
+  - [Capabilities](#capabilities)
+  - [Error Handling](#error-handling-2)
+  - [Rate Limiting](#rate-limiting)
+  - [Security Model](#security-model)
+  - [Authentication & Credentials](#authentication-credentials)
+  - [Operational Modes](#operational-modes)
+- [Connection Configuration](#connection-configuration)
+  - [Cherry Studio Configuration (HTTP Transport - Recommended)](#cherry-studio-configuration-http-transport-recommended)
+  - [Configuration Helper Endpoints](#configuration-helper-endpoints)
+- [Modes and Safety](#modes-and-safety)
+  - [Claude Desktop Configuration (HTTP Transport - Recommended)](#claude-desktop-configuration-http-transport-recommended)
+  - [Legacy STDIO Configuration (Deprecated)](#legacy-stdio-configuration-deprecated)
+- [Operational Modes](#operational-modes-2)
+- [Tools](#tools)
+  - [1. draw_overlay](#1-drawoverlay-2)
+  - [2. remove_overlay](#2-removeoverlay-2)
+  - [3. take_screenshot](#3-takescreenshot-2)
+  - [4. click_at](#4-clickat-2)
+  - [5. type_text](#5-typetext-2)
+  - [6. set_mode](#6-setmode-2)
+  - [7. set_screenshot_frequency](#7-setscreenshotfrequency-2)
+  - [8. get_clipboard](#8-getclipboard-2)
+  - [9. set_clipboard](#9-setclipboard-2)
+  - [10. batch_overlay](#10-batchoverlay-2)
+  - [11. subscribe_events](#11-subscribeevents-2)
+  - [12. unsubscribe_events](#12-unsubscribeevents-2)
+  - [13. re_anchor_element](#13-reanchorelement)
+  - [14. get_display_info](#14-getdisplayinfo)
+- [Operational Modes](#operational-modes-3)
+- [Rate Limiting](#rate-limiting-2)
+- [Privacy and Security](#privacy-and-security)
+- [Multi-Monitor Support](#multi-monitor-support)
+- [Performance Considerations](#performance-considerations)
+- [Context Awareness](#context-awareness)
+- [Development Environment](#development-environment)
+  - [For AI Agents and AllHands Instances](#for-ai-agents-and-allhands-instances)
+  - [Quality Standards](#quality-standards-2)
+  - [Documentation](#documentation)
+  - [Build and Deployment](#build-and-deployment)
+<!-- tocstop -->
+
 _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ---
@@ -259,14 +374,14 @@ pre-commit install
 
 **Installation Requirements:**
 ```bash
-# ESLint security (auto-installed)
+## ESLint security (auto-installed)
 cd infra/server
 npm install --no-save eslint@8 eslint-plugin-security
 
-# Semgrep (auto-installed)
+## Semgrep (auto-installed)
 pip install semgrep
 
-# Spell checking
+## Spell checking
 npm install -g cspell
 ```
 - **Input Sanitization**: Character filtering and normalization
@@ -963,10 +1078,9 @@ Purpose: provide a simple, key-free GUI test harness that runs inside the AllHan
 - Not part of GitHub Actions by design; run manually in AllHands cloud
 
 
-
 ---
-# Appendix: MCP specification (consolidated)
-# Overlay Companion (MCP) - MCP Protocol Specification
+## Appendix: MCP specification (consolidated)
+## Overlay Companion (MCP) - MCP Protocol Specification
 
 *A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit.*
 
