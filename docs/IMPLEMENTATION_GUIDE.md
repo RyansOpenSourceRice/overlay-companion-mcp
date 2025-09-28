@@ -1,5 +1,6 @@
 # Implementation Guide
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [Technology Stack](#technology-stack)
   - [Core Framework](#core-framework)
@@ -88,6 +89,7 @@
   - [4. **Deployment**](#4-deployment)
 - [Summary](#summary)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 ## Technology Stack
 

@@ -1,5 +1,6 @@
 # Overlay Companion MCP - Architecture Specification
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [Vision](#vision)
 - [User Flow](#user-flow)
@@ -121,6 +122,7 @@
   - [Enhanced Functionality](#enhanced-functionality)
   - [Developer Experience](#developer-experience)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 > **📋 Architecture Update**: This specification reflects the new KasmVNC-based architecture, eliminating database complexity and providing true multi-monitor support.
 

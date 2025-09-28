@@ -1,5 +1,6 @@
 # Deployment Guide
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [🏠 Option 1: Host + VM Architecture (Recommended)](#option-1-host-vm-architecture-recommended)
   - [Architecture](#architecture)
@@ -71,6 +72,7 @@
   - [For CI/CD](#for-cicd)
 - [Current State](#current-state)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 Multiple deployment options for different use cases and infrastructure preferences.
 

@@ -1,5 +1,6 @@
 # Overlay Companion (MCP) - Tool Specification
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [Architecture Overview](#architecture-overview)
   - [System Components (Current - KasmVNC Architecture)](#system-components-current-kasmvnc-architecture)
@@ -114,6 +115,7 @@
   - [Documentation](#documentation)
   - [Build and Deployment](#build-and-deployment)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 

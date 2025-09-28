@@ -1,5 +1,6 @@
 # Security Policy
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [Overview](#overview)
 - [Implemented Security Measures](#implemented-security-measures)
@@ -103,6 +104,7 @@
   - [Planned UX Improvements](#planned-ux-improvements)
 - [Conclusion](#conclusion)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 ## Overview
 

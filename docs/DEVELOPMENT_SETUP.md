@@ -1,5 +1,6 @@
 # Development Setup Guide
 
+<!-- markdownlint-disable MD051 -->
 <!-- toc -->
 - [Automatic Setup for AllHands/AI Agents](#automatic-setup-for-allhandsai-agents)
 - [Clone and set up everything automatically](#clone-and-set-up-everything-automatically)
@@ -81,6 +82,7 @@
   - [Common Issues:](#common-issues)
 - [📚 Additional Resources](#additional-resources)
 <!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
 
 ## Automatic Setup for AllHands/AI Agents
 
