@@ -1,5 +1,122 @@
 # Overlay Companion (MCP) - Tool Specification
 
+<!-- markdownlint-disable MD051 -->
+<!-- toc -->
+- [Architecture Overview](#architecture-overview)
+  - [System Components (Current - KasmVNC Architecture)](#system-components-current-kasmvnc-architecture)
+    - [Core Architecture (Simplified)](#core-architecture-simplified)
+    - [Security Architecture (Enhanced)](#security-architecture-enhanced)
+    - [Network Architecture](#network-architecture)
+  - [Deployment Architecture](#deployment-architecture)
+    - [Container-Based Deployment (Current - KasmVNC)](#container-based-deployment-current-kasmvnc)
+    - [Quality Assurance & Security](#quality-assurance-security)
+- [Pre-commit Hooks Configuration](#pre-commit-hooks-configuration)
+  - [Python Code Quality](#python-code-quality)
+  - [File Validation](#file-validation)
+  - [Language-Specific Formatting](#language-specific-formatting)
+  - [Build and Deployment Validation](#build-and-deployment-validation)
+  - [Documentation Quality](#documentation-quality)
+  - [Security Analysis (CodeQL-like)](#security-analysis-codeql-like)
+  - [Git Commit Standards](#git-commit-standards)
+  - [Security Hook Details](#security-hook-details)
+- [ESLint security (auto-installed)](#eslint-security-auto-installed)
+- [Semgrep (auto-installed)](#semgrep-auto-installed)
+- [Spell checking](#spell-checking)
+  - [Container Build Considerations](#container-build-considerations)
+  - [HTTP Transport Benefits](#http-transport-benefits)
+- [MCP Tool Specification (JSON Format)](#mcp-tool-specification-json-format)
+- [Detailed Tool Descriptions](#detailed-tool-descriptions)
+  - [1. draw_overlay](#1-drawoverlay)
+  - [2. remove_overlay](#2-removeoverlay)
+  - [3. take_screenshot](#3-takescreenshot)
+  - [4. click_at](#4-clickat)
+  - [5. type_text](#5-typetext)
+  - [6. set_mode](#6-setmode)
+  - [7. set_screenshot_frequency](#7-setscreenshotfrequency)
+  - [8. get_clipboard](#8-getclipboard)
+  - [9. set_clipboard](#9-setclipboard)
+  - [10. batch_overlay](#10-batchoverlay)
+  - [11. subscribe_events](#11-subscribeevents)
+  - [12. unsubscribe_events](#12-unsubscribeevents)
+- [Error Handling](#error-handling)
+- [Security & Safety](#security-safety)
+  - [Human-in-the-Loop Controls](#human-in-the-loop-controls)
+  - [Privacy & Networking](#privacy-networking)
+  - [Platform Integration](#platform-integration)
+    - [Linux: Wayland-first with X11 fallback](#linux-wayland-first-with-x11-fallback)
+    - [General](#general)
+- [Implementation Roadmap](#implementation-roadmap)
+  - [High Priority (Core Functionality)](#high-priority-core-functionality)
+  - [Medium Priority (Enhanced Features)](#medium-priority-enhanced-features)
+  - [Low Priority (Polish)](#low-priority-polish)
+- [Versioning Schema](#versioning-schema)
+  - [Format: `YYYY.MM.DD[.N]`](#format-yyyymmddn)
+  - [Examples](#examples)
+  - [Release Automation](#release-automation)
+- [GitHub Actions & CI/CD](#github-actions-cicd)
+  - [1. **Markdown Linting** (`markdown-lint.yml`)](#1-markdown-linting-markdown-lintyml)
+  - [2. **C# Linting** (`csharp-lint.yml`)](#2-c-linting-csharp-lintyml)
+  - [3. **AppImage Build** (`build-appimage.yml`)](#3-appimage-build-build-appimageyml)
+  - [4. **CI/CD Pipeline** (`ci-cd.yml`)](#4-cicd-pipeline-ci-cdyml)
+  - [Workflow Dependencies](#workflow-dependencies)
+  - [Quality Standards](#quality-standards)
+  - [CI/CD Best Practices & Timeout Management](#cicd-best-practices-timeout-management)
+    - [Multi-Layered Timeout Strategy](#multi-layered-timeout-strategy)
+    - [Timeout Configuration by Workflow](#timeout-configuration-by-workflow)
+    - [Error Classification & Recovery](#error-classification-recovery)
+    - [Resource Management](#resource-management)
+    - [Monitoring & Observability](#monitoring-observability)
+- [Packaging Artifacts & Ignored Paths](#packaging-artifacts-ignored-paths)
+- [AI GUI Tests (AllHands-only)](#ai-gui-tests-allhands-only)
+- [Appendix: MCP specification (consolidated)](#appendix-mcp-specification-consolidated)
+- [Overlay Companion (MCP) - MCP Protocol Specification](#overlay-companion-mcp-mcp-protocol-specification)
+- [Overview & Purpose](#overview-purpose)
+  - [Design Principles](#design-principles)
+  - [Extension Strategy](#extension-strategy)
+- [MCP Protocol Implementation](#mcp-protocol-implementation)
+  - [Server Information](#server-information)
+  - [Capabilities](#capabilities)
+  - [Error Handling](#error-handling-1)
+  - [Rate Limiting](#rate-limiting)
+  - [Security Model](#security-model)
+  - [Authentication & Credentials](#authentication-credentials)
+  - [Operational Modes](#operational-modes)
+- [Connection Configuration](#connection-configuration)
+  - [Cherry Studio Configuration (HTTP Transport - Recommended)](#cherry-studio-configuration-http-transport-recommended)
+  - [Configuration Helper Endpoints](#configuration-helper-endpoints)
+- [Modes and Safety](#modes-and-safety)
+  - [Claude Desktop Configuration (HTTP Transport - Recommended)](#claude-desktop-configuration-http-transport-recommended)
+  - [Legacy STDIO Configuration (Deprecated)](#legacy-stdio-configuration-deprecated)
+- [Operational Modes](#operational-modes-1)
+- [Tools](#tools)
+  - [1. draw_overlay](#1-drawoverlay-1)
+  - [2. remove_overlay](#2-removeoverlay-1)
+  - [3. take_screenshot](#3-takescreenshot-1)
+  - [4. click_at](#4-clickat-1)
+  - [5. type_text](#5-typetext-1)
+  - [6. set_mode](#6-setmode-1)
+  - [7. set_screenshot_frequency](#7-setscreenshotfrequency-1)
+  - [8. get_clipboard](#8-getclipboard-1)
+  - [9. set_clipboard](#9-setclipboard-1)
+  - [10. batch_overlay](#10-batchoverlay-1)
+  - [11. subscribe_events](#11-subscribeevents-1)
+  - [12. unsubscribe_events](#12-unsubscribeevents-1)
+  - [13. re_anchor_element](#13-reanchorelement)
+  - [14. get_display_info](#14-getdisplayinfo)
+- [Operational Modes](#operational-modes-2)
+- [Rate Limiting](#rate-limiting-1)
+- [Privacy and Security](#privacy-and-security)
+- [Multi-Monitor Support](#multi-monitor-support)
+- [Performance Considerations](#performance-considerations)
+- [Context Awareness](#context-awareness)
+- [Development Environment](#development-environment)
+  - [For AI Agents and AllHands Instances](#for-ai-agents-and-allhands-instances)
+  - [Quality Standards](#quality-standards-1)
+  - [Documentation](#documentation)
+  - [Build and Deployment](#build-and-deployment)
+<!-- tocstop -->
+<!-- markdownlint-enable MD051 -->
+
 _A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit._
 
 ---
@@ -259,14 +376,14 @@ pre-commit install
 
 **Installation Requirements:**
 ```bash
-# ESLint security (auto-installed)
+## ESLint security (auto-installed)
 cd infra/server
 npm install --no-save eslint@8 eslint-plugin-security
 
-# Semgrep (auto-installed)
+## Semgrep (auto-installed)
 pip install semgrep
 
-# Spell checking
+## Spell checking
 npm install -g cspell
 ```
 - **Input Sanitization**: Character filtering and normalization
@@ -962,3 +1079,574 @@ Purpose: provide a simple, key-free GUI test harness that runs inside the AllHan
 - No API keys: uses stdio MCP when available or performs visual smoke tests until MCP is fully wired
 - Not part of GitHub Actions by design; run manually in AllHands cloud
 
+
+---
+## Appendix: MCP specification (consolidated)
+## Overlay Companion (MCP) - MCP Protocol Specification
+
+*A general-purpose, human-in-the-loop AI-assisted screen interaction toolkit.*
+
+---
+
+## Overview & Purpose
+
+**Overlay Companion (MCP)** is a desktop-based Model Context Protocol (MCP) server designed to facilitate context-aware, human-assisted UI interactions across arbitrary applications—not tied to any specific use case such as job applications. Its primary goal is to provide a **safe, extendable, and vendor-agnostic interface** enabling AI agents (via Cherry Studio or others) to:
+
+- Draw overlays (highlight, label, annotate) on the screen using an OS-level transparent window.
+- Capture screenshots in a controlled, high-performance manner.
+- Emulate user input (clicks and typing) under safely defined policies.
+- Operate in distinct modes ("passive", "assist", "autopilot", "composing") for flexible control over automation and human consent.
+- Be the foundation for more specialized workflows, such as job application assistants, without embedding that logic into the core tool.
+
+### Design Principles
+
+- **Human-in-the-loop by default** — no automated actions unless explicitly enabled per mode or user confirmation.
+- **Mode-aware behavior** — switching modes adjusts behavior (e.g. clicking automatically vs. suggesting).
+- **Privacy-respecting** — screenshots can be scrubbed before being shared; clipboard access controlled by user permission.
+- **Multi-monitor and DPI-aware** — avoids overlay misplacement in complex setups (planned for future implementation).
+- **Rate-limited calls** — protects local and remote inference systems from overload and keeps operations low-latency.
+
+### Extension Strategy
+
+This repository is intended to serve as a **public, reusable base tool**. Domain-specific workflows (e.g., job applications, form filling, cover letter generation) should be built as **separate, private MCP servers** that integrate with this tool. For example:
+
+- The public MCP server handles overlays, screenshots, input simulation, and modes.
+- A private "Job-Helper MCP server" uses these tools to focus and orchestrate job application logic.
+- This keeps your public repo generic, avoiding naming conflicts or policy concerns related to job automation on GitHub.
+
+---
+
+## MCP Protocol Implementation
+
+### Server Information
+
+- **Name**: `overlay-companion-mcp`
+- **Version**: `1.0.0`
+- **Description**: General-purpose, human-in-the-loop AI-assisted screen interaction toolkit
+- **Protocol**: MCP server with native HTTP transport (production-ready)
+- **Primary Transport**: Native HTTP transport using ModelContextProtocol.AspNetCore
+  - **Port**: 3000 (configurable via PORT environment variable)
+  - **Features**: Server-Sent Events streaming, multi-client support, CORS enabled, **image handling**
+  - **Benefits**: Web integration, session management, real-time streaming, concurrent clients, binary data support
+  - **Endpoints**: Root path `/` and backward-compatible `/mcp` alias
+- **Legacy Transport**: Standard I/O (stdio) - **DEPRECATED** (use `--stdio` flag)
+  - **Limitations**: No image support, single client only, legacy compatibility only
+- **Container Integration**: Deployed as part of 4-container KasmVNC stack with Caddy proxy
+- **SDK**: Official ModelContextProtocol C# SDK v0.3.0-preview.3
+- **Framework**: .NET 8.0 with Microsoft.Extensions.Hosting
+- **Protocol Version**: 2024-11-05
+
+### Capabilities
+
+- **Tools**: Provides 15 tools for screen interaction
+- **Resources**: None
+- **Prompts**: None
+- **Sampling**: None
+
+### Error Handling
+
+The server implements standard MCP error responses:
+
+- **-32700**: Parse error
+- **-32600**: Invalid request
+- **-32601**: Method not found
+- **-32602**: Invalid parameters
+- **-32603**: Internal error
+
+### Rate Limiting
+
+- Screenshot operations: Maximum 10 per second
+- Input simulation: Maximum 5 per second
+- Overlay operations: Maximum 20 per second
+
+### Security Model
+
+- **CWE Vulnerability Protection**: Comprehensive fixes for Common Weakness Enumeration vulnerabilities
+  - **CWE-79 (XSS)**: DOMPurify + he libraries prevent cross-site scripting attacks
+  - **CWE-116 (Improper Encoding)**: Multi-layer HTML entity encoding using validator.js
+  - **CWE-307 (Rate Limiting)**: Tiered rate limiting prevents abuse and DoS attacks
+- **Human confirmation required** for input simulation in most modes
+- **Mode-based permissions** control automation level
+- **No network access** - purely local operations
+- **Clipboard access** requires explicit user permission
+- **Type Safety**: Explicit type checking prevents parameter tampering attacks
+- **Security Headers**: Helmet.js provides comprehensive HTTP security headers and CSP
+
+### Authentication & Credentials
+
+- **Database**: PostgreSQL 16-alpine
+
+- **Default Admin**: guacadmin/guacadmin
+- **Access**: http://localhost:8080/guac/
+- **Future Enhancement**: Dynamic credential generation with secure random passwords
+
+**MCP Server:**
+- **No authentication required** for local access
+- **CORS enabled** for web integration
+- **WebSocket tokens** available for overlay event subscriptions
+
+### Operational Modes
+
+1. **Passive**: Read-only operations (screenshots, overlays)
+2. **Assist**: Suggests actions, requires confirmation
+3. **Autopilot**: Automated actions with safety checks
+4. **Composing**: Specialized mode for text composition
+5. **Custom**: User-defined behavior
+
+## Connection Configuration
+
+### Cherry Studio Configuration (HTTP Transport - Recommended)
+```json
+{
+  "mcpServers": {
+    "overlay_companion": {
+      "url": "http://localhost:3000/",
+      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
+      "provider": "Overlay Companion",
+      "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
+    }
+  }
+}
+```
+
+### Configuration Helper Endpoints
+
+When the application is running with HTTP transport, it provides helpful configuration endpoints:
+
+- **Web UI**: `http://localhost:3000/setup` - Interactive configuration interface with one-click copy
+- **JSON Config**: `http://localhost:3000/config` - Ready-to-use JSON configuration
+- **Legacy STDIO**: `http://localhost:3000/config/stdio` - STDIO transport configuration (deprecated)
+
+These endpoints include proper metadata (description, tags, provider info) for better integration with MCP clients.
+
+---
+
+## Modes and Safety
+
+- Modes: passive (read‑only), assist (confirmation required), autopilot (guard‑railed automation)
+- Input simulation is gated by mode and can require explicit user confirmation
+- CORS configured; TLS terminates at reverse proxy (Caddy)
+- Planned: per‑viewer JWTs for overlay WS and session scoping
+
+---
+
+### Claude Desktop Configuration (HTTP Transport - Recommended)
+```json
+{
+  "mcpServers": {
+    "overlay_companion": {
+      "url": "http://localhost:3000/",
+      "description": "AI-assisted screen interaction with overlay functionality for multi-monitor setups",
+      "tags": ["screen-capture", "overlay", "automation", "multi-monitor", "web", "http", "sse", "linux"],
+      "provider": "Overlay Companion",
+      "provider_url": "https://github.com/RyansOpenSourceRice/overlay-companion-mcp"
+    }
+  }
+}
+```
+
+### Legacy STDIO Configuration (Deprecated)
+**⚠️ STDIO transport is deprecated and lacks image support. Use HTTP transport above.**
+
+```json
+{
+  "mcpServers": {
+    "overlay-companion": {
+      "command": "/path/to/overlay-companion-mcp",
+      "args": ["--stdio"],
+      "env": {}
+    }
+  }
+}
+```
+
+## Operational Modes
+
+The server operates in different modes that control automation behavior:
+
+- **Passive**: No automated actions, only provides information
+- **Assist**: Suggests actions but requires user confirmation
+- **Autopilot**: Automated actions with safety confirmations
+- **Composing**: Optimized for text generation and form filling
+
+## Tools
+
+### 1. draw_overlay
+
+**Title:** Draw overlay box  
+**Mode:** async
+
+Draws a visual overlay (highlight, label, annotation) on the screen using an OS-level transparent window.
+
+**Parameters:**
+- `x` (number, required): X coordinate for the overlay
+- `y` (number, required): Y coordinate for the overlay  
+- `width` (number, required): Width of the overlay
+- `height` (number, required): Height of the overlay
+- `color` (string, optional): Color of the overlay (default: yellow)
+- `label` (string, optional): Text label for the overlay
+- `annotation_type` (string, optional): Type of annotation (box, text, arrow, icon)
+- `temporary_ms` (number, optional): Auto-remove overlay after specified milliseconds
+- `anchor_id` (string, optional): Unique identifier for element tracking across frames
+
+**Returns:**
+- `overlay_id` (string): Unique identifier for the created overlay
+- `bounds` (object): Actual bounds of the overlay with x, y, width, height
+- `monitor_index` (number): Index of the monitor where overlay was drawn
+- `display_scale` (number): Display scale factor for the monitor
+- `anchor_id` (string): Element anchor ID if provided
+
+### 2. remove_overlay
+
+**Title:** Remove overlay  
+**Mode:** sync
+
+Removes a previously created overlay from the screen.
+
+**Parameters:**
+- `overlay_id` (string, required): ID of the overlay to remove
+
+**Returns:**
+- `removed` (boolean): Whether the overlay was successfully removed
+- `not_found` (boolean): Whether the overlay ID was not found
+
+### 3. take_screenshot
+
+**Title:** Take screenshot  
+**Mode:** async
+
+Captures a screenshot of the screen or a specific region in a controlled, high-performance manner.
+
+**Parameters:**
+- `region` (object, optional): Specific region to capture with x, y, width, height
+- `full_screen` (boolean, optional): Whether to capture the full screen
+- `scale` (number, optional): Scale factor for the screenshot
+- `wait_for_stable_ms` (number, optional): Wait time for UI to stabilize before capture
+- `monitor_index` (number, optional): Specific monitor to capture from
+- `scrub_mask_rects` (array, optional): Array of rectangles to obscure for privacy
+
+**Returns:**
+- `image_base64` (string): Base64-encoded screenshot image
+- `width` (number): Width of the captured image
+- `height` (number): Height of the captured image
+- `region` (object): Actual region that was captured
+- `monitor_index` (number): Index of the monitor that was captured
+- `display_scale` (number): Display scale factor used
+- `viewport_scroll` (object): Viewport scroll position with x, y coordinates
+- `timestamp` (number): Timestamp when screenshot was taken
+- `context_metadata` (object): Additional context information
+
+### 4. click_at
+
+**Title:** Simulate click  
+**Mode:** sync
+
+Emulates user input by simulating mouse clicks at specified coordinates.
+
+**Parameters:**
+- `x` (number, required): X coordinate to click
+- `y` (number, required): Y coordinate to click
+- `button` (string, optional): Mouse button to click (left, right, middle)
+- `clicks` (number, optional): Number of clicks to perform
+- `require_user_confirmation` (boolean, optional): Whether to require user confirmation before clicking
+- `action_timing_hint` (object, optional): Timing hints with minDelayMs, maxDelayMs
+- `monitor_index` (number, optional): Monitor where click should occur
+- `anchor_id` (string, optional): Element anchor ID for context
+
+**Returns:**
+- `success` (boolean): Whether the click was successful
+- `was_confirmed` (boolean): Whether the action was confirmed by the user
+- `actual_position` (object): Actual click coordinates with x, y
+- `timestamp` (number): When the click occurred
+
+### 5. type_text
+
+**Title:** Emulate typing  
+**Mode:** async
+
+Emulates keyboard input by typing specified text.
+
+**Parameters:**
+- `text` (string, required): Text to type
+- `typing_speed_wpm` (number, optional): Typing speed in words per minute
+- `require_user_confirmation` (boolean, optional): Whether to require user confirmation before typing
+- `action_timing_hint` (object, optional): Timing hints with minDelayMs, maxDelayMs
+- `clear_existing` (boolean, optional): Whether to clear existing text first
+
+**Returns:**
+- `success` (boolean): Whether the typing was successful
+- `typed_length` (number): Number of characters that were typed
+- `was_confirmed` (boolean): Whether the action was confirmed by the user
+- `timestamp` (number): When the typing occurred
+
+### 6. set_mode
+
+**Title:** Set operational mode  
+**Mode:** sync
+
+Sets the operational mode of the MCP server, controlling automation behavior and human consent requirements.
+
+**Parameters:**
+- `mode` (string, required): Operational mode (passive, assist, autopilot, composing, custom)
+- `metadata` (object, optional): Additional metadata for the mode
+
+**Returns:**
+- `ok` (boolean): Whether the mode was set successfully
+- `active_mode` (string): The currently active mode
+
+### 7. set_screenshot_frequency
+
+**Title:** Set screenshot frequency  
+**Mode:** sync
+
+Configures the frequency of automatic screenshot capture.
+
+**Parameters:**
+- `mode` (string, required): Screenshot capture mode
+- `interval_ms` (number, required): Interval between screenshots in milliseconds
+- `only_on_change` (boolean, optional): Whether to only capture on UI changes
+
+**Returns:**
+- `ok` (boolean): Whether the frequency was set successfully
+- `applied_interval_ms` (number): The actual interval that was applied
+
+### 8. get_clipboard
+
+**Title:** Get clipboard  
+**Mode:** sync
+
+Retrieves the current clipboard content.
+
+**Parameters:** None
+
+**Returns:**
+- `text` (string): Current clipboard text content
+- `available` (boolean): Whether clipboard content is available
+
+### 9. set_clipboard
+
+**Title:** Set clipboard  
+**Mode:** sync
+
+Sets the clipboard content to the specified text.
+
+**Parameters:**
+- `text` (string, required): Text to set in clipboard
+
+**Returns:**
+- `ok` (boolean): Whether the clipboard was set successfully
+
+### 10. batch_overlay
+
+**Title:** Draw multiple overlays  
+**Mode:** async
+
+Draws multiple overlays simultaneously or sequentially.
+
+**Parameters:**
+- `overlays` (array, required): Array of overlay objects, each containing:
+  - `x` (number): X coordinate
+  - `y` (number): Y coordinate
+  - `width` (number): Width
+  - `height` (number): Height
+  - `color` (string, optional): Color
+  - `label` (string, optional): Label
+  - `annotation_type` (string, optional): Type of annotation
+  - `temporary_ms` (number, optional): Auto-remove time
+  - `anchor_id` (string, optional): Element anchor ID
+- `one_at_a_time` (boolean, optional): Whether to draw overlays sequentially
+- `monitor_index` (number, optional): Target monitor for all overlays
+
+**Returns:**
+- `overlay_ids` (array): Array of overlay IDs that were created
+- `monitor_index` (number): Monitor where overlays were drawn
+- `display_scale` (number): Display scale factor used
+
+### 11. subscribe_events
+
+**Title:** Subscribe to UI events  
+**Mode:** async
+
+Subscribes to UI events for real-time monitoring of user interactions.
+
+**Parameters:**
+- `events` (array, required): Array of event types to subscribe to
+- `debounce_ms` (number, optional): Debounce time for events
+- `filter` (object, optional): Event filtering criteria
+
+**Returns:**
+- `subscription_id` (string): Unique identifier for the subscription
+- `subscribed` (array): Array of events that were successfully subscribed to
+
+### 12. unsubscribe_events
+
+**Title:** Unsubscribe from events  
+**Mode:** sync
+
+Unsubscribes from previously subscribed UI events.
+
+**Parameters:**
+- `subscription_id` (string, required): ID of the subscription to cancel
+
+**Returns:**
+- `ok` (boolean): Whether the unsubscription was successful
+
+### 13. re_anchor_element
+
+**Title:** Re-anchor element after scroll or layout change  
+**Mode:** async
+
+Re-locates a previously anchored element after viewport changes, scrolling, or layout updates.
+
+**Parameters:**
+- `anchor_id` (string, required): ID of the anchor to re-locate
+- `search_region` (object, optional): Region to search within for the element
+- `tolerance` (number, optional): Matching tolerance for element recognition
+
+**Returns:**
+- `found` (boolean): Whether the element was successfully re-anchored
+- `new_position` (object): New position with x, y coordinates
+- `confidence` (number): Confidence score of the match (0-1)
+- `viewport_scroll` (object): Current viewport scroll position
+
+### 14. get_display_info
+
+**Title:** Get display configuration  
+**Mode:** sync
+
+Retrieves information about all connected displays and their configurations.
+
+**Parameters:** None
+
+**Returns:**
+- `displays` (array): Array of display objects with:
+  - `monitor_index` (number): Display index
+  - `bounds` (object): Display bounds with x, y, width, height
+  - `scale_factor` (number): DPI scale factor
+  - `is_primary` (boolean): Whether this is the primary display
+- `total_virtual_screen` (object): Combined virtual screen dimensions
+
+## Operational Modes
+
+The MCP server supports different operational modes that control automation behavior:
+
+- **passive**: No automated actions, only observation and overlay capabilities
+- **assist**: Suggests actions but requires user confirmation
+- **autopilot**: Performs actions automatically with minimal user intervention
+- **composing**: Specialized mode for text composition and editing
+- **custom**: User-defined mode with custom behavior
+
+## Rate Limiting
+
+All tools implement rate limiting to protect local and remote inference systems from overload and maintain low-latency operations. Configurable limits include:
+
+- Maximum requests per second (default: 10/sec)
+- Maximum screenshot requests per minute (default: 60/min)
+- Burst allowance for rapid interactions
+- Mode-specific rate limits (autopilot mode has higher limits)
+
+## Privacy and Security
+
+- **CWE Compliance**: Addresses Common Weakness Enumeration vulnerabilities with industry-standard libraries
+- **XSS Prevention (CWE-79)**: DOMPurify and he libraries sanitize all user content
+- **Input Validation (CWE-116)**: validator.js provides comprehensive input sanitization
+- **Rate Limiting (CWE-307)**: express-rate-limit prevents abuse with tiered limits
+- **Screenshot Scrubbing**: Configurable privacy masks to obscure sensitive information
+- **Clipboard Control**: User-controlled clipboard access permissions
+- **Action Confirmation**: All automated actions can require user confirmation
+- **Human-in-the-loop**: Design ensures user maintains control over automation
+- **Audit Trail**: Optional logging of all actions for security and debugging
+- **Local Processing**: Sensitive operations can be processed locally without external API calls
+- **Security Middleware**: Centralized security utilities with type safety validation
+- **Content Security Policy**: Helmet.js provides comprehensive HTTP security headers
+
+## Multi-Monitor Support
+
+**Current Status**: Single monitor support only (monitor index 0)  
+**Roadmap**: Full multi-monitor support planned for future implementation
+
+**Current Limitations**:
+- All operations assume single monitor (index 0)
+- `CaptureMonitorAsync` treats all requests as full screen capture
+- Overlay coordinates not mapped across multiple displays
+
+**Planned Features**:
+- **Multiple Displays**: Proper handling of multi-monitor setups with different resolutions
+- **DPI Scaling**: Automatic detection and handling of different DPI scales per monitor
+- **Virtual Screen**: Support for extended desktop configurations
+- **Monitor Migration**: Handling of displays being connected/disconnected during operation
+- **Coordinate Translation**: ✅ IMPLEMENTED - Accurate coordinate mapping across different display configurations
+- **`get_display_info` tool**: ✅ IMPLEMENTED - Returns monitor count, resolutions, positions, primary monitor
+- **Monitor-Specific Operations**: ✅ IMPLEMENTED - Overlays and screenshots can target specific monitors
+- **Boundary Clamping**: ✅ IMPLEMENTED - Overlays are automatically clamped to monitor bounds
+
+**Implementation Status**: ✅ COMPLETED - Full multi-monitor support implemented and tested
+
+## Performance Considerations
+
+- **Real-time Operation**: Designed for <0.5 second response times
+- **Efficient Screenshot Capture**: Optimized algorithms for minimal latency
+- **Memory Management**: Careful resource usage for overlay and image operations
+- **Async Operations**: Non-blocking operations for UI responsiveness
+- **Local Model Support**: Optimized for local AI model inference
+
+## Context Awareness
+
+- **Viewport Tracking**: Automatic tracking of scroll positions and viewport changes
+- **Element Anchoring**: Persistent element identification across UI changes
+- **State Management**: Maintains context across multiple interactions
+- **Metadata Exchange**: Bidirectional context sharing with AI models
+
+## Development Environment
+
+### For AI Agents and AllHands Instances
+
+**Automatic Setup (Required):**
+```bash
+git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
+cd overlay-companion-mcp
+./scripts/setup-dev-environment.sh
+```
+
+This repository uses **automated development environment setup** with:
+- ✅ Pre-commit hooks for code quality (Black, flake8, mypy, bandit)
+- ✅ Multi-language linting (Python, C#, Markdown)
+- ✅ Security scanning and dependency checking
+- ✅ Conventional commit enforcement
+- ✅ Automatic code formatting
+
+### Quality Standards
+
+**Multi-Language Linting Strategy**: Multiple workflow files (industry standard)
+- `python-lint.yml`: Comprehensive Python quality checks
+- `csharp-lint.yml`: C# formatting and analysis
+- `markdown-lint.yml`: Documentation quality assurance
+
+**Pre-commit Hooks**: All code changes are automatically validated for:
+- Code formatting and style consistency
+- **CWE Security Vulnerabilities**: Detection of XSS, improper encoding, rate limiting issues
+- **Security Library Usage**: Validation of DOMPurify, validator.js, and security middleware
+- **Type Safety**: Detection of type confusion and parameter tampering vulnerabilities
+- Credential detection and secret scanning
+- Type checking and static analysis
+- Import sorting and dependency validation
+
+### Documentation
+
+- **Development Setup**: [docs/DEVELOPMENT_SETUP.md](docs/DEVELOPMENT_SETUP.md)
+- **AI Agent Instructions**: [docs/AI_AGENT_SETUP.md](docs/AI_AGENT_SETUP.md)
+- **Open Source Licenses**: [docs/OPEN_SOURCE_LICENSES.md](docs/OPEN_SOURCE_LICENSES.md)
+
+### Build and Deployment
+
+**AppImage Build**: Legacy. Web-only delivery does not ship a desktop AppImage. This section is preserved for historical context if reintroduced.
+```bash
+./scripts/build-appimage.sh
+```
+
+**CI/CD Pipeline**: GitHub Actions workflows for:
+- Multi-language code quality checks
+- Automated testing and validation
+- AppImage build and release
+- Documentation quality assurance
