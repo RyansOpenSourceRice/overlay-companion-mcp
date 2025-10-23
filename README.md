@@ -1,187 +1,264 @@
 # Overlay Companion MCP
 
-For the Clipboard Bridge Flatpak, see docs/CLIPBOARD_BRIDGE.md.
+**Let AI control your computer screen** - Create overlays, take screenshots, simulate mouse clicks, and interact with any desktop through your favorite AI assistant (Cherry AI, Claude Desktop, etc.).
 
-AI-powered screen overlay system with Model Context Protocol (MCP) integration. Provides intelligent screen interaction capabilities through simplified containerized infrastructure using KasmVNC.
+> **📋 Looking for the Clipboard Bridge?** See [docs/CLIPBOARD_BRIDGE.md](docs/CLIPBOARD_BRIDGE.md) for the standalone Flatpak clipboard sync tool.
 
-> Note: This project uses the KasmVNC-based architecture. See [DEPRECATION_NOTICE.md](DEPRECATION_NOTICE.md) for migration details.
+## What is this?
 
-## Architecture
+Overlay Companion MCP connects your AI assistant to a computer desktop (yours or a virtual machine) so the AI can:
+- 🎯 **Create visual overlays** - Draw shapes, text, and annotations on the screen
+- 📸 **Take screenshots** - Capture what's on screen for AI analysis
+- 🖱️ **Control mouse & keyboard** - Click buttons, type text, automate tasks
+- 📋 **Access clipboard** - Copy and paste between systems
+- 🖥️ **Support multiple monitors** - Work across several screens at once
 
-**Host OS (Fedora Linux)**: Runs 4 podman containers (simplified from 6)
-- **MCP Server Container**: C# overlay functionality for AI screen interaction
-- **Management Web Container**: Node.js web interface for system management
-- **KasmVNC Container**: Web-native VNC server with multi-monitor support
-- **Caddy Proxy Container**: Unified access point for all services
+**Perfect for:** Testing GUIs, automating desktop tasks, AI-assisted workflows, remote system management
 
-**Separate VM (Optional)**: Target for KasmVNC connections
-- Runs KasmVNC server for remote desktop access
-- Web-native interface, no legacy VNC client needed
-- True multi-monitor support with separate browser windows
+## How does it work?
 
-**Connection Flow**: Host containers → KasmVNC → Remote Desktop
-
-
-✅ **No Database Required**: Eliminates PostgreSQL complexity and credential management  
-✅ **True Multi-Monitor Support**: KasmVNC provides native multi-monitor with separate windows  
-✅ **Fewer Containers**: 4 containers instead of 6 (33% reduction)  
-✅ **Simpler Configuration**: YAML-based config instead of database schemas  
-✅ **Modern Web-Native**: Built for browsers from the ground up  
-✅ **Better Performance**: WebSocket/WebRTC protocols instead of legacy VNC
-
-## Installation
-
-### Option A: KasmVNC Setup (Recommended - Simplified)
-
-Use the new KasmVNC-based setup for better multi-monitor support and simpler configuration:
-```bash
-# Quick start with KasmVNC (no database required)
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+```
+┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
+│   Your AI       │      │  Overlay         │      │  Target         │
+│   Assistant     │─────▶│  Companion       │─────▶│  Desktop        │
+│  (Cherry AI)    │      │  (This Project)  │      │  (VM or Local)  │
+└─────────────────┘      └──────────────────┘      └─────────────────┘
+     "Click the              MCP Server                 Desktop with
+      Save button"           translates to              overlays &
+                            screen actions              automation
 ```
 
-**Benefits**: No database, true multi-monitor support, 4 containers instead of 6, simpler maintenance.
+**Two computers involved:**
+1. **Host** - Your main computer (Fedora Desktop) running the Overlay Companion containers
+2. **Target** - The desktop you want to control (can be a VM, or the same computer)
 
-Run this on your main Fedora Linux system:
+**What is KasmVNC?** A modern, web-based remote desktop system that works in your browser (no VNC client needed). Think of it like Chrome Remote Desktop, but open-source and designed for multi-monitor setups.
 
-**KasmVNC installation (recommended):**
+## Quick Start (3 Steps)
+
+### Step 1: Install on Your Main Computer (Host)
+
+Run this on your **Fedora Desktop** (the computer you're sitting at):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
-**Custom port installation:**
+**What this installs:**
+- Web interface for managing connections (accessible at `http://localhost:8080`)
+- MCP server for AI integration (connects to Cherry AI, Claude, etc.)
+- KasmVNC client (for connecting to remote desktops)
+- All running in containers (no mess on your system)
+
+**Default port:** 8080 (script will auto-detect conflicts and offer alternatives)
+
+<details>
+<summary>🔧 Advanced: Custom Port Installation (click to expand)</summary>
+
 ```bash
-# Method 1: Download and run with port argument (recommended)
+# Download and run with custom port
 wget https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh
 chmod +x host-setup.sh
 ./host-setup.sh 8081
 
-# Method 2: Use environment variable
+# Or use environment variable
 OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
-
-# Method 3: Explicit port flag
-./host-setup.sh --port 8081
-
-# Method 4: Get help
-./host-setup.sh --help
 ```
 
-**Interactive port selection:**
-If port 8080 is in use, the script will automatically detect this and offer options:
-- Auto-select next available port
-- Specify custom port interactively
-- Exit to resolve port conflict manually
+If port 8080 is in use, the script will automatically detect this and offer alternatives.
+</details>
 
-**What gets installed on HOST (KasmVNC):**
-- MCP server container (C# overlay functionality)
-- Management web interface container (Node.js)
-- KasmVNC container (web-native VNC with multi-monitor support)
-- Caddy proxy container (unified access point)
-- **No Database**: Eliminates PostgreSQL complexity
-- **Ports**: All service ports configurable with automatic conflict resolution
+### Step 2: Install on Target Desktop (Optional)
 
+**Do you need this?**
+- ✅ **YES** - If you want to control a VM or remote computer
+- ❌ **NO** - If you want to control your local desktop (same computer as Step 1)
 
-### Step 2: Create a VM or Remote System (Optional)
-For remote desktop access, create a VM or use an existing system:
-- **Proxmox**: Create new VM with Fedora template
-- **VirtualBox**: Create new Fedora VM
-- **VMware**: Create new Fedora virtual machine
-- **Physical Machine**: Any Linux system with KasmVNC support
+**If YES:** Run this on your **VM or remote computer** (the desktop you want to control):
 
-**System Requirements:**
-- **OS**: Fedora, Ubuntu, or other Linux distribution
-- **RAM**: 4+ GB
-- **Network**: Internet access
-- **Platform**: Any (VMware, VirtualBox, Proxmox, physical hardware)
-
-### Step 3: Set up remote desktop services
-SSH into your VM/system or open a terminal, then run:
-
-**For KasmVNC (recommended):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
 ```
 
-**For legacy XRDP/VNC:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup.sh | bash
+**What this installs:**
+- KasmVNC server (web-based remote desktop, runs on port 6901)
+- Desktop environment (Fluxbox - lightweight window manager)
+- Basic apps (Firefox, terminal)
+- Auto-starts on boot
+
+**After installation:** The script will show you the connection URL (e.g., `http://192.168.1.100:6901`)
+
+### Step 3: Connect Everything Together
+
+**Open your web browser** on your main computer:
+
+```
+http://localhost:8080
 ```
 
-**What gets installed (KasmVNC):**
-- KasmVNC server (web-native VNC with multi-monitor support)
-- Virtual framebuffer (Xvfb) for headless operation
-- Basic desktop applications (Firefox, terminal, etc.)
-- Systemd service for automatic startup
+You'll see the Overlay Companion web interface with three options:
 
-**What gets installed (Legacy):**
-- XRDP server (primary RDP access)
-- VNC server (backup access)
-- GNOME desktop environment
-- Basic desktop applications
+1. **Quick Connect** - Connect to your VM (if you did Step 2)
+   - Click "New Connection"
+   - Enter VM IP address (shown after Step 2 installation)
+   - Port: `6901` (default for KasmVNC)
+   - Click "Test Connection" then "Save"
 
-### Step 4: Connect them together
+2. **Configure AI Assistant** - Connect Cherry AI or Claude Desktop
+   - Copy the MCP Server URL: `http://localhost:3000`
+   - In Cherry AI: Settings → MCP Servers → Add Server
+   - Paste the URL and click "Connect"
 
-**For KasmVNC setup:**
-1. Access management interface: `http://localhost:PORT` (where PORT is the port you configured)
-2. Click "Connect" to access the remote desktop via KasmVNC
-3. Use "Add Display" button for multi-monitor support
-4. Copy MCP configuration for Cherry Studio integration
+3. **Test It** - Ask your AI to interact with the desktop
+   - "Take a screenshot"
+   - "Create a red circle overlay at position 500, 300"
+   - "Click the Firefox icon"
 
-**Note:** If you used a custom port, replace `8080` with your chosen port in all URLs below.
+## What Can You Do With It?
 
-## Usage
+### Example AI Commands
 
-### Web Interface (KasmVNC)
-- **Main Interface**: `http://localhost:8080` (Caddy proxy - configurable port)
-- **Management**: `http://localhost:8080/` (overlay management interface)
-- **KasmVNC Desktop**: `http://localhost:8080/vnc/` (web-native VNC access)
-- **System Status**: Container health and remote desktop connections
+Once connected, ask your AI assistant to:
 
-- **Direct Access**: `http://localhost:3001` (configurable port)
-- **Via Proxy**: `http://localhost:8080/mcp` (through Caddy)
-- **Protocol**: Model Context Protocol over HTTP
-- **Features**: Screen capture, overlay annotations, AI interaction, clipboard access
+**Visual Overlays:**
+```
+"Draw a red circle at coordinates 500, 300"
+"Show a text overlay saying 'Click here' at the top left"
+"Highlight the Save button with a yellow box"
+```
 
-### VM Clipboard Bridge (Optional)
+**Screen Capture:**
+```
+"Take a screenshot of the current desktop"
+"Capture the screen and tell me what you see"
+"Show me what's on monitor 2"
+```
 
-The Overlay Companion MCP includes an optional Flatpak-based clipboard bridge that enables seamless clipboard synchronization between the host system and VM environments.
+**Mouse & Keyboard:**
+```
+"Click the Firefox icon"
+"Type 'Hello World' into the text field"
+"Press Enter"
+"Right-click at position 800, 400"
+```
 
-**Features:**
-- **Cross-VM Clipboard Access**: Read and write clipboard content from the VM
-- **Automatic Fallback**: Falls back to local clipboard when VM bridge is unavailable
-- **Multi-Backend Support**: Works with Wayland, X11, and various clipboard tools
-- **Secure API**: REST API with authentication for clipboard operations
-- **Auto-Start**: Systemd service for automatic startup in the VM
+**Clipboard:**
+```
+"Copy this text to the clipboard: [text]"
+"What's currently in the clipboard?"
+"Paste the clipboard contents"
+```
 
-**Installation (in VM):**
+### Web Interface
+
+Access the management interface at `http://localhost:8080`:
+
+- **Home** - System status, quick connect
+- **Connections** - Manage VM connections (add/edit/delete)
+- **Settings** - Configure MCP server, clipboard bridge, ports
+
+## Troubleshooting
+
+### Can't access http://localhost:8080
+
+**Check if containers are running:**
 ```bash
-# Automatic installation
+podman ps
+```
+
+You should see 4 containers:
+- `overlay-companion-mcp` (MCP server)
+- `overlay-companion-web` (Web interface)
+- `overlay-companion-kasmvnc` (KasmVNC client)
+- `overlay-companion-proxy` (Caddy proxy)
+
+**If containers aren't running:**
+```bash
+cd ~/.config/overlay-companion-mcp
+podman-compose up -d
+```
+
+### Can't connect to VM
+
+**Check VM IP address:**
+```bash
+# On the VM, run:
+hostname -I
+```
+
+**Test connectivity from host:**
+```bash
+# Replace VM_IP with your VM's IP
+curl http://VM_IP:6901
+```
+
+**Check KasmVNC is running on VM:**
+```bash
+# On the VM:
+systemctl status kasmvnc
+```
+
+### AI assistant can't connect to MCP server
+
+**Verify MCP server is running:**
+```bash
+curl http://localhost:3000/health
+```
+
+**Check Cherry AI configuration:**
+- MCP Server URL should be: `http://localhost:3000`
+- NOT `http://localhost:8080` (that's the web interface)
+
+### Overlays not appearing
+
+**Check you're connected to the VM:**
+- Open `http://localhost:8080` in your browser
+- You should see the VM desktop
+- If not, click "Connect" and select your VM
+
+**Verify AI is using the correct MCP server:**
+- Ask AI: "What MCP servers are you connected to?"
+- Should show "Overlay Companion MCP"
+
+## Advanced Configuration
+
+<details>
+<summary>📋 Clipboard Bridge Setup (Optional)</summary>
+
+Enable clipboard sync between your computer and the VM.
+
+**Install on VM:**
+```bash
 ./scripts/vm-setup/install-clipboard-bridge.sh
-
-# Manual installation
-cd flatpak/clipboard-bridge
-./build.sh
 ```
 
-**Configuration:**
-Configure the clipboard bridge through the web interface at `http://localhost:3000/setup`. The settings include:
-- **Enable/Disable**: Toggle VM clipboard bridge functionality
-- **Base URL**: VM clipboard bridge service URL (default: `http://localhost:8765`)
-- **API Key**: Authentication key for the bridge service
-- **Timeout**: Connection timeout in seconds
-- **Fallback**: Enable automatic fallback to local clipboard
+**Configure in web interface:**
+1. Go to `http://localhost:8080`
+2. Click "Settings" → "Clipboard"
+3. Enable clipboard bridge
+4. Enter VM IP and port (default: 8765)
+5. Click "Test Connection"
 
-**Status Check:**
-- Use the web interface test button to verify connectivity
-- Use the `get_clipboard_bridge_status` MCP tool for programmatic status checking
+See [docs/CLIPBOARD_BRIDGE.md](docs/CLIPBOARD_BRIDGE.md) for details.
+</details>
 
-**Documentation:** See [flatpak/clipboard-bridge/README.md](flatpak/clipboard-bridge/README.md) for detailed setup and usage instructions.
+<details>
+<summary>🖥️ Multi-Monitor Setup</summary>
 
-Configure your AI client (Cherry Studio, etc.) to use:
+**In the web interface:**
+1. Connect to your VM
+2. Click "Add Display" button
+3. A new browser window opens with the second monitor
+4. Position windows as needed
+
+**Ask AI to use specific monitors:**
 ```
-MCP Server URL: http://localhost:3000
+"Take a screenshot of monitor 2"
+"Create an overlay on the left monitor"
 ```
-Or via proxy: `http://localhost:8080/mcp`
-(Ports are configurable during installation)
+
+See [docs/MULTI_MONITOR_SETUP.md](docs/MULTI_MONITOR_SETUP.md) for details.
+</details>
 
 ## Service Management
 
