@@ -661,10 +661,10 @@ You should see it now."
    - Yes / No / With reservations
 
 5. **What was the most confusing part?**
-   - ___________________________________
+   - (Your answer here)
 
 6. **What was the best part of the experience?**
-   - ___________________________________
+   - (Your answer here)
 
 ---
 
