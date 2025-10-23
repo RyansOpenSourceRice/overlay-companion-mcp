@@ -409,7 +409,6 @@ public async Task<bool> TestConnectionAsync()
 - **MCP_COMMUNICATION_ANALYSIS.md**: Complete communication architecture analysis
 - **MCP_KASMVNC_INTEGRATION_DESIGN.md**: Integration design and implementation guide
 - **MULTI_MONITOR_SETUP.md**: Multi-monitor configuration guide
-- **DEPRECATION_NOTICE.md**: Migration guidance and timeline
 
 ### 7. Deprecation Management ✅
 
