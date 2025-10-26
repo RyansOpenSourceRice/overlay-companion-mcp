@@ -7,6 +7,7 @@
     - [Core Architecture (Simplified)](#core-architecture-simplified)
     - [Security Architecture (Enhanced)](#security-architecture-enhanced)
     - [Network Architecture](#network-architecture)
+    - [Target Protocol Support](#target-protocol-support)
   - [Deployment Architecture](#deployment-architecture)
     - [Container-Based Deployment (Current - KasmVNC)](#container-based-deployment-current-kasmvnc)
     - [Quality Assurance & Security](#quality-assurance-security)
@@ -179,6 +180,59 @@ AI Client → HTTP/MCP → Caddy Proxy → {MCP Server, Web Interface, KasmVNC} 
 - **Optional**: LAN exposure with security warnings
 - **Output**: Non-localhost IP URL (e.g., http://192.168.1.42:8080)
 
+#### Target Protocol Support
+
+The system supports connecting to target desktops using three different protocols. The MCP server can configure and manage these connections programmatically, while the web interface provides manual configuration options.
+
+**Supported Protocols:**
+
+| Protocol | Description | Authentication | Multi-Monitor | Recommended Use |
+|----------|-------------|----------------|---------------|-----------------|
+| **KasmVNC** | Web-native VNC with modern WebSocket/WebRTC | Password-only or Username+Password | ✅ Full support with independent browser windows | **Recommended** - Best for multi-monitor setups, modern web-native protocol |
+| **Standard VNC** | Traditional VNC servers (TigerVNC, RealVNC, etc.) | Password-only (username optional) | ⚠️ Limited - Single canvas display | Legacy VNC servers, single monitor setups |
+| **RDP** | Windows Remote Desktop Protocol | **Username+Password required** | ✅ Supported (Windows 7+ Enterprise/Ultimate) | Windows targets, enterprise environments |
+
+**Protocol-Specific Details:**
+
+1. **KasmVNC (Recommended)**
+   - **Port**: 6901 (default)
+   - **Authentication**: Flexible (password-only or username+password)
+   - **Multi-Monitor**: True multi-monitor support via independent browser windows
+   - **Technology**: Modern WebSocket/WebRTC protocols
+   - **Advantages**: No database required, best performance, web-native
+
+2. **Standard VNC**
+   - **Port**: 5900-5909 (typical VNC ports)
+   - **Authentication**: Password-only (username optional depending on server)
+   - **Multi-Monitor**: Limited to single canvas (all monitors merged)
+   - **Compatibility**: Works with TigerVNC, RealVNC, TightVNC, x11vnc, etc.
+
+3. **RDP (Remote Desktop Protocol)**
+   - **Port**: 3389 (default)
+   - **Authentication**: **Username AND password required** (not optional)
+   - **Multi-Monitor**: Supported on Windows 7 Ultimate/Enterprise or later
+   - **Configuration**: Requires full-screen mode for multi-monitor
+   - **Use Case**: Windows Server, Windows Enterprise desktops
+
+**Connection Configuration:**
+
+Connections can be configured in two ways:
+
+1. **Web Interface** (Manual): Users configure connections via browser at `http://localhost:8080`
+   - Stored in browser's encrypted localStorage
+   - Supports multiple VM connections
+   - Interactive connection testing
+
+2. **MCP Server** (Programmatic): AI agents can configure connections via MCP tools
+   - Allows dynamic connection management
+   - Enables AI-driven target selection
+   - Supports automated testing and validation
+
+**Important Notes:**
+- **Authentication Requirements**: RDP always requires both username and password, while VNC protocols can work with password-only authentication
+- **Multi-Monitor Limitations**: For true multi-monitor support, KasmVNC is strongly recommended
+- **Protocol Selection**: The MCP server respects protocol-specific requirements and will validate credentials accordingly
+
 ### Deployment Architecture
 
 #### Container-Based Deployment (Current - KasmVNC)
@@ -258,7 +312,7 @@ host-setup-kasmvnc.sh → Podman Compose → {4 Containers} → Web Interface + 
 ```json
 {
   "express-rate-limit": "^7.1.5",
-  "helmet": "^7.1.0", 
+  "helmet": "^7.1.0",
   "express-validator": "^7.0.1",
   "validator": "^13.11.0",
   "dompurify": "^3.0.5",
@@ -277,7 +331,7 @@ host-setup-kasmvnc.sh → Podman Compose → {4 Containers} → Web Interface + 
 
 **Security Middleware**: Centralized security utilities implemented in `release/containers/server/middleware/security.js` providing:
 - Input validation with type safety
-- Path traversal protection with encoded path detection  
+- Path traversal protection with encoded path detection
 - Rate limiting configurations for different endpoint types
 - Sanitization functions using DOMPurify and validator.js
 
@@ -875,7 +929,7 @@ All tools return standard MCP error responses for:
 ### High Priority (Core Functionality)
 
 - **Web overlay client + WS bridge** - Browser-rendered overlays with pointer-events: none
-- **Session Stop implementation** - Critical safety feature  
+- **Session Stop implementation** - Critical safety feature
 - **Color and text rendering** - Basic overlay functionality
 
 ### Medium Priority (Enhanced Features)
@@ -981,16 +1035,16 @@ graph TD
     A[Push/PR] --> B[Quality Gates]
     A --> C[Markdown Quality]
     A --> D[C# Quality]
-    
+
     B --> E[Should Deploy?]
     D --> F[Unit Tests]
     D --> G[Integration Tests]
     D --> H[Security Scan]
-    
+
     E --> I[Build AppImage]
     F --> I
     G --> I
-    
+
     I --> J[Deploy]
     J --> K[Notify]
 ```
@@ -1274,14 +1328,14 @@ The server operates in different modes that control automation behavior:
 
 ### 1. draw_overlay
 
-**Title:** Draw overlay box  
+**Title:** Draw overlay box
 **Mode:** async
 
 Draws a visual overlay (highlight, label, annotation) on the screen using an OS-level transparent window.
 
 **Parameters:**
 - `x` (number, required): X coordinate for the overlay
-- `y` (number, required): Y coordinate for the overlay  
+- `y` (number, required): Y coordinate for the overlay
 - `width` (number, required): Width of the overlay
 - `height` (number, required): Height of the overlay
 - `color` (string, optional): Color of the overlay (default: yellow)
@@ -1299,7 +1353,7 @@ Draws a visual overlay (highlight, label, annotation) on the screen using an OS-
 
 ### 2. remove_overlay
 
-**Title:** Remove overlay  
+**Title:** Remove overlay
 **Mode:** sync
 
 Removes a previously created overlay from the screen.
@@ -1313,7 +1367,7 @@ Removes a previously created overlay from the screen.
 
 ### 3. take_screenshot
 
-**Title:** Take screenshot  
+**Title:** Take screenshot
 **Mode:** async
 
 Captures a screenshot of the screen or a specific region in a controlled, high-performance manner.
@@ -1339,7 +1393,7 @@ Captures a screenshot of the screen or a specific region in a controlled, high-p
 
 ### 4. click_at
 
-**Title:** Simulate click  
+**Title:** Simulate click
 **Mode:** sync
 
 Emulates user input by simulating mouse clicks at specified coordinates.
@@ -1362,7 +1416,7 @@ Emulates user input by simulating mouse clicks at specified coordinates.
 
 ### 5. type_text
 
-**Title:** Emulate typing  
+**Title:** Emulate typing
 **Mode:** async
 
 Emulates keyboard input by typing specified text.
@@ -1382,7 +1436,7 @@ Emulates keyboard input by typing specified text.
 
 ### 6. set_mode
 
-**Title:** Set operational mode  
+**Title:** Set operational mode
 **Mode:** sync
 
 Sets the operational mode of the MCP server, controlling automation behavior and human consent requirements.
@@ -1397,7 +1451,7 @@ Sets the operational mode of the MCP server, controlling automation behavior and
 
 ### 7. set_screenshot_frequency
 
-**Title:** Set screenshot frequency  
+**Title:** Set screenshot frequency
 **Mode:** sync
 
 Configures the frequency of automatic screenshot capture.
@@ -1413,7 +1467,7 @@ Configures the frequency of automatic screenshot capture.
 
 ### 8. get_clipboard
 
-**Title:** Get clipboard  
+**Title:** Get clipboard
 **Mode:** sync
 
 Retrieves the current clipboard content.
@@ -1426,7 +1480,7 @@ Retrieves the current clipboard content.
 
 ### 9. set_clipboard
 
-**Title:** Set clipboard  
+**Title:** Set clipboard
 **Mode:** sync
 
 Sets the clipboard content to the specified text.
@@ -1439,7 +1493,7 @@ Sets the clipboard content to the specified text.
 
 ### 10. batch_overlay
 
-**Title:** Draw multiple overlays  
+**Title:** Draw multiple overlays
 **Mode:** async
 
 Draws multiple overlays simultaneously or sequentially.
@@ -1465,7 +1519,7 @@ Draws multiple overlays simultaneously or sequentially.
 
 ### 11. subscribe_events
 
-**Title:** Subscribe to UI events  
+**Title:** Subscribe to UI events
 **Mode:** async
 
 Subscribes to UI events for real-time monitoring of user interactions.
@@ -1481,7 +1535,7 @@ Subscribes to UI events for real-time monitoring of user interactions.
 
 ### 12. unsubscribe_events
 
-**Title:** Unsubscribe from events  
+**Title:** Unsubscribe from events
 **Mode:** sync
 
 Unsubscribes from previously subscribed UI events.
@@ -1494,7 +1548,7 @@ Unsubscribes from previously subscribed UI events.
 
 ### 13. re_anchor_element
 
-**Title:** Re-anchor element after scroll or layout change  
+**Title:** Re-anchor element after scroll or layout change
 **Mode:** async
 
 Re-locates a previously anchored element after viewport changes, scrolling, or layout updates.
@@ -1512,7 +1566,7 @@ Re-locates a previously anchored element after viewport changes, scrolling, or l
 
 ### 14. get_display_info
 
-**Title:** Get display configuration  
+**Title:** Get display configuration
 **Mode:** sync
 
 Retrieves information about all connected displays and their configurations.
@@ -1526,6 +1580,103 @@ Retrieves information about all connected displays and their configurations.
   - `scale_factor` (number): DPI scale factor
   - `is_primary` (boolean): Whether this is the primary display
 - `total_virtual_screen` (object): Combined virtual screen dimensions
+
+### 15. add_connection
+
+**Title:** Add connection configuration
+**Mode:** async
+
+Adds a new connection configuration for KasmVNC, VNC, or RDP target systems. Validates protocol-specific requirements and stores the configuration for later use.
+
+**Parameters:**
+- `name` (string, required): Friendly name for the connection
+- `host` (string, required): Host IP address or hostname
+- `port` (number, required): Port number (default: KasmVNC=6901, VNC=5900, RDP=3389)
+- `protocol` (string, required): Protocol type - 'kasmvnc' (recommended for multi-monitor), 'vnc' (standard VNC), or 'rdp' (Windows RDP)
+- `username` (string, optional): Username (required for RDP, optional for VNC/KasmVNC)
+- `password` (string, optional): Password (required for RDP, recommended for VNC/KasmVNC)
+
+**Returns:**
+- `success` (boolean): Whether the connection was added successfully
+- `connection` (object): Connection details including generated ID
+- `warnings` (array): Protocol-specific warnings (e.g., multi-monitor limitations)
+- `errors` (array): Validation errors if any
+
+**Protocol-Specific Validation:**
+- **RDP**: Requires both username and password
+- **VNC**: Password recommended, username optional
+- **KasmVNC**: Flexible authentication, recommended for multi-monitor setups
+
+### 16. list_connections
+
+**Title:** List all connections
+**Mode:** sync
+
+Lists all configured connections with their details (credentials are not exposed).
+
+**Parameters:** None
+
+**Returns:**
+- `success` (boolean): Whether the operation succeeded
+- `total_connections` (number): Total number of configured connections
+- `connections` (array): Array of connection objects with:
+  - `id` (string): Unique connection identifier
+  - `name` (string): Connection name
+  - `host` (string): Host address
+  - `port` (number): Port number
+  - `protocol` (string): Protocol type
+  - `protocol_info` (object): Protocol capabilities and recommendations
+  - `has_username` (boolean): Whether username is configured
+  - `has_password` (boolean): Whether password is configured
+  - `is_active` (boolean): Whether this is the active connection
+  - `created_at` (datetime): When the connection was created
+  - `last_connected` (datetime): Last successful connection time
+- `protocol_recommendations` (object): Recommendations for each protocol type
+
+### 17. test_connection
+
+**Title:** Test connection connectivity
+**Mode:** async
+
+Tests connectivity to a configured connection by attempting to connect to the specified host and port.
+
+**Parameters:**
+- `connection_id` (string, required): Connection ID to test
+
+**Returns:**
+- `success` (boolean): Whether the connection test succeeded
+- `connection` (object): Connection details
+- `message` (string): Test result message
+- `last_connected` (datetime): Updated last connection time if successful
+
+### 18. remove_connection
+
+**Title:** Remove connection
+**Mode:** sync
+
+Removes a connection configuration by ID.
+
+**Parameters:**
+- `connection_id` (string, required): Connection ID to remove
+
+**Returns:**
+- `success` (boolean): Whether the connection was removed
+- `message` (string): Result message
+
+### 19. set_active_connection
+
+**Title:** Set active connection
+**Mode:** sync
+
+Sets the active connection for overlay and screen interaction operations.
+
+**Parameters:**
+- `connection_id` (string, required): Connection ID to set as active
+
+**Returns:**
+- `success` (boolean): Whether the active connection was set
+- `active_connection` (object): Active connection details
+- `message` (string): Result message
 
 ## Operational Modes
 
@@ -1563,25 +1714,32 @@ All tools implement rate limiting to protect local and remote inference systems 
 
 ## Multi-Monitor Support
 
-**Current Status**: Single monitor support only (monitor index 0)  
-**Roadmap**: Full multi-monitor support planned for future implementation
+**Current Status**: ✅ COMPLETED - Full multi-monitor support implemented and tested
 
-**Current Limitations**:
-- All operations assume single monitor (index 0)
-- `CaptureMonitorAsync` treats all requests as full screen capture
-- Overlay coordinates not mapped across multiple displays
+**Protocol-Specific Multi-Monitor Support**:
 
-**Planned Features**:
-- **Multiple Displays**: Proper handling of multi-monitor setups with different resolutions
-- **DPI Scaling**: Automatic detection and handling of different DPI scales per monitor
-- **Virtual Screen**: Support for extended desktop configurations
-- **Monitor Migration**: Handling of displays being connected/disconnected during operation
-- **Coordinate Translation**: ✅ IMPLEMENTED - Accurate coordinate mapping across different display configurations
-- **`get_display_info` tool**: ✅ IMPLEMENTED - Returns monitor count, resolutions, positions, primary monitor
-- **Monitor-Specific Operations**: ✅ IMPLEMENTED - Overlays and screenshots can target specific monitors
-- **Boundary Clamping**: ✅ IMPLEMENTED - Overlays are automatically clamped to monitor bounds
+| Protocol | Multi-Monitor Support | Implementation Details |
+|----------|----------------------|------------------------|
+| **KasmVNC** | ✅ **Full Support** | Independent browser windows for each monitor, true multi-monitor experience |
+| **Standard VNC** | ⚠️ **Limited** | Single canvas display (all monitors merged into one view) |
+| **RDP** | ✅ **Supported** | Windows 7+ Enterprise/Ultimate, requires full-screen mode configuration |
 
-**Implementation Status**: ✅ COMPLETED - Full multi-monitor support implemented and tested
+**Recommended Configuration**: For optimal multi-monitor support, use **KasmVNC** as the target protocol. It provides the best multi-monitor experience with independent browser windows for each display.
+
+**Implemented Features**:
+- **Multiple Displays**: ✅ Proper handling of multi-monitor setups with different resolutions
+- **DPI Scaling**: ✅ Automatic detection and handling of different DPI scales per monitor
+- **Virtual Screen**: ✅ Support for extended desktop configurations
+- **Monitor Migration**: ✅ Handling of displays being connected/disconnected during operation
+- **Coordinate Translation**: ✅ Accurate coordinate mapping across different display configurations
+- **`get_display_info` tool**: ✅ Returns monitor count, resolutions, positions, primary monitor
+- **Monitor-Specific Operations**: ✅ Overlays and screenshots can target specific monitors
+- **Boundary Clamping**: ✅ Overlays are automatically clamped to monitor bounds
+
+**Usage Notes**:
+- When using **KasmVNC**: Each monitor appears in a separate browser window, allowing true multi-monitor workflows
+- When using **Standard VNC**: All monitors are merged into a single canvas view
+- When using **RDP**: Multi-monitor support depends on Windows edition and configuration
 
 ## Performance Considerations
 

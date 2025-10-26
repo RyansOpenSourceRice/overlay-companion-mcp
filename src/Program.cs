@@ -70,6 +70,7 @@ public class Program
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IClipboardBridgeService, ClipboardBridgeService>();
+        builder.Services.AddSingleton<IConnectionManagementService, ConnectionManagementService>();
 
         // Add MCP server with official SDK using stdio transport (standard for MCP servers)
         builder.Services
@@ -114,6 +115,7 @@ public class Program
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
         builder.Services.AddSingleton<IClipboardBridgeService, ClipboardBridgeService>();
+        builder.Services.AddSingleton<IConnectionManagementService, ConnectionManagementService>();
         builder.Services.AddSingleton<UpdateService>();
         builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();

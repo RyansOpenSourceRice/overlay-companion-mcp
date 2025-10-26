@@ -127,6 +127,16 @@
                     </button>
                 </div>
 
+                <!-- MCP Configuration Notice -->
+                <div class="info-notice" style="margin-bottom: 1.5rem;">
+                    <i class="fas fa-robot"></i>
+                    <div class="notice-content">
+                        <strong>AI Integration:</strong> Connections can be configured manually here or programmatically
+                        via the MCP server. AI agents can dynamically manage connections using MCP tools for automated
+                        testing and target selection.
+                    </div>
+                </div>
+
                 <div class="connections-container">
                     <div id="connections-list" class="connections-grid">
                         <div class="empty-state">
@@ -177,22 +187,27 @@
                                     <label for="connection-port">Port</label>
                                     <input type="number" id="connection-port" name="port"
                                            value="6901" min="1" max="65535">
+                                    <small class="form-help">Default: KasmVNC=6901, VNC=5900, RDP=3389</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="connection-protocol">Protocol</label>
                                     <select id="connection-protocol" name="protocol">
-                                        <option value="kasmvnc">KasmVNC (Recommended)</option>
-                                        <option value="vnc">Standard VNC</option>
-                                        <option value="rdp">RDP</option>
+                                        <option value="kasmvnc">KasmVNC (Recommended - Best Multi-Monitor)</option>
+                                        <option value="vnc">Standard VNC (Single Canvas)</option>
+                                        <option value="rdp">RDP (Windows - Requires Username)</option>
                                     </select>
+                                    <small class="form-help">KasmVNC recommended for multi-monitor support</small>
                                 </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="connection-username">Username (Optional)</label>
+                                <label for="connection-username">Username</label>
                                 <input type="text" id="connection-username" name="username"
                                        placeholder="Leave empty for VNC password-only authentication">
-                                <small class="form-help">Required for RDP, optional for VNC</small>
+                                <small class="form-help">
+                                    <strong>Required for RDP</strong> (username+password),
+                                    optional for VNC (password-only or username+password)
+                                </small>
                             </div>
 
                             <div class="form-group">
