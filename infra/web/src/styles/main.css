@@ -733,6 +733,23 @@ textarea:focus {
   flex-shrink: 0;
 }
 
+.info-notice {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.info-notice i {
+  color: #0284c7;
+  font-size: var(--font-size-lg);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .notice-content {
   font-size: var(--font-size-sm);
   line-height: 1.5;

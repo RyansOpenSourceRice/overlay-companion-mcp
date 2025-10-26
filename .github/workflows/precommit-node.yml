@@ -2,6 +2,10 @@ name: CI - Pre-commit (Node + .NET)
 
 on: [push, pull_request]
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+
 jobs:
   precommit:
     runs-on: ubuntu-latest
