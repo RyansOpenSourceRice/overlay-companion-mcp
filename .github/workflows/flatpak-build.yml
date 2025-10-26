@@ -9,6 +9,11 @@ on:
     paths:
       - 'flatpak/**'
 
+# Security: Explicit permissions following principle of least privilege
+permissions:
+  contents: read
+  actions: write  # For uploading artifacts
+
 jobs:
   build-flatpak:
     runs-on: ubuntu-latest
