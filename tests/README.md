@@ -1,3 +1,5 @@
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
+
 # Overlay Companion MCP - Test Suite
 
 This directory contains comprehensive testing scripts and reports for validating the Overlay Companion MCP server in headless Docker environments.

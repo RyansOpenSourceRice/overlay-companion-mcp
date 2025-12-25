@@ -1,3 +1,5 @@
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
+
 # Overlay Companion MCP - Development Roadmap
 
 ## 🎯 Current Status (v1.0.0)
