@@ -32,7 +32,9 @@ def post(url, method, params=None, session=None):
 
 def main():
     # Start Rust server on 3001
-    rust_proc = subprocess.Popen([RUST_BIN], env={**dict(),}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    env = dict(**dict())
+    env["MCP_HTTP_PORT"] = str(RUST_PORT)
+    rust_proc = subprocess.Popen([RUST_BIN], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     time.sleep(1.5)
 
     try:
