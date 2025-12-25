@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import json
 import subprocess
 import time
 from pathlib import Path
+
 import requests
 
 # Simple harness to compare basic tool list and a call between C# HTTP MCP and Rust HTTP MCP
@@ -13,7 +13,13 @@ import requests
 RUST_PORT = 3001
 CS_PORT = 3000
 
-RUST_BIN = str(Path(__file__).resolve().parents[1] / "rust-mcp" / "target" / "release" / "overlay-companion-mcp")
+RUST_BIN = str(
+    Path(__file__).resolve().parents[1]
+    / "rust-mcp"
+    / "target"
+    / "release"
+    / "overlay-companion-mcp"
+)
 
 
 def post(url, method, params=None, session=None):
@@ -34,7 +40,9 @@ def main():
     # Start Rust server on 3001
     env = dict(**dict())
     env["MCP_HTTP_PORT"] = str(RUST_PORT)
-    rust_proc = subprocess.Popen([RUST_BIN], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    rust_proc = subprocess.Popen(
+        [RUST_BIN], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     time.sleep(1.5)
 
     try:
@@ -42,20 +50,44 @@ def main():
         cs_url = f"http://localhost:{CS_PORT}/mcp"
 
         # Initialize both
-        r_init = post(rust_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}})
-        c_init = post(cs_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}})
+        post(
+            rust_url,
+            "initialize",
+            {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "cmp", "version": "0.1"},
+            },
+        )
+        post(
+            cs_url,
+            "initialize",
+            {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "cmp", "version": "0.1"},
+            },
+        )
 
         # List tools and compare names
         r_tools = post(rust_url, "tools/list")
         c_tools = post(cs_url, "tools/list")
-        r_names = sorted([t.get("name") for t in r_tools.get("result", {}).get("tools", [])])
-        c_names = sorted([t.get("name") for t in c_tools.get("result", {}).get("tools", [])])
+        r_names = sorted(
+            [t.get("name") for t in r_tools.get("result", {}).get("tools", [])]
+        )
+        c_names = sorted(
+            [t.get("name") for t in c_tools.get("result", {}).get("tools", [])]
+        )
         print("Rust tools:", r_names)
         print("C# tools:", c_names)
 
         # Call a common tool
-        r_call = post(rust_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
-        c_call = post(cs_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
+        r_call = post(
+            rust_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}}
+        )
+        c_call = post(
+            cs_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}}
+        )
         print("Rust call result keys:", list(r_call.keys()))
         print("C# call result keys:", list(c_call.keys()))
         print("OK")

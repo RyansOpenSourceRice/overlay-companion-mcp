@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+
 import requests
 
 URL = "http://127.0.0.1:3100/mcp"
@@ -14,14 +15,16 @@ def post_sse(url, payload, session_id=None):
     headers = HEADERS_BASE.copy()
     if session_id:
         headers["MCP-Session-Id"] = session_id
-    with requests.post(url, json=payload, headers=headers, stream=True, timeout=30) as r:
+    with requests.post(
+        url, json=payload, headers=headers, stream=True, timeout=30
+    ) as r:
         r.raise_for_status()
         data_lines = []
         for line in r.iter_lines(decode_unicode=True):
             if not line:
                 continue
             if line.startswith("data: "):
-                data_lines.append(line[len("data: "):])
+                data_lines.append(line[len("data: ") :])
         if not data_lines:
             return None
         # Concatenate payload across lines (usually only one)
@@ -37,7 +40,11 @@ def main():
         "jsonrpc": "2.0",
         "id": 1,
         "method": "initialize",
-        "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "probe", "version": "0.1"}},
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "probe", "version": "0.1"},
+        },
     }
     # First request: initialize, and capture session id from response headers
     # Note: requests doesn't expose headers until after sending; we'll make a non-streamed request first to get session id
@@ -49,7 +56,7 @@ def main():
     body = r.text
     if body.startswith("data: "):
         try:
-            print("init:", json.loads(body[len("data: "):]))
+            print("init:", json.loads(body[len("data: ") :]))
         except Exception:
             print("init raw:", body)
 
@@ -59,7 +66,12 @@ def main():
     print("tools/list:", json.dumps(resp, indent=2))
 
     # call a tool
-    call_req = {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "click_at", "arguments": {"x": 5, "y": 7}}}
+    call_req = {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "tools/call",
+        "params": {"name": "click_at", "arguments": {"x": 5, "y": 7}},
+    }
     call_resp = post_sse(URL, call_req, session_id=sess)
     print("tools/call:", json.dumps(call_resp, indent=2))
 

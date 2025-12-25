@@ -52,7 +52,7 @@ public class ConnectionManagementService : IConnectionManagementService
             ".overlay-companion",
             "connections.json"
         );
-        
+
         _ = LoadConnectionsAsync();
     }
 
