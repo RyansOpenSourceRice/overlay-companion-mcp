@@ -1,4 +1,5 @@
 # Overlay Companion (MCP) - Tool Specification
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
 
 <!-- markdownlint-disable MD051 -->
 <!-- toc -->

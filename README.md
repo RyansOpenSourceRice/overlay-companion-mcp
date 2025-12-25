@@ -1,5 +1,10 @@
 # Overlay Companion MCP
 
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/RyansOpenSourceRice/overlay-companion-mcp?label=openssf%20scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/RyansOpenSourceRice/overlay-companion-mcp)
+
+> Friendly note: this project is in prefunctional development. Some parts are still being wired up, so if something doesn’t work yet, that’s expected. Thanks for your patience while we improve it.
+
+
 **Let AI control your computer screen** - Create overlays, take screenshots, simulate mouse clicks, and interact with any desktop through your favorite AI assistant (Cherry AI, Claude Desktop, etc.).
 
 > **📋 Looking for the Clipboard Bridge?** See [docs/CLIPBOARD_BRIDGE.md](docs/CLIPBOARD_BRIDGE.md) for the standalone Flatpak clipboard sync tool.

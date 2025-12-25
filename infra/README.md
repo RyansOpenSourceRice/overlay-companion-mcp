@@ -1,3 +1,5 @@
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
+
 Infra plan (single-user first, production-ready later)
 Viewer-driven sizing
 - The browser viewport now drives the VM display size: we call client.sendSize(width,height) on resize, update virtual_screen to match viewport, and recompute overlay transforms. This keeps overlays aligned and the remote desktop sized to the window you choose.

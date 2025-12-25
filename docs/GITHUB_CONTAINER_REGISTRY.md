@@ -1,3 +1,5 @@
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
+
 # GitHub Container Registry Setup
 
 This document explains how to use the automated GitHub Container Registry (GHCR) setup for the Overlay Companion MCP project.

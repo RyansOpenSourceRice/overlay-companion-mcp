@@ -1,3 +1,5 @@
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io)
+
 # Open Source Licenses for Development Tools
 
 All tools used in this project's development workflow are open source. Here's the complete list:

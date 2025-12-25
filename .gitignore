@@ -115,3 +115,24 @@ flatpak/clipboard-bridge/.flatpak-builder/
 flatpak/clipboard-bridge/build/
 flatpak/clipboard-bridge/repo/
 flatpak/clipboard-bridge/*.flatpak
+
+# Rust build artifacts
+rust-mcp/target/
+**/target/
+**/*.rlib
+**/*.rmeta
+**/*.dSYM/
+**/*.pdb
+rust-mcp/.cargo/
+# Optional: ignore Cargo.lock if this is not a published binary crate
+# rust-mcp/Cargo.lock
+
+# Rust tooling caches
+/.rustup/
+/.cargo/
+**/.rustc_info.json
+
+# IDE files
+**/.idea/
+**/.vscode/
+**/*.iml
