@@ -130,8 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config,
     );
 
-    // Bind to 0.0.0.0:3000 to match existing container expectations
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+    // Bind to MCP_HTTP_PORT (default 3000)
+    let port: u16 = std::env::var("MCP_HTTP_PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(3000);
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
     eprintln!("Starting Overlay Companion MCP Server (Rust, Streamable HTTP) on {}...", addr);
     eprintln!("This is a prefunctional development version.");
 
