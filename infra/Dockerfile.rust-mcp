@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+
+# Build stage
+FROM rust:1.82 as builder
+WORKDIR /src
+
+# Cache dependencies
+COPY rust-mcp/Cargo.toml rust-mcp/Cargo.lock ./rust-mcp/
+RUN mkdir -p rust-mcp/src && echo "fn main(){}" > rust-mcp/src/main.rs && \
+    cargo build --release -p overlay-companion-mcp || true
+
+# Build actual binary
+COPY rust-mcp ./rust-mcp
+RUN cargo build --release --manifest-path rust-mcp/Cargo.toml
+
+# Runtime stage
+FROM gcr.io/distroless/cc-debian12:nonroot
+WORKDIR /app
+COPY --from=builder /src/rust-mcp/target/release/overlay-companion-mcp /app/overlay-companion-mcp
+EXPOSE 3000
+USER nonroot
+ENTRYPOINT ["/app/overlay-companion-mcp"]

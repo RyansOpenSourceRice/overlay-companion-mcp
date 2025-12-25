@@ -1,8 +1,13 @@
 use anyhow::Result;
+use hyper_util::service::TowerToHyperService;
+
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
-    transport::stdio,
+    transport::streamable_http_server::{
+        session::local::LocalSessionManager,
+        tower::{StreamableHttpServerConfig, StreamableHttpService},
+    },
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler, ServiceExt,
 };
 use schemars::JsonSchema;
@@ -115,15 +120,34 @@ impl rmcp::ServerHandler for OverlayCompanionServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let service = OverlayCompanionServer::new().serve(stdio()).await
-        .inspect_err(|e| {
-            println!("Error starting server: {}", e);
-        })?;
+    // Serve over Streamable HTTP for modern MCP transport
+    // Serve over Streamable HTTP for modern MCP transport
+    let session_manager = std::sync::Arc::new(LocalSessionManager::default());
+    let config = StreamableHttpServerConfig::default();
+    let http = StreamableHttpService::new(
+        || Ok(OverlayCompanionServer::new()),
+        session_manager,
+        config,
+    );
 
-    println!("Starting Overlay Companion MCP Server (Rust implementation)...");
-    println!("This is a prefunctional development version.");
+    // Bind to 0.0.0.0:3000 to match existing container expectations
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+    eprintln!("Starting Overlay Companion MCP Server (Rust, Streamable HTTP) on {}...", addr);
+    eprintln!("This is a prefunctional development version.");
 
-    service.waiting().await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let builder = hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new());
+    loop {
+        let (stream, _peer) = listener.accept().await?;
+        let io = hyper_util::rt::TokioIo::new(stream);
+        let svc = TowerToHyperService::new(http.clone());
+        let b = builder.clone();
+        tokio::spawn(async move {
+            if let Err(e) = b.serve_connection(io, svc).await {
+                eprintln!("HTTP connection error: {e}");
+            }
+        });
+    }
 
     Ok(())
 }

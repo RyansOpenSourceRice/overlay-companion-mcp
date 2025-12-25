@@ -46,6 +46,10 @@ jobs:
             dockerfile: infra/Dockerfile.mcp
             context: .
             image_env: IMAGE_NAME_MCP
+          - name: mcp-server-rust
+            dockerfile: infra/Dockerfile.rust-mcp
+            context: .
+            image_env: IMAGE_NAME_MCP
           - name: web-interface
             dockerfile: infra/Dockerfile.web
             context: .
