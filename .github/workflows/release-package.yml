@@ -188,7 +188,7 @@ jobs:
         sha256sum ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz > ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}.tar.gz.sha256
 
     - name: Upload release artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}
         path: |

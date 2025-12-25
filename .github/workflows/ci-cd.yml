@@ -156,7 +156,7 @@ jobs:
         dotnet list package --vulnerable --include-transitive || echo "Security scan completed"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: csharp-build-${{ github.sha }}
         path: src/bin/Release/
@@ -200,7 +200,7 @@ jobs:
 
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: test-results-${{ github.sha }}
         path: |
