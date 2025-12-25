@@ -46,6 +46,28 @@ Overlay Companion MCP connects your AI assistant to a computer desktop (yours or
 Run this on your **Fedora Desktop** (the computer you're sitting at):
 
 ```bash
+# Recommended: Compose-based install (no remote scripts)
+# 1) Copy the compose file and .env template
+cp infra/kasmvnc-compose.yml ./docker-compose.yml
+cp infra/.env.example ./.env
+
+# 2) Edit .env with your port preferences and settings
+#   CONTAINER_PORT=8080
+#   WEB_PORT=8082
+#   MCP_PORT=3001
+#   KASMVNC_PORT=6080
+#   KASMVNC_ADMIN_PORT=3000
+
+# 3) Start the stack
+podman-compose up -d
+
+# Optional: use Docker Compose instead
+# docker compose up -d
+```
+
+If you still prefer the one-line installer, use at your own discretion:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
 ```
 
