@@ -1,6 +1,6 @@
 # Overlay Companion MCP
 
-[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/RyansOpenSourceRice/overlay-companion-mcp?label=openssf%20scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/RyansOpenSourceRice/overlay-companion-mcp)
+[![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io) [![Vibe Coded: Disclosure](https://img.shields.io/badge/Vibe%20Coded-Disclosure-informational?style=flat-square)](https://github.com/danielrosehill/Vibe-Coded-Disclosure) [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/RyansOpenSourceRice/overlay-companion-mcp?label=openssf%20scorecard)](https://securityscorecards.dev/viewer/?uri=github.com/RyansOpenSourceRice/overlay-companion-mcp)
 
 > Friendly note: this project is in prefunctional development. Some parts are still being wired up, so if something doesn’t work yet, that’s expected. Thanks for your patience while we improve it.
 
