@@ -1710,6 +1710,55 @@ All tools implement rate limiting to protect local and remote inference systems 
 - **Human-in-the-loop**: Design ensures user maintains control over automation
 - **Audit Trail**: Optional logging of all actions for security and debugging
 - **Local Processing**: Sensitive operations can be processed locally without external API calls
+- **SIEM-ready Audit Logs**: Structured, privacy-aware audit events exportable to any SIEM
+
+## 12. Audit Logging and SIEM Integration
+
+The system emits structured audit events for security-relevant actions and administrative events. Goals:
+- Compatible with common SIEMs (e.g., Splunk, Elastic, Datadog, Wash)
+- Minimal, privacy-aware payloads; no sensitive content unless explicitly enabled
+- Configurable sinks: stdout (JSON), file, HTTP, OTLP
+- Tenant- and user-scoped context for multiuser isolation and analytics
+
+Event model (JSON):
+- timestamp: RFC3339 UTC
+- event_type: one of [auth.login, auth.jwt_validated, mcp.tool_call, mcp.tool_result, http.request, http.response, proxy.forward, overlay.created, overlay.removed, screenshot.taken, rate_limit.triggered]
+- actor: { user_id, roles:[], ip }
+- request: { method, path, query_redacted: true, request_id }
+- resource: { kind, id }  # e.g., overlay, connection, session
+- outcome: success|failure, error_code (optional), latency_ms
+- mcp: { server: rust|dotnet, transport: http|streamable_http, tool: name }
+- security: { oidc_issuer, audience, rbac_roles_checked, opa_policy_id? }
+- meta: { deployment: env, trace_id?, span_id? }
+
+Configuration:
+- AUDIT_ENABLED=true|false (default true)
+- AUDIT_SINK=stdout|file|http|otlp (default stdout)
+- AUDIT_FILE_PATH=/var/log/overlay-mcp/audit.jsonl (for file sink)
+- AUDIT_HTTP_ENDPOINT=https://siem.example.com/ingest (for http sink)
+- AUDIT_HTTP_API_KEY=... (optional)
+- AUDIT_OTLP_ENDPOINT=http://otel-collector:4317 (OTLP/gRPC)
+- AUDIT_REDACT_FIELDS=["request.query","request.headers.authorization","mcp.tool_result.content"]
+
+Export formats:
+- JSON Lines (default)
+- OTLP logs (optional): attributes map mirrors fields above
+
+Wash SIEM example (HTTP sink):
+- Set AUDIT_SINK=http and AUDIT_HTTP_ENDPOINT to your Wash endpoint
+- Provide AUDIT_HTTP_API_KEY in the proxy container env
+- Logs are sent as newline-delimited JSON with content-type application/x-ndjson
+
+Privacy and retention:
+- Defaults to redaction of secrets and payload bodies
+- Retention is operator-controlled; recommend 30-90 days with secure storage
+- Provide data-subject access exports on request via admin API
+
+Operational guidance:
+- Add audit middleware in the Node proxy and MCP servers to emit the event model above
+- Include request_id and user correlation across services
+- Prefer async, buffered sinks with backpressure handling
+
 - **Security Middleware**: Centralized security utilities with type safety validation
 - **Content Security Policy**: Helmet.js provides comprehensive HTTP security headers
 
