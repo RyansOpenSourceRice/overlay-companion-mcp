@@ -22,7 +22,8 @@
     "express-rate-limit": "^7.5.1",
     "http-proxy-middleware": "^2.0.6",
     "ws": "^8.14.2",
-    "ipaddr.js": "^2.2.0"
+    "ipaddr.js": "^2.2.0",
+    "jose": "^5.9.2"
   },
   "engines": {
     "node": ">=18.0.0"
