@@ -45,19 +45,45 @@ def main():
         r_init = post(rust_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}})
         c_init = post(cs_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}})
 
-        # List tools and compare names
+        # List tools and compare names (must include core overlay tools)
         r_tools = post(rust_url, "tools/list")
         c_tools = post(cs_url, "tools/list")
         r_names = sorted([t.get("name") for t in r_tools.get("result", {}).get("tools", [])])
         c_names = sorted([t.get("name") for t in c_tools.get("result", {}).get("tools", [])])
         print("Rust tools:", r_names)
         print("C# tools:", c_names)
+        for core in ["draw_overlay", "remove_overlay", "take_screenshot"]:
+            assert core in r_names and core in c_names, f"Missing core tool {core} in one of the servers"
 
         # click_at moved to Control MCP; verify both servers do not expose it here
         r_call = post(rust_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
         c_call = post(cs_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
         assert r_call.get("error") is not None and c_call.get("error") is not None
         print("OK: click_at not exposed by Overlay MCP in both implementations")
+
+        def first_text(result):
+            content = (result or {}).get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                return content[0].get("text")
+            return None
+
+        # draw_overlay parity: both should return JSON with overlay_id and bounds
+        r_draw = post(rust_url, "tools/call", {"name": "draw_overlay", "arguments": {"x": 10, "y": 20, "width": 100, "height": 50, "color": "#FF0000"}})
+        c_draw = post(cs_url, "tools/call", {"name": "draw_overlay", "arguments": {"x": 10, "y": 20, "width": 100, "height": 50, "color": "#FF0000"}})
+        r_draw_json = json.loads(first_text(r_draw) or "{}")
+        c_draw_json = json.loads(first_text(c_draw) or "{}")
+        for key in ["overlay_id", "bounds", "color"]:
+            assert key in r_draw_json and key in c_draw_json, f"draw_overlay missing key {key}"
+        print("OK: draw_overlay returns comparable payloads")
+
+        # take_screenshot parity: JSON shape with width/height present
+        r_ss = post(rust_url, "tools/call", {"name": "take_screenshot", "arguments": {}})
+        c_ss = post(cs_url, "tools/call", {"name": "take_screenshot", "arguments": {}})
+        r_ss_json = json.loads(first_text(r_ss) or "{}")
+        c_ss_json = json.loads(first_text(c_ss) or "{}")
+        for key in ["width", "height", "viewport_scroll"]:
+            assert key in r_ss_json and key in c_ss_json, f"take_screenshot missing key {key}"
+        print("OK: take_screenshot returns comparable payloads")
 
     finally:
         rust_proc.terminate()
