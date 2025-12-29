@@ -296,7 +296,8 @@ def test_mouse_click():
     # Click at the center of the first text overlay
     result = send_mcp_request(
         "tools/call",
-        {"name": "click_at", "arguments": {"x": 300, "y": 150, "button": "left"}},
+        # click_at moved to Control MCP (separate server)
+        # {"name": "click_at", "arguments": {"x": 300, "y": 150, "button": "left"}},
     )
 
     if result and "result" in result:
@@ -317,7 +318,8 @@ def test_keyboard_input():
 
     result = send_mcp_request(
         "tools/call",
-        {"name": "type_text", "arguments": {"text": "Hello from MCP GUI Test!"}},
+        # type_text moved to Control MCP (separate server)
+        # {"name": "type_text", "arguments": {"text": "Hello from MCP GUI Test!"}},
     )
 
     if result and "result" in result:

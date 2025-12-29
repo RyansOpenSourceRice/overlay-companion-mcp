@@ -87,7 +87,7 @@ public class ModeManager : IModeManager
         var restrictedActions = new HashSet<string>
         {
             "set_clipboard", // Could overwrite important data
-            "type_text"      // Could input sensitive information
+            // "type_text" removed: control MCP domain (no direct key injection)
         };
 
         return !restrictedActions.Contains(actionType);
@@ -97,7 +97,7 @@ public class ModeManager : IModeManager
     {
         var composingActions = new HashSet<string>
         {
-            "type_text",
+            // "type_text" removed: Control MCP domain
             "set_clipboard",
             "get_clipboard",
             "take_screenshot",
@@ -112,8 +112,8 @@ public class ModeManager : IModeManager
     {
         var destructiveActions = new HashSet<string>
         {
-            "click_at",
-            "type_text",
+            // "click_at" removed: Control MCP domain
+            // "type_text" removed: Control MCP domain
             "set_clipboard"
         };
 
@@ -124,8 +124,8 @@ public class ModeManager : IModeManager
     {
         var highRiskActions = new HashSet<string>
         {
-            "type_text", // Could input passwords or sensitive data
-            "click_at"   // Could click on dangerous buttons
+            // "type_text" removed: Control MCP domain
+            // "click_at" removed: Control MCP domain
         };
 
         return highRiskActions.Contains(actionType);
@@ -135,7 +135,7 @@ public class ModeManager : IModeManager
     {
         var nonComposingActions = new HashSet<string>
         {
-            "click_at" // Clicking is not part of composing
+            // "click_at" removed: Control MCP domain
         };
 
         return nonComposingActions.Contains(actionType);

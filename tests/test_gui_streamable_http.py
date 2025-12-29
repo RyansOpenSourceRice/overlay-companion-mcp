@@ -190,7 +190,8 @@ def test_take_screenshot(client):
     return False, None
 
 
-def test_mouse_click(client):
+# click_at moved to Control MCP; test removed here
+# def test_mouse_click(client):
     """Test 4: Simulate mouse click"""
     log("\n" + "=" * 60, Colors.BLUE)
     log("TEST 4: Simulate Mouse Click", Colors.BLUE)

@@ -53,12 +53,11 @@ def main():
         print("Rust tools:", r_names)
         print("C# tools:", c_names)
 
-        # Call a common tool
+        # click_at moved to Control MCP; verify both servers do not expose it here
         r_call = post(rust_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
         c_call = post(cs_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
-        print("Rust call result keys:", list(r_call.keys()))
-        print("C# call result keys:", list(c_call.keys()))
-        print("OK")
+        assert r_call.get("error") is not None and c_call.get("error") is not None
+        print("OK: click_at not exposed by Overlay MCP in both implementations")
 
     finally:
         rust_proc.terminate()
