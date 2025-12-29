@@ -31,17 +31,6 @@ pub struct RemoveOverlayParams {
     pub overlay_id: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct ClickAtParams {
-    pub x: u32,
-    pub y: u32,
-    pub button: Option<String>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct TypeTextParams {
-    pub text: String,
-}
 
 #[derive(Clone)]
 pub struct OverlayCompanionServer {
@@ -85,26 +74,6 @@ impl OverlayCompanionServer {
         )]))
     }
 
-    #[tool(description = "Simulate a mouse click at coordinates")]
-    pub async fn click_at(
-        &self,
-        Parameters(ClickAtParams { x, y, button }): Parameters<ClickAtParams>,
-    ) -> Result<CallToolResult, McpError> {
-        let btn = button.unwrap_or_else(|| "left".to_string());
-        Ok(CallToolResult::success(vec![Content::text(
-            format!("Clicked at ({}, {}) with {} - Rust", x, y, btn)
-        )]))
-    }
-
-    #[tool(description = "Simulate keyboard input")]
-    pub async fn type_text(
-        &self,
-        Parameters(TypeTextParams { text }): Parameters<TypeTextParams>,
-    ) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
-            format!("Typed: {} - Rust", text)
-        )]))
-    }
 }
 
 #[tool_handler]
