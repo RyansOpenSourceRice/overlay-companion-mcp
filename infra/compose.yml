@@ -1,0 +1,78 @@
+version: '3.9'
+
+x-common-env: &common_env
+  TZ: ${TZ:-Etc/UTC}
+  PUID: ${PUID:-1000}
+  PGID: ${PGID:-1000}
+  OIDC_ENABLED: ${OIDC_ENABLED:-false}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+  OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:-overlay:user}
+
+services:
+  overlay-web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    image: overlay-companion/web:latest
+    environment:
+      <<: *common_env
+      MCP_SERVER_URL: http://mcp-server:3000
+    ports:
+      - "${WEB_PORT:-8082}:8080"
+    depends_on:
+      - mcp-server
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.mcp
+    image: overlay-companion/mcp-csharp:latest
+    environment:
+      <<: *common_env
+      ASPNETCORE_URLS: http://0.0.0.0:3000
+    expose:
+      - "3000"
+
+  rust-mcp:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.rust-mcp
+    image: overlay-companion/mcp-rust:latest
+    environment:
+      <<: *common_env
+      MCP_HTTP_PORT: 3000
+    expose:
+      - "3000"
+
+  control-mcp:
+    image: overlay-companion/control-mcp:latest
+    environment:
+      <<: *common_env
+      MCP_HTTP_PORT: 3003
+    expose:
+      - "3003"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.2
+    command: ["start-dev", "--http-port=8080", "--hostname-strict=false"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8085:8080"
+
+  caddy:
+    image: caddy:2.8.4
+    ports:
+      - "${CONTAINER_PORT:-8080}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - overlay-web
+      - mcp-server
+      - control-mcp
+
+networks:
+  default:
+    name: overlay-net
