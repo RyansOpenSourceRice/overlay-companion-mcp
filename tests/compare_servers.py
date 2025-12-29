@@ -16,18 +16,51 @@ CS_PORT = 3000
 RUST_BIN = str(Path(__file__).resolve().parents[1] / "rust-mcp" / "target" / "release" / "overlay-companion-mcp")
 
 
-def post(url, method, params=None, session=None):
+def _post_json(url, payload, session=None):
     s = session or requests.Session()
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "MCP-Protocol-Version": "2025-03-26",
+    }
+    r = s.post(url, json=payload, headers=headers, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+
+def _post_streamable(url, payload, session=None):
+    s = session or requests.Session()
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": "2025-03-26",
+    }
+    r = s.post(url, json=payload, headers=headers, timeout=10, stream=True)
+    r.raise_for_status()
+    ctype = r.headers.get("Content-Type", "")
+    if ctype.startswith("application/json"):
+        return r.json()
+    # SSE: read first data: line
+    for line in r.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        if line.startswith("data:"):
+            data = line[len("data:"):].strip()
+            return json.loads(data)
+    raise RuntimeError("No data frame received from streamable HTTP response")
+
+
+def post(url, method, params=None, session=None, streamable=False):
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": method,
         "params": params or {},
     }
-    headers = {"Content-Type": "application/json", "MCP-Protocol-Version": "2025-03-26"}
-    r = s.post(url, json=payload, headers=headers, timeout=10)
-    r.raise_for_status()
-    return r.json()
+    if streamable:
+        return _post_streamable(url, payload, session=session)
+    else:
+        return _post_json(url, payload, session=session)
 
 
 def main():
