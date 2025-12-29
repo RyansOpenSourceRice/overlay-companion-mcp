@@ -1,0 +1,71 @@
+name: Rebase Feature Branch onto main
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to rebase onto main
+        required: true
+        default: feat/oidc-proxy-compose
+      strategy:
+        description: rebase (default) or merge
+        required: false
+        default: rebase
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rebase-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch refs
+        run: |
+          git remote -v
+          git fetch origin
+
+      - name: Ensure branch exists
+        run: |
+          BRANCH="${{ inputs.branch }}"
+          git show-ref --verify --quiet "refs/remotes/origin/$BRANCH" || {
+            echo "Branch origin/$BRANCH not found";
+            exit 1;
+          }
+
+      - name: Rebase branch onto origin/main
+        if: ${{ inputs.strategy == '' || inputs.strategy == 'rebase' }}
+        run: |
+          BRANCH="${{ inputs.branch }}"
+          git checkout "$BRANCH" || git checkout -b "$BRANCH" "origin/$BRANCH"
+          git rebase origin/main
+
+      - name: Merge origin/main into branch (alternative strategy)
+        if: ${{ inputs.strategy == 'merge' }}
+        run: |
+          BRANCH="${{ inputs.branch }}"
+          git checkout "$BRANCH" || git checkout -b "$BRANCH" "origin/$BRANCH"
+          git merge --no-ff origin/main
+
+      - name: Push updates
+        run: |
+          BRANCH="${{ inputs.branch }}"
+          # Use force-with-lease for rebase safety, regular push for merge
+          if [ "${{ inputs.strategy }}" = "merge" ]; then
+            git push origin "$BRANCH";
+          else
+            git push --force-with-lease origin "$BRANCH";
+          fi
