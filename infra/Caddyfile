@@ -7,10 +7,15 @@
     reverse_proxy overlay-web:8080
   }
 
-  # MCP Server API endpoints
+  # MCP Server API endpoints (split overlay MCP and control MCP)
   @mcp_api path_regexp mcp_api ^/(api|mcp|health)
   handle @mcp_api {
     reverse_proxy mcp-server:3000
+  }
+
+  # Control MCP (input/window/process control)
+  handle_path /control-mcp* {
+    reverse_proxy control-mcp:3003
   }
 
   # MCP WebSocket connections
