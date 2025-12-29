@@ -23,7 +23,11 @@ pub struct DrawOverlayParams {
     pub width: u32,
     pub height: u32,
     pub color: String,
-    pub shape: String,
+    #[allow(dead_code)]
+    pub shape: Option<String>,
+    pub id: Option<String>,
+    pub opacity: Option<f64>,
+    pub monitor_index: Option<i32>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -52,9 +56,19 @@ impl OverlayCompanionServer {
         &self,
         Parameters(params): Parameters<DrawOverlayParams>,
     ) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
-            format!("Overlay drawn at ({}, {}) - Rust", params.x, params.y)
-        )]))
+        let id = params.id.unwrap_or_else(|| format!("ovl-{}-{}", params.x, params.y));
+        let opacity = params.opacity.unwrap_or(0.5);
+        let monitor_index = params.monitor_index.unwrap_or(0);
+        let resp = serde_json::json!({
+            "overlay_id": id,
+            "bounds": {"x": params.x, "y": params.y, "width": params.width, "height": params.height},
+            "color": params.color,
+            "opacity": opacity,
+            "monitor_index": monitor_index,
+            "monitor_name": serde_json::Value::Null,
+            "monitor_bounds": serde_json::Value::Null
+        });
+        Ok(CallToolResult::success(vec![Content::text(resp.to_string())]))
     }
 
     #[tool(description = "Remove an existing overlay by ID")]
@@ -69,9 +83,16 @@ impl OverlayCompanionServer {
 
     #[tool(description = "Take a screenshot of the current screen")]
     pub async fn take_screenshot(&self) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
-            "Screenshot captured - Rust"
-        )]))
+        let resp = serde_json::json!({
+            "image_base64": "",
+            "width": 0,
+            "height": 0,
+            "region": null,
+            "monitor_index": 0,
+            "display_scale": 1.0,
+            "viewport_scroll": {"x": 0, "y": 0}
+        });
+        Ok(CallToolResult::success(vec![Content::text(resp.to_string())]))
     }
 
 }
