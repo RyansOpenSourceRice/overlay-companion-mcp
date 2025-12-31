@@ -58,7 +58,7 @@ services:
     command: ["start-dev", "--http-port=8080", "--hostname-strict=false"]
     environment:
       KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin # pragma: allowlist secret (dev example)
     ports:
       - "8085:8080"
 

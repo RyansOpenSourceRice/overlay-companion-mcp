@@ -189,24 +189,7 @@ def test_take_screenshot(client):
     log(f"❌ Failed to capture screenshot: {result}", Colors.RED)
     return False, None
 
-
-# click_at moved to Control MCP; test removed here
-# def test_mouse_click(client):
-    """Test 4: Simulate mouse click"""
-    log("\n" + "=" * 60, Colors.BLUE)
-    log("TEST 4: Simulate Mouse Click", Colors.BLUE)
-    log("=" * 60, Colors.BLUE)
-
-    result = client.call_tool("click_at", {"x": 400, "y": 200, "button": "left"})
-
-    if result and "result" in result:
-        log("✅ Mouse click simulated successfully", Colors.GREEN)
-        log("   Position: (400, 200)", Colors.GREEN)
-        log("   Button: left", Colors.GREEN)
-        return True
-
-    log(f"❌ Failed to simulate mouse click: {result}", Colors.RED)
-    return False
+    # click_at moved to Control MCP; remove GUI mouse click test from Overlay MCP suite
 
 
 def test_keyboard_input(client):
@@ -273,7 +256,8 @@ def main():
         ("Display Info", lambda: test_display_info(client)),
         ("Text Overlay", lambda: test_create_text_overlay(client)),
         ("Screenshot", lambda: test_take_screenshot(client)),
-        ("Mouse Click", lambda: test_mouse_click(client)),
+        # Mouse click moved to Control MCP; tested elsewhere
+        # ("Mouse Click", lambda: test_mouse_click(client)),
         ("Keyboard Input", lambda: test_keyboard_input(client)),
         ("Remove Overlay", lambda: test_remove_overlay(client)),
     ]

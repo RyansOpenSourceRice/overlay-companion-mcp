@@ -136,3 +136,4 @@ rust-mcp/.cargo/
 **/.idea/
 **/.vscode/
 **/*.iml
+.venv/

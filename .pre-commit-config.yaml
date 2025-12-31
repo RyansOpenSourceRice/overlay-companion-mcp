@@ -148,3 +148,27 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: [feat, fix, docs, style, refactor, test, chore, ci]
+
+  # Push-time safety checks to block confusing failure modes
+  - repo: local
+    hooks:
+      - id: no-conflict-markers-push
+        name: Block conflict markers on push
+        entry: bash -lc 'if git grep -n -E "^(<<<<<<< |=======$|>>>>>>> )" -- . >/dev/null; then echo "Conflict markers found. Resolve before pushing."; exit 1; fi'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+
+      - id: prevent-push-if-unmerged
+        name: Block push with unmerged files
+        entry: bash -lc 'if [ -n "$(git diff --name-only --diff-filter=U)" ]; then echo "Unmerged files present. Resolve merges first."; exit 1; fi'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+
+      - id: prevent-push-if-behind-main
+        name: Block push when branch is behind origin/main (use Actions → Rebase Feature Branch)
+        entry: bash -lc 'git fetch -q origin main; if ! git merge-base --is-ancestor origin/main HEAD; then echo "Branch is behind origin/main. Use GitHub Actions → Rebase Feature Branch onto main."; exit 1; fi'
+        language: system
+        stages: [pre-push]
+        pass_filenames: false

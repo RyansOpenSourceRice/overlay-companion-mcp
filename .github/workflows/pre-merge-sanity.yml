@@ -1,0 +1,47 @@
+name: Pre-merge sanity (conflict + behind-main checks)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main
+        run: git fetch origin main --depth=1
+
+      - name: Fail if branch is behind origin/main
+        run: |
+          set -e
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "This branch is behind origin/main."
+            echo "Please use Actions → 'Rebase Feature Branch onto main' to update."
+            exit 1
+          fi
+
+      - name: Dry-run merge test to detect conflicts with main
+        run: |
+          set -e
+          git merge --no-commit --no-ff origin/main || {
+            echo "Merge conflicts detected with origin/main."
+            echo "Use Actions → 'Rebase Feature Branch onto main' or resolve locally.";
+            exit 1;
+          }
+          git merge --abort || true
+
+      - name: Check for conflict markers accidentally committed
+        run: |
+          set -e
+          if git grep -n -E '^(<<<<<<< |=======$|>>>>>>> )' -- . >/dev/null; then
+            echo "Conflict markers found in files. Please resolve them.";
+            exit 1;
+          fi
