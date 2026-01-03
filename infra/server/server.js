@@ -237,6 +237,14 @@ function handleViewportUpdate(payload, clientId) {
 
 }
 
+// SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 auth attempts per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // SECURITY: Rate limiting for MCP proxy to prevent abuse
 const mcpLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -246,7 +254,7 @@ const mcpLimiter = rateLimit({
 });
 
 // MCP Server proxy - forward requests to C# MCP server
-app.use('/mcp', authMiddleware, mcpLimiter, createProxyMiddleware({
+app.use('/mcp', authLimiter, authMiddleware, mcpLimiter, createProxyMiddleware({
   target: config.mcpServerUrl,
   changeOrigin: true,
   pathRewrite: {
