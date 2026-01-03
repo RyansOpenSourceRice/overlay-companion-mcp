@@ -123,56 +123,6 @@ app.use((req, res, next) => {
 
 // Request logging
 app.use((req, res, next) => {
-
-// Optional OIDC/JWT middleware (no-op if OIDC is disabled)
-let jwks = null;
-if (config.oidcEnabled && config.oidcIssuer) {
-  try {
-    jwks = createRemoteJWKSet(new URL(`${config.oidcIssuer}/.well-known/openid-configuration/jwks`));
-  } catch (e) {
-    log.error('Invalid OIDC issuer URL. OIDC will be disabled.', e);
-    config.oidcEnabled = false;
-  }
-}
-
-async function requireAuth(req, res, next) {
-  if (!config.oidcEnabled) return next();
-  try {
-    const auth = req.get('authorization') || req.get('Authorization');
-    if (!auth || !auth.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'missing_bearer', message: 'Authorization: Bearer <token> required' });
-    }
-    const token = auth.slice('Bearer '.length);
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer: config.oidcIssuer,
-      audience: config.oidcAudience,
-    });
-
-    // Simple RBAC: check roles in realm_access.roles or groups
-    const roles = new Set([
-      ...(payload?.realm_access?.roles || []),
-      ...((payload?.roles || [])),
-      ...((payload?.groups || [])).map(g => g.replace(/^\//, '')),
-    ].flat().filter(Boolean));
-
-    if (config.oidcRequiredRole && !roles.has(config.oidcRequiredRole)) {
-      return res.status(403).json({ error: 'forbidden', message: 'Required role missing' });
-    }
-
-    // Attach identity for downstream scoping
-    req.user = {
-      sub: payload.sub,
-      email: payload.email,
-      preferred_username: payload.preferred_username,
-      roles: Array.from(roles),
-    };
-    next();
-  } catch (err) {
-    log.warn('JWT validation failed:', err?.message || err);
-    return res.status(401).json({ error: 'invalid_token' });
-  }
-}
-
   log.debug(`${req.method} ${req.path}`, {
     ip: req.ip,
     userAgent: req.get('User-Agent')
