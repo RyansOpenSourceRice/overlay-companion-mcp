@@ -54,7 +54,7 @@ Add a new connection configuration with automatic validation.
     "host": "192.168.1.100",
     "port": 6901,
     "protocol": "kasmvnc",
-    "password": "secure_password"
+    "password": "secure_password" // pragma: allowlist secret (example value)
   }
 }
 ```
@@ -88,7 +88,7 @@ Add a new connection configuration with automatic validation.
     "port": 3389,
     "protocol": "rdp",
     "username": "administrator",
-    "password": "secure_password"
+    "password": "secure_password" // pragma: allowlist secret (example value)
   }
 }
 ```
@@ -295,7 +295,7 @@ Connections are stored persistently in:
     "Port": 6901,
     "Protocol": "kasmvnc",
     "Username": null,
-    "Password": "secure_password",
+    "Password": "secure_password", // pragma: allowlist secret (example value)
     "CreatedAt": "2025-10-26T12:00:00Z",
     "LastConnected": "2025-10-26T12:05:00Z",
     "IsActive": true
@@ -316,7 +316,7 @@ response = await mcp_client.call_tool("add_connection", {
     "host": "dev.example.com",
     "port": 6901,
     "protocol": "kasmvnc",
-    "password": "dev_password"
+    "password": "dev_password"  # pragma: allowlist secret (example value)
 })
 
 connection_id = response["connection"]["id"]

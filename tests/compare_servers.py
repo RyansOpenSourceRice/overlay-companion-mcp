@@ -3,6 +3,7 @@ import json
 import subprocess
 import time
 from pathlib import Path
+
 import requests
 
 # Simple harness to compare basic tool list and a call between C# HTTP MCP and Rust HTTP MCP
@@ -13,7 +14,13 @@ import requests
 RUST_PORT = 3001
 CS_PORT = 3000
 
-RUST_BIN = str(Path(__file__).resolve().parents[1] / "rust-mcp" / "target" / "release" / "overlay-companion-mcp")
+RUST_BIN = str(
+    Path(__file__).resolve().parents[1]
+    / "rust-mcp"
+    / "target"
+    / "release"
+    / "overlay-companion-mcp"
+)
 
 
 def _post_json(url, payload, session=None):
@@ -47,7 +54,7 @@ def _post_streamable(url, payload, session=None, extra_headers=None):
         if not line:
             continue
         if line.startswith("data:"):
-            data = line[len("data:"):].strip()
+            data = line[len("data:") :].strip()
             return json.loads(data), r.headers
     raise RuntimeError("No data frame received from streamable HTTP response")
 
@@ -60,7 +67,9 @@ def post(url, method, params=None, session=None, streamable=False, extra_headers
         "params": params or {},
     }
     if streamable:
-        return _post_streamable(url, payload, session=session, extra_headers=extra_headers)
+        return _post_streamable(
+            url, payload, session=session, extra_headers=extra_headers
+        )
     else:
         return _post_json(url, payload, session=session)
 
@@ -69,7 +78,9 @@ def main():
     # Start Rust server on 3001
     env = dict(**dict())
     env["MCP_HTTP_PORT"] = str(RUST_PORT)
-    rust_proc = subprocess.Popen([RUST_BIN], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    rust_proc = subprocess.Popen(
+        [RUST_BIN], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     time.sleep(1.5)
 
     try:
@@ -77,7 +88,17 @@ def main():
         cs_url = f"http://localhost:{CS_PORT}/mcp"
 
         # Initialize both
-        r_init, r_headers = post(rust_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}}, streamable=True, extra_headers={"Accept": "application/json, text/event-stream"})
+        r_init, r_headers = post(
+            rust_url,
+            "initialize",
+            {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": {"name": "cmp", "version": "0.1"},
+            },
+            streamable=True,
+            extra_headers={"Accept": "application/json, text/event-stream"},
+        )
         r_sid = None
         if isinstance(r_headers, dict):
             r_sid = r_headers.get("Mcp-Session-Id") or r_headers.get("mcp-session-id")
@@ -85,17 +106,31 @@ def main():
         # Try to reach C#; if not running, skip parity and just validate Rust
         cs_up = False
         try:
-            c_init = post(cs_url, "initialize", {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "cmp", "version": "0.1"}})
+            _ = post(
+                cs_url,
+                "initialize",
+                {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {},
+                    "clientInfo": {"name": "cmp", "version": "0.1"},
+                },
+            )
             cs_up = True
-        except Exception as e:
-            print("Note: C# MCP server not reachable; skipping cross-impl parity checks.")
+        except Exception:
+            print(
+                "Note: C# MCP server not reachable; skipping cross-impl parity checks."
+            )
 
         # List tools and compare names (must include core overlay tools)
         headers = {"Mcp-Session-Id": r_sid} if r_sid else None
         r_tools = post(rust_url, "tools/list", streamable=True, extra_headers=headers)
         c_tools = post(cs_url, "tools/list") if cs_up else {"result": {"tools": []}}
-        r_names = sorted([t.get("name") for t in r_tools.get("result", {}).get("tools", [])])
-        c_names = sorted([t.get("name") for t in c_tools.get("result", {}).get("tools", [])])
+        r_names = sorted(
+            [t.get("name") for t in r_tools.get("result", {}).get("tools", [])]
+        )
+        c_names = sorted(
+            [t.get("name") for t in c_tools.get("result", {}).get("tools", [])]
+        )
         print("Rust tools:", r_names)
         print("C# tools:", c_names)
         for core in ["draw_overlay", "remove_overlay", "take_screenshot"]:
@@ -104,10 +139,20 @@ def main():
                 assert core in c_names, f"C# missing core tool {core}"
 
         # click_at moved to Control MCP; verify both servers do not expose it here
-        r_call = post(rust_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}}, streamable=True, extra_headers=headers)
+        r_call = post(
+            rust_url,
+            "tools/call",
+            {"name": "click_at", "arguments": {"x": 1, "y": 1}},
+            streamable=True,
+            extra_headers=headers,
+        )
         assert r_call.get("error") is not None
         if cs_up:
-            c_call = post(cs_url, "tools/call", {"name": "click_at", "arguments": {"x": 1, "y": 1}})
+            c_call = post(
+                cs_url,
+                "tools/call",
+                {"name": "click_at", "arguments": {"x": 1, "y": 1}},
+            )
             assert c_call.get("error") is not None
         print("OK: click_at not exposed by Overlay MCP")
 
@@ -118,24 +163,60 @@ def main():
             return None
 
         # draw_overlay parity: both should return JSON with overlay_id and bounds
-        r_draw = post(rust_url, "tools/call", {"name": "draw_overlay", "arguments": {"x": 10, "y": 20, "width": 100, "height": 50, "color": "#FF0000"}}, streamable=True, extra_headers=headers)
+        r_draw = post(
+            rust_url,
+            "tools/call",
+            {
+                "name": "draw_overlay",
+                "arguments": {
+                    "x": 10,
+                    "y": 20,
+                    "width": 100,
+                    "height": 50,
+                    "color": "#FF0000",
+                },
+            },
+            streamable=True,
+            extra_headers=headers,
+        )
         r_draw_json = json.loads(first_text(r_draw) or "{}")
         for key in ["overlay_id", "bounds", "color"]:
             assert key in r_draw_json, f"draw_overlay missing key {key} (Rust)"
         if cs_up:
-            c_draw = post(cs_url, "tools/call", {"name": "draw_overlay", "arguments": {"x": 10, "y": 20, "width": 100, "height": 50, "color": "#FF0000"}})
+            c_draw = post(
+                cs_url,
+                "tools/call",
+                {
+                    "name": "draw_overlay",
+                    "arguments": {
+                        "x": 10,
+                        "y": 20,
+                        "width": 100,
+                        "height": 50,
+                        "color": "#FF0000",
+                    },
+                },
+            )
             c_draw_json = json.loads(first_text(c_draw) or "{}")
             for key in ["overlay_id", "bounds", "color"]:
                 assert key in c_draw_json, f"draw_overlay missing key {key} (C#)"
         print("OK: draw_overlay returns expected payloads")
 
         # take_screenshot parity: JSON shape with width/height present
-        r_ss = post(rust_url, "tools/call", {"name": "take_screenshot", "arguments": {}}, streamable=True, extra_headers=headers)
+        r_ss = post(
+            rust_url,
+            "tools/call",
+            {"name": "take_screenshot", "arguments": {}},
+            streamable=True,
+            extra_headers=headers,
+        )
         r_ss_json = json.loads(first_text(r_ss) or "{}")
         for key in ["width", "height", "viewport_scroll"]:
             assert key in r_ss_json, f"take_screenshot missing key {key} (Rust)"
         if cs_up:
-            c_ss = post(cs_url, "tools/call", {"name": "take_screenshot", "arguments": {}})
+            c_ss = post(
+                cs_url, "tools/call", {"name": "take_screenshot", "arguments": {}}
+            )
             c_ss_json = json.loads(first_text(c_ss) or "{}")
             for key in ["width", "height", "viewport_scroll"]:
                 assert key in c_ss_json, f"take_screenshot missing key {key} (C#)"

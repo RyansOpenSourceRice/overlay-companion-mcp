@@ -51,6 +51,8 @@ const log = {
 
 // Express app setup
 const app = express();
+// Trust reverse proxy (e.g., Caddy/Traefik) so req.secure and X-Forwarded-* are respected
+app.set('trust proxy', true);
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 
@@ -232,10 +234,27 @@ function handleViewportUpdate(payload, clientId) {
   log.debug(`Viewport update from ${clientId}:`, payload);
   // Store viewport configuration for session management
   // This could be persisted to a database in production
+
 }
 
+// SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 auth attempts per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// SECURITY: Rate limiting for MCP proxy to prevent abuse
+const mcpLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120, // 120 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // MCP Server proxy - forward requests to C# MCP server
-app.use('/mcp', authMiddleware, createProxyMiddleware({
+app.use('/mcp', authLimiter, authMiddleware, mcpLimiter, createProxyMiddleware({
   target: config.mcpServerUrl,
   changeOrigin: true,
   pathRewrite: {
