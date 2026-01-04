@@ -16,7 +16,8 @@ CS_PORT = 3000
 
 RUST_BIN = str(
     Path(__file__).resolve().parents[1]
-    / "rust-mcp"
+    / "apps"
+    / "mcp-server-rust"
     / "target"
     / "release"
     / "overlay-companion-mcp"

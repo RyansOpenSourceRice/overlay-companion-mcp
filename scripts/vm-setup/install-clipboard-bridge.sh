@@ -2,7 +2,7 @@
 set -e
 
 # Overlay Companion MCP - VM Clipboard Bridge Installation Script
-# Installs and configures the Flatpak clipboard bridge in the VM
+# Installs and configures the Rust clipboard bridge in the VM (legacy Flatpak notes retained where relevant)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
