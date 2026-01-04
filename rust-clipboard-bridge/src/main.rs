@@ -4,11 +4,12 @@ use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::get,
     Json, Router,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -101,26 +102,26 @@ async fn authenticate(headers: &HeaderMap, query: &ApiKeyQuery, state: &AppState
 }
 
 async fn get_clipboard(State(state): State<AppState>, headers: HeaderMap, Query(query): Query<ApiKeyQuery>) -> impl IntoResponse {
-    if let Err(code) = authenticate(&headers, &query, &state).await { return code; }
+    if let Err(code) = authenticate(&headers, &query, &state).await { return (code, Json(json!({"detail": "unauthorized"}))); }
     match read_clipboard().await {
-        Ok((content, content_type)) => Json(ClipboardResponse { success: true, content: Some(content), content_type: Some(content_type), timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard content retrieved successfully".into()) }).into_response(),
-        Err(e) => { error!("get_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("Failed to get clipboard content: {e}")}))).into_response() }
+        Ok((content, content_type)) => (StatusCode::OK, Json(json!(ClipboardResponse { success: true, content: Some(content), content_type: Some(content_type), timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard content retrieved successfully".into()) }))),
+        Err(e) => { error!("get_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"detail": format!("Failed to get clipboard content: {e}")}))) }
     }
 }
 
 async fn set_clipboard(State(state): State<AppState>, headers: HeaderMap, Query(query): Query<ApiKeyQuery>, Json(payload): Json<ClipboardContent>) -> impl IntoResponse {
-    if let Err(code) = authenticate(&headers, &query, &state).await { return code; }
+    if let Err(code) = authenticate(&headers, &query, &state).await { return (code, Json(json!({"detail": "unauthorized"}))); }
     match write_clipboard(&payload.content, &payload.content_type).await {
-        Ok(_) => Json(ClipboardResponse { success: true, content: None, content_type: None, timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard content set successfully".into()) }).into_response(),
-        Err(e) => { error!("set_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("Failed to set clipboard content: {e}")}))).into_response() }
+        Ok(_) => (StatusCode::OK, Json(json!(ClipboardResponse { success: true, content: None, content_type: None, timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard content set successfully".into()) }))),
+        Err(e) => { error!("set_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"detail": format!("Failed to set clipboard content: {e}")}))) }
     }
 }
 
 async fn clear_clipboard(State(state): State<AppState>, headers: HeaderMap, Query(query): Query<ApiKeyQuery>) -> impl IntoResponse {
-    if let Err(code) = authenticate(&headers, &query, &state).await { return code; }
+    if let Err(code) = authenticate(&headers, &query, &state).await { return (code, Json(json!({"detail": "unauthorized"}))); }
     match write_clipboard("", "text/plain").await {
-        Ok(_) => Json(ClipboardResponse { success: true, content: None, content_type: None, timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard cleared successfully".into()) }).into_response(),
-        Err(e) => { error!("clear_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"detail": format!("Failed to clear clipboard: {e}")}))).into_response() }
+        Ok(_) => (StatusCode::OK, Json(json!(ClipboardResponse { success: true, content: None, content_type: None, timestamp: Utc::now().to_rfc3339(), message: Some("Clipboard cleared successfully".into()) }))),
+        Err(e) => { error!("clear_clipboard failed: {e}"); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"detail": format!("Failed to clear clipboard: {e}")}))) }
     }
 }
 
@@ -170,7 +171,7 @@ async fn run_read_cmd(cmd: (&str, &[&str])) -> anyhow::Result<String> {
 }
 
 async fn run_write_cmd(cmd: (&str, &[&str]), input: &str) -> anyhow::Result<()> {
-    use std::io::Write;
+    use futures_lite::io::AsyncWriteExt;
     let mut child = async_process::Command::new(cmd.0)
         .args(cmd.1)
         .stdin(async_process::Stdio::piped())
@@ -178,7 +179,7 @@ async fn run_write_cmd(cmd: (&str, &[&str]), input: &str) -> anyhow::Result<()> 
         .stderr(async_process::Stdio::piped())
         .spawn()?;
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(input.as_bytes())?;
+        stdin.write_all(input.as_bytes()).await?;
     }
     let out = child.output().await?;
     if !out.status.success() { return Err(anyhow::anyhow!(format!("{} failed: {}", cmd.0, String::from_utf8_lossy(&out.stderr)))); }
