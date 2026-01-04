@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Flatpak and flatpak-builder
         timeout-minutes: 10
@@ -63,7 +63,7 @@ jobs:
           flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: org.overlaycompanion.ClipboardBridge.flatpak
           path: flatpak/clipboard-bridge/org.overlaycompanion.ClipboardBridge.flatpak

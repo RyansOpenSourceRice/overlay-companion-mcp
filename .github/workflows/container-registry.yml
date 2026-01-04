@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -251,7 +251,7 @@ jobs:
         # Upload artifact so maintainers can see why Trivy was skipped
       - name: Upload Trivy-skip artifact
         if: steps.image-check.outputs.image_available == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-skip-${{ matrix.image }}-${{ steps.tag.outputs.tag }}
           path: trivy-skip.txt
@@ -268,7 +268,7 @@ jobs:
           if [ -f trivy-results.sarif ]; then echo "sarif_exists=true" >> $GITHUB_OUTPUT; else echo "sarif_exists=false" >> $GITHUB_OUTPUT; fi
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && steps.sarif-check.outputs.sarif_exists == 'true'
         with:
           sarif_file: 'trivy-results.sarif'
