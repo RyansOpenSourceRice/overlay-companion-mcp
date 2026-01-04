@@ -359,4 +359,4 @@ cd overlay-companion-mcp
 
 ## License
 
-MIT License - see LICENSE file for details.
+GPL-3.0-or-later - see LICENSE file for details.
