@@ -29,6 +29,8 @@ modules:
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_NET_OFFLINE: 'true'
     build-commands:
       - cargo build --release --manifest-path=rust-clipboard-bridge/Cargo.toml
       - install -D rust-clipboard-bridge/target/release/clipboard-bridge ${FLATPAK_DEST}/bin/clipboard-bridge
@@ -38,6 +40,13 @@ modules:
       - type: dir
         path: ../../rust-clipboard-bridge
         dest: rust-clipboard-bridge
+      - type: dir
+        path: ../../rust-clipboard-bridge/vendor
+        dest: rust-clipboard-bridge/vendor
+      - type: file
+        path: ../../rust-clipboard-bridge/.cargo/config.toml
+        dest: rust-clipboard-bridge/.cargo
+        dest-filename: config.toml
       - type: file
         path: org.overlaycompanion.ClipboardBridge.desktop
       - type: file

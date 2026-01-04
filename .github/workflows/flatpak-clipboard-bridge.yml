@@ -37,6 +37,19 @@ jobs:
           flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
           flatpak --user   remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
+      - name: Prepare vendored Rust dependencies
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo vendor (host)
+        run: |
+          set -euo pipefail
+          cd rust-clipboard-bridge
+          mkdir -p .cargo
+          cargo vendor vendor > .cargo/config.toml
+          echo "Vendored crates:"
+          ls -la vendor | head -n 20 || true
+          cd -
+
       - name: Build Flatpak
         working-directory: flatpak/clipboard-bridge
         timeout-minutes: 20
