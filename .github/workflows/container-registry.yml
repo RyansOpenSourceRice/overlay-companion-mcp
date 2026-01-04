@@ -251,7 +251,7 @@ jobs:
         # Upload artifact so maintainers can see why Trivy was skipped
       - name: Upload Trivy-skip artifact
         if: steps.image-check.outputs.image_available == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-skip-${{ matrix.image }}-${{ steps.tag.outputs.tag }}
           path: trivy-skip.txt
