@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           cd rust-clipboard-bridge
+          cargo generate-lockfile
           mkdir -p .cargo
           cargo vendor vendor > .cargo/config.toml
           echo "Vendored crates:"

@@ -32,7 +32,7 @@ modules:
       env:
         CARGO_NET_OFFLINE: 'true'
     build-commands:
-      - cargo build --release --manifest-path=rust-clipboard-bridge/Cargo.toml
+      - bash -lc 'cd rust-clipboard-bridge && cargo build --release'
       - install -D rust-clipboard-bridge/target/release/clipboard-bridge ${FLATPAK_DEST}/bin/clipboard-bridge
       - install -D org.overlaycompanion.ClipboardBridge.desktop ${FLATPAK_DEST}/share/applications/org.overlaycompanion.ClipboardBridge.desktop
       - install -D org.overlaycompanion.ClipboardBridge.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/org.overlaycompanion.ClipboardBridge.svg
