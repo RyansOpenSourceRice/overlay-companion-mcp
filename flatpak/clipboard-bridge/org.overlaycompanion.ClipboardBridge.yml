@@ -1,7 +1,9 @@
 app-id: org.overlaycompanion.ClipboardBridge
 runtime: org.freedesktop.Sdk
-runtime-version: '23.08'
+runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
 command: clipboard-bridge
 
 finish-args:
@@ -27,8 +29,6 @@ modules:
     buildsystem: simple
     build-options:
       append-path: /usr/lib/sdk/rust-stable/bin
-    sdk-extensions:
-      - org.freedesktop.Sdk.Extension.rust-stable
     build-commands:
       - cargo build --release --manifest-path=rust-clipboard-bridge/Cargo.toml
       - install -D rust-clipboard-bridge/target/release/clipboard-bridge ${FLATPAK_DEST}/bin/clipboard-bridge
