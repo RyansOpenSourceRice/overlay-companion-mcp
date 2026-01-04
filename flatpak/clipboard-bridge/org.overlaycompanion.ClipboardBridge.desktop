@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Overlay Companion Clipboard Bridge
 Comment=Clipboard synchronization service for Overlay Companion MCP
-Exec=clipboard-bridge-gui
+Exec=clipboard-bridge
 Icon=org.overlaycompanion.ClipboardBridge
 Terminal=false
 Type=Application

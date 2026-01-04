@@ -34,8 +34,6 @@ modules:
     build-commands:
       - bash -lc 'cd rust-clipboard-bridge && cargo build --release'
       - install -D rust-clipboard-bridge/target/release/clipboard-bridge ${FLATPAK_DEST}/bin/clipboard-bridge
-      - install -D org.overlaycompanion.ClipboardBridge.desktop ${FLATPAK_DEST}/share/applications/org.overlaycompanion.ClipboardBridge.desktop
-      - install -D org.overlaycompanion.ClipboardBridge.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/org.overlaycompanion.ClipboardBridge.svg
     sources:
       - type: dir
         path: ../../rust-clipboard-bridge
@@ -47,7 +45,3 @@ modules:
         path: ../../rust-clipboard-bridge/.cargo/config.toml
         dest: rust-clipboard-bridge/.cargo
         dest-filename: config.toml
-      - type: file
-        path: org.overlaycompanion.ClipboardBridge.desktop
-      - type: file
-        path: org.overlaycompanion.ClipboardBridge.svg
