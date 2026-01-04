@@ -8,7 +8,7 @@ set -euo pipefail
 # - Uploads asset and writes a lockfile with pinned commit and SHA
 
 REPO_SLUG=${REPO_SLUG:-"RyansOpenSourceRice/overlay-companion-mcp"}
-CRATE_DIR="rust-clipboard-bridge"
+CRATE_DIR="apps/clipboard-bridge-rust"
 BINARY_NAME="clipboard-bridge"
 ASSETS_DIR="release/artifacts"
 LOCKFILE="release/clipboard-bridge.lock.json"

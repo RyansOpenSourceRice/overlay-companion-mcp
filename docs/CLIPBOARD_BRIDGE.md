@@ -1,26 +1,29 @@
 [![Sheld.io: Prefunctional Development](https://img.shields.io/badge/Sheld.io-Prefunctional%20Development-blueviolet?style=flat-square)](https://sheld.io) [![Vibe Coded: Disclosure](https://img.shields.io/badge/Vibe%20Coded-Disclosure-informational?style=flat-square)](https://github.com/danielrosehill/Vibe-Coded-Disclosure)
 
 
-# Clipboard Bridge (Flatpak)
+# Clipboard Bridge (Rust)
 
 A tiny HTTP service to read/write the VM clipboard for Overlay Companion MCP.
 
 - Port: 8765 (configurable via CLIPBOARD_BRIDGE_PORT)
 - Bind: 0.0.0.0 (configurable via CLIPBOARD_BRIDGE_HOST)
 - Auth: X-API-Key header (default: overlay-companion-mcp). Set CLIPBOARD_BRIDGE_API_KEY to override.
+- Location: apps/clipboard-bridge-rust
 
-Run (Flatpak):
+Run (direct):
 
-1) Build bundle (optional; CI does this on releases):
-   - flatpak-builder --force-clean --repo=repo build flatpak/clipboard-bridge/org.overlaycompanion.ClipboardBridge.yml
-   - flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
-2) Install and run:
-   - flatpak install --user ./org.overlaycompanion.ClipboardBridge.flatpak
-   - flatpak run org.overlaycompanion.ClipboardBridge  # runs Rust HTTP service
+```
+cargo run --release -p clipboard-bridge --manifest-path apps/clipboard-bridge-rust/Cargo.toml
+```
 
-CI smoke test:
-- GitHub Actions builds the Flatpak headlessly, installs the bundle, launches the service, polls /health until healthy, then shuts down.
-- The smoke test uses the headless server only; no GTK is required.
+Docker/compose integration is recommended in production.
+
+Legacy implementations:
+- A previous Flatpak/Python version now lives in legacy/clipboard-bridge-python. Use only for reference.
+
+
+Run (Flatpak) [legacy notes]:
+- The former Flatpak pipeline has been archived under legacy/clipboard-bridge-python. Prefer the Rust app above.
 
 API examples:
 

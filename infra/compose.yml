@@ -34,7 +34,7 @@ services:
     expose:
       - "3000"
 
-  rust-mcp:
+  mcp-server-rust:
     build:
       context: ..
       dockerfile: infra/Dockerfile.rust-mcp
