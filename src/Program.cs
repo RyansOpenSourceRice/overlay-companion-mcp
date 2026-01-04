@@ -188,12 +188,6 @@ public class Program
         // WebSocket for overlay events
         app.MapOverlayWebSockets();
 
-        // Serve static web client
-        app.MapGet("/", async context =>
-        {
-            context.Response.ContentType = "text/html";
-            await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
-        });
 
         // Simple test endpoint for CI/manual verification
         app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
@@ -323,8 +317,8 @@ public class Program
             var token = tokenSvc.GenerateToken("viewer");
             return Results.Json(new { token, protection = true });
         });
-        // Serve static web UI at root
-        app.MapGet("/", async context =>
+        // Serve static web UI at /setup
+        app.MapGet("/setup", async context =>
         {
             context.Response.ContentType = "text/html; charset=utf-8";
             await context.Response.SendFileAsync(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));

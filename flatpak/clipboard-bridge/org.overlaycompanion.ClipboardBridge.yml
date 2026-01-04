@@ -1,14 +1,13 @@
 app-id: org.overlaycompanion.ClipboardBridge
 runtime: org.freedesktop.Sdk
-runtime-version: '23.08'
+runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
-command: clipboard-bridge-gui
-
-# Also allow passing --headless to run just the service
-# Users can run: flatpak run org.overlaycompanion.ClipboardBridge -- --headless
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: clipboard-bridge
 
 finish-args:
-  # Clipboard and GUI permissions
+  # Clipboard permissions
   - --share=ipc
   - --socket=wayland
   - --socket=fallback-x11
@@ -24,35 +23,25 @@ finish-args:
   # Environment variables
   - --env=CLIPBOARD_BRIDGE_PORT=8765
   - --env=CLIPBOARD_BRIDGE_HOST=0.0.0.0
-  - --env=GTK_USE_PORTAL=1
 
 modules:
-  - name: python-runtime-check
-    buildsystem: simple
-    build-commands:
-      - python3 --version
-      - pip3 --version
-  - name: python3-dependencies
-    buildsystem: simple
-    build-commands:
-      - pip3 install --prefix=${FLATPAK_DEST} --no-build-isolation fastapi==0.104.1 uvicorn==0.24.0 pydantic==2.5.0 python-multipart==0.0.6 aiofiles==23.2.1
-    sources: []
-
   - name: clipboard-bridge
     buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_NET_OFFLINE: 'true'
     build-commands:
-      - install -D clipboard-bridge.py ${FLATPAK_DEST}/bin/clipboard-bridge
-      - chmod +x ${FLATPAK_DEST}/bin/clipboard-bridge
-      - install -D clipboard-bridge-gui.py ${FLATPAK_DEST}/bin/clipboard-bridge-gui
-      - chmod +x ${FLATPAK_DEST}/bin/clipboard-bridge-gui
-      - install -D org.overlaycompanion.ClipboardBridge.desktop ${FLATPAK_DEST}/share/applications/org.overlaycompanion.ClipboardBridge.desktop
-      - install -D org.overlaycompanion.ClipboardBridge.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/org.overlaycompanion.ClipboardBridge.svg
+      - bash -lc 'cd rust-clipboard-bridge && cargo build --release'
+      - install -D rust-clipboard-bridge/target/release/clipboard-bridge ${FLATPAK_DEST}/bin/clipboard-bridge
     sources:
+      - type: dir
+        path: ../../rust-clipboard-bridge
+        dest: rust-clipboard-bridge
+      - type: dir
+        path: ../../rust-clipboard-bridge/vendor
+        dest: rust-clipboard-bridge/vendor
       - type: file
-        path: clipboard-bridge.py
-      - type: file
-        path: clipboard-bridge-gui.py
-      - type: file
-        path: org.overlaycompanion.ClipboardBridge.desktop
-      - type: file
-        path: org.overlaycompanion.ClipboardBridge.svg
+        path: ../../rust-clipboard-bridge/.cargo/config.toml
+        dest: rust-clipboard-bridge/.cargo
+        dest-filename: config.toml

@@ -37,9 +37,23 @@ jobs:
           flatpak --system remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
           flatpak --user   remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
+      - name: Prepare vendored Rust dependencies
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo vendor (host)
+        run: |
+          set -euo pipefail
+          cd rust-clipboard-bridge
+          cargo generate-lockfile
+          mkdir -p .cargo
+          cargo vendor vendor > .cargo/config.toml
+          echo "Vendored crates:"
+          ls -la vendor | head -n 20 || true
+          cd -
+
       - name: Build Flatpak
         working-directory: flatpak/clipboard-bridge
-        timeout-minutes: 12
+        timeout-minutes: 20
         env:
           FLATPAK_USER_DIR: ${{ runner.temp }}/flatpak-user
         run: |
@@ -49,6 +63,8 @@ jobs:
           flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           flatpak --user update --appstream || true
           rm -rf build repo
+          # Install Rust SDK extension for the current runtime
+          flatpak --user install -y flathub org.freedesktop.Sdk//24.08 org.freedesktop.Sdk.Extension.rust-stable//24.08
           # Build quietly, print tail on failure
           if ! flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build org.overlaycompanion.ClipboardBridge.yml > builder.log 2>&1; then
             echo "flatpak-builder failed; last 200 lines:" >&2
@@ -60,7 +76,7 @@ jobs:
         working-directory: flatpak/clipboard-bridge
         timeout-minutes: 3
         run: |
-          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
+          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge master
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6

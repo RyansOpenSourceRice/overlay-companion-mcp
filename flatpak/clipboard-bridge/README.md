@@ -4,6 +4,8 @@
 
 A Flatpak application that provides clipboard synchronization between the host system and VM, enabling seamless clipboard access for AI-assisted screen interaction.
 
+Note: As of this change, the bridge is implemented in Rust and packaged directly in the Flatpak (no Python runtime required).
+
 ## Overview
 
 The Clipboard Bridge runs as a Flatpak service inside the VM and exposes a REST API that the host MCP server can use to read and write the VM's clipboard. This enables true clipboard synchronization across the VM boundary.

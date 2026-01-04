@@ -137,3 +137,8 @@ rust-mcp/.cargo/
 **/.vscode/
 **/*.iml
 .venv/
+
+# Rust clipboard bridge artifacts
+rust-clipboard-bridge/target/
+rust-clipboard-bridge/.cargo/
+
