@@ -12,6 +12,19 @@ on:
       - 'flatpak/clipboard-bridge/**'
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g., v0.1.0)"
+        required: false
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -124,7 +137,10 @@ jobs:
           wait $BRIDGE_PID || true
 
   release-flatpak:
-    if: github.event_name == 'release' && github.event.action == 'published'
+    if: |
+      github.event_name == 'release' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
     needs: build-flatpak
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -136,9 +152,24 @@ jobs:
           name: org.overlaycompanion.ClipboardBridge.flatpak
           path: ./dist
 
-      - name: Attach to GitHub Release
+      - name: Compute checksums and release body
+        id: sums
+        run: |
+          set -euo pipefail
+          FILE=dist/org.overlaycompanion.ClipboardBridge.flatpak
+          SHA256=$(sha256sum "$FILE" | awk '{print $1}')
+          COMMIT=${{ github.sha }}
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          printf "Release commit: %s\nSHA-256: %s\n" "$COMMIT" "$SHA256" > RELEASE_NOTES.txt
+
+      - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name || 'manual' }}
+          name: Clipboard Bridge ${{ github.event.inputs.tag || github.ref_name || '' }}
+          body_path: RELEASE_NOTES.txt
+          prerelease: ${{ github.event.inputs.prerelease || false }}
           files: |
             dist/org.overlaycompanion.ClipboardBridge.flatpak
         env:
