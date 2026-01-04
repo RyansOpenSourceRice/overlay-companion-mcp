@@ -76,7 +76,7 @@ jobs:
         working-directory: flatpak/clipboard-bridge
         timeout-minutes: 3
         run: |
-          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge --runtime
+          flatpak build-bundle repo org.overlaycompanion.ClipboardBridge.flatpak org.overlaycompanion.ClipboardBridge master
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
