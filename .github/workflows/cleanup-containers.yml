@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Cleanup old container versions
-        uses: snok/container-retention-policy@v3.0.0
+        uses: snok/container-retention-policy@v3.0.1
         with:
           image-names: ${{ github.repository }}/${{ matrix.image }}
           cut-off: ${{ github.event.inputs.retention_days || '30' }}d
