@@ -1,0 +1,105 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate Dependency Dashboard",
+  "schedule": ["before 6am on Monday"],
+  "timezone": "America/Chicago",
+  "rangeStrategy": "bump",
+  "commitMessagePrefix": "chore(deps)",
+  "commitMessageTopic": "{{depName}}",
+  "labels": ["dependencies"],
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "dependencies"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on Monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group pre-commit hook updates",
+      "matchManagers": ["pre-commit"],
+      "groupName": "pre-commit hooks",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group NuGet (C#) patch updates; automerge patch only",
+      "matchManagers": ["nuget"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "NuGet patch",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "NuGet major/minor: open PR, do not automerge",
+      "matchManagers": ["nuget"],
+      "matchUpdateTypes": ["major", "minor"],
+      "groupName": "NuGet updates",
+      "automerge": false
+    },
+    {
+      "description": "Group npm patch/dev updates; automerge",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "npm patch",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "npm devDependencies: automerge",
+      "matchDepTypes": ["devDependencies"],
+      "matchManagers": ["npm"],
+      "groupName": "npm dev",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "npm major/minor: open PR, do not automerge",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major", "minor"],
+      "groupName": "npm updates",
+      "automerge": false
+    },
+    {
+      "description": "Group Cargo patch updates; automerge patch only",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "Cargo patch",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Cargo major/minor: open PR, do not automerge",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["major", "minor"],
+      "groupName": "Cargo updates",
+      "automerge": false
+    },
+    {
+      "description": "Pin/replace Docker digests for container images",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["pin", "digest"],
+      "groupName": "container digests",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    }
+  ]
+}
