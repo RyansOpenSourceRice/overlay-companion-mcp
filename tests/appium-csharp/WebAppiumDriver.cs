@@ -20,4 +20,3 @@ public sealed class WebAppiumDriver : AppiumDriver
     {
     }
 }
-

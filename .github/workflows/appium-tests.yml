@@ -65,12 +65,14 @@ jobs:
       - name: Build web frontend
         timeout-minutes: 5
         run: |
-          cd infra/web && npm ci && npm run build
+          # The repo does not ship a package-lock.json, so use npm install
+          # (matching infra/Dockerfile.web) rather than npm ci.
+          cd infra/web && npm install && npm run build
 
       - name: Build management server
         timeout-minutes: 5
         run: |
-          cd infra/server && npm ci && npm run build
+          cd infra/server && npm install && npm run build
 
       - name: Build C# MCP server
         timeout-minutes: 10
