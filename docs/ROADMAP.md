@@ -238,7 +238,7 @@ This grants the workflow the necessary permissions to create releases and upload
 
 **Usage**:
 ```bash
-./install.sh --update
+./scripts/install.sh --update
 ```
 
 ### 3. C# MCP Server Containerization
@@ -292,19 +292,19 @@ Cherry Studio → Management Server (/mcp/*) → C# MCP Server
 ### Fresh Installation
 ```bash
 ## Standard installation
-./install.sh
+./scripts/install.sh
 
 ## With LAN exposure (security risk)
-./install.sh --expose-lan
+./scripts/install.sh --expose-lan
 ```
 
 ### Update Existing Installation
 ```bash
 ## Update containers and services
-./install.sh --update
+./scripts/install.sh --update
 
 ## Update with LAN exposure
-./install.sh --update --expose-lan
+./scripts/install.sh --update --expose-lan
 ```
 
 ### Health Monitoring
@@ -402,8 +402,8 @@ New persistent storage:
 ## 📚 Documentation Updates
 
 ### Updated Files
-- `ARCHITECTURE.md`: Container architecture details
-- `DEPLOYMENT.md`: Update procedures
+- `docs/ARCHITECTURE.md`: Container architecture details
+- `docs/DEPLOYMENT.md`: Update procedures
 - `README.md`: New usage examples
 - `UPDATES.md`: This document
 

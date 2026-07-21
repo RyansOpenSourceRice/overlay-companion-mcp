@@ -166,7 +166,7 @@ Then you can:
 ### Path B: Deploy to Your Fedora System
 ```bash
 # On your Fedora system (YOUR_HOST_IP):
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash
 ```
 
 Then:

@@ -87,7 +87,7 @@ Step 4: Connect them together
 
 ```bash
 # On your Fedora Desktop (HOST)
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash
 ```
 
 **What to observe:**
@@ -125,7 +125,7 @@ Next steps:
 
 ```bash
 # SSH into your Fedora VM or open terminal in VM
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/vm-setup-kasmvnc.sh | bash
 ```
 
 **What to observe:**

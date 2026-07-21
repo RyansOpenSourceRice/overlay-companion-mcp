@@ -26,7 +26,7 @@ This issue has been fixed in the latest version of `host-setup-kasmvnc.sh`. The 
 
 1. **Use debug mode** to see what's happening:
    ```bash
-   ./host-setup-kasmvnc.sh --debug
+   ./scripts/host-setup-kasmvnc.sh --debug
    ```
 
 2. **Verify you have all files**:
@@ -37,7 +37,7 @@ This issue has been fixed in the latest version of `host-setup-kasmvnc.sh`. The 
 3. **Clean start** (remove any corrupted config):
    ```bash
    rm -rf ~/.config/overlay-companion-mcp
-   ./host-setup-kasmvnc.sh
+   ./scripts/host-setup-kasmvnc.sh
    ```
 
 ### Issue: Git repository errors
@@ -62,7 +62,7 @@ This is now handled automatically. The script detects non-git directories and co
 The script automatically detects port conflicts and offers alternatives:
 ```bash
 # Specify a custom port
-OVERLAY_COMPANION_PORT=8081 ./host-setup-kasmvnc.sh
+OVERLAY_COMPANION_PORT=8081 ./scripts/host-setup-kasmvnc.sh
 
 # Or use the interactive selection when prompted
 ```
@@ -72,7 +72,7 @@ OVERLAY_COMPANION_PORT=8081 ./host-setup-kasmvnc.sh
 For troubleshooting setup issues, use debug mode:
 
 ```bash
-./host-setup-kasmvnc.sh --debug
+./scripts/host-setup-kasmvnc.sh --debug
 ```
 
 This provides verbose output showing:
@@ -102,7 +102,7 @@ If you continue to experience issues:
    rm -rf ~/.config/overlay-companion-mcp
    
    # Start fresh
-   ./host-setup-kasmvnc.sh --debug
+   ./scripts/host-setup-kasmvnc.sh --debug
    ```
 
 ## Recent Fixes

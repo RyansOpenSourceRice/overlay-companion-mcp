@@ -68,7 +68,7 @@ podman-compose up -d
 If you still prefer the one-line installer, use at your own discretion:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash
 ```
 
 **What this installs:**
@@ -84,12 +84,12 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-compani
 
 ```bash
 # Download and run with custom port
-wget https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh
+wget https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup.sh
 chmod +x host-setup.sh
-./host-setup.sh 8081
+./scripts/host-setup.sh 8081
 
 # Or use environment variable
-OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
+OVERLAY_COMPANION_PORT=8081 ./scripts/host-setup.sh
 ```
 
 If port 8080 is in use, the script will automatically detect this and offer alternatives.
@@ -104,7 +104,7 @@ If port 8080 is in use, the script will automatically detect this and offer alte
 **If YES:** Run this on your **VM or remote computer** (the desktop you want to control):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/vm-setup-kasmvnc.sh | bash
 ```
 
 **What this installs:**
@@ -340,7 +340,7 @@ sudo systemctl status vncserver@1
 ```bash
 git clone https://github.com/RyansOpenSourceRice/overlay-companion-mcp.git
 cd overlay-companion-mcp
-./host-setup.sh
+./scripts/host-setup.sh
 ```
 
 ### Container Architecture

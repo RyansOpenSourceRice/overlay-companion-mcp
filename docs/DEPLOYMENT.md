@@ -94,7 +94,7 @@ Multiple deployment options for different use cases and infrastructure preferenc
 
 **Step 1: Set up containers on HOST Fedora Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash
 ```
 
 **Step 2: Create Fedora VM on your preferred platform**
@@ -104,7 +104,7 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-compani
 
 **Step 3: Set up KasmVNC in VM**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/vm-setup-kasmvnc.sh | bash
 ```
 
 **What gets installed:**
@@ -242,7 +242,7 @@ The Overlay Companion MCP setup script now includes intelligent port management 
 
 ### 1. Default Installation
 ```bash
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup.sh | bash
 ```
 - Uses port 8080 by default
 - If port 8080 is in use, offers interactive alternatives
@@ -250,16 +250,16 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-compani
 ### 2. Specify Custom Port
 ```bash
 ## Method 1: Command line argument (recommended)
-./host-setup.sh 8081
+./scripts/host-setup.sh 8081
 
 ## Method 2: Explicit flag
-./host-setup.sh --port 8081
+./scripts/host-setup.sh --port 8081
 
 ## Method 3: Environment variable
-OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
+OVERLAY_COMPANION_PORT=8081 ./scripts/host-setup.sh
 
 ## Method 4: Get help
-./host-setup.sh --help
+./scripts/host-setup.sh --help
 ```
 
 ### 3. Interactive Port Selection
@@ -273,7 +273,7 @@ If the default port (8080) is in use, the script will:
 ### 4. Help and Usage Information
 ```bash
 ## Get detailed help and usage examples
-./host-setup.sh --help
+./scripts/host-setup.sh --help
 
 ## Shows all available options and examples
 ```
@@ -303,19 +303,19 @@ The script automatically updates:
 ### OpenWebUI Conflict (Port 8080)
 ```bash
 ## OpenWebUI is using port 8080
-OVERLAY_COMPANION_PORT=8081 ./host-setup.sh
+OVERLAY_COMPANION_PORT=8081 ./scripts/host-setup.sh
 ```
 
 ### Multiple Services
 ```bash
 ## If you have multiple services, use different ports
-OVERLAY_COMPANION_PORT=8082 ./host-setup.sh
+OVERLAY_COMPANION_PORT=8082 ./scripts/host-setup.sh
 ```
 
 ### Auto-Selection
 ```bash
 ## Let the script find the next available port
-./host-setup.sh
+./scripts/host-setup.sh
 ## Script detects 8080 is in use
 ## Choose option 1 to auto-select 8081
 ```

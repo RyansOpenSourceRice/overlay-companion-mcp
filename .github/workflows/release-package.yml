@@ -60,13 +60,15 @@ jobs:
       run: |
         mkdir -p dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}
 
-        # Copy release files
-        cp -r release/* dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
+        # Copy release files (install + setup scripts now live in scripts/)
+        mkdir -p dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/scripts
+        cp scripts/install.sh dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/install.sh
+        cp scripts/host-setup-kasmvnc.sh scripts/vm-setup-kasmvnc.sh dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/scripts/ 2>/dev/null || true
 
         # Copy documentation
         cp README.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
-        cp ARCHITECTURE.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
-        cp DEPLOYMENT.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
+        cp docs/ARCHITECTURE.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
+        cp docs/DEPLOYMENT.md dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/
 
         # Create version info
         cat > dist/${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version }}/VERSION << EOF
