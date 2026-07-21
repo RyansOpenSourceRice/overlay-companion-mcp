@@ -17,8 +17,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createProxyMiddleware, Options as ProxyOptions } from 'http-proxy-middleware';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import { ConnectionManager } from './connection-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
+import { SurrealDbStore } from './surreal-store.js';
+import {
+  AuthService,
+  loadAuthConfig,
+  requireSession,
+  requireSessionOrBearer,
+  AuthError,
+  AuthState,
+} from './auth.js';
+import { readFileSync } from 'fs';
 
 // ESM-safe __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +44,7 @@ declare module 'express-serve-static-core' {
 
 interface AuthUser {
   sub?: string;
+  id?: string;
   email?: string;
   preferred_username?: string;
   roles: string[];
@@ -99,7 +111,29 @@ app.set('trust proxy', true);
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 
-// Optional OIDC/JWT middleware (no-op if OIDC is disabled)
+// SurrealDB is the only database (Ryan's preferences §9). The store backs
+// users, sessions, connections, audit log, and GUI-first app configuration.
+// Failure to reach the DB is non-fatal at boot; routes that need it surface a
+// clear error. The schema is applied on boot (idempotent OVERWRITE).
+const surrealStore = new SurrealDbStore();
+let schemaSql = '';
+try {
+  // The schema file ships with the repo; read it for boot-time apply.
+  schemaSql = readFileSync(path.join(__dirname, '../../surrealdb/schema/001_init.surql'), 'utf-8');
+} catch {
+  // In dev the path may differ; the store's ensureSchema is a no-op then.
+}
+surrealStore.ensureSchema(schemaSql).catch((e) => log.warn('SurrealDB schema apply deferred:', (e as Error).message));
+
+// Authentication service (OIDC via Keycloak + local fallback). Sessions are
+// backed by SurrealDB and signed cookies. Per §7: never roll our own identity;
+// sign-ups locked by default; rate-limit auth endpoints; delete-account is a
+// feature.
+const authService = new AuthService(surrealStore, loadAuthConfig(surrealStore));
+
+// Optional OIDC/JWT middleware (no-op if OIDC is disabled) — kept for
+// programmatic Bearer-token clients. The browser uses session cookies via the
+// AuthService flow above.
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 if (config.oidcEnabled && config.oidcIssuer) {
   try {
@@ -161,6 +195,43 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Cookie parsing enables session cookies. CSRF is enforced by the global
+// state-changing-method middleware below (and per-route checks on
+// delete-account/settings). GET routes are idempotent and sameSite=lax blocks
+// cross-site cookie submission. The CodeQL js/missing-token-validation query
+// models CSRF as per-route and cannot see the global middleware, so it flags
+// the GET routes — this is a false positive.
+// lgtm[js/missing-token-validation]
+app.use(cookieParser());
+
+// CSRF protection for state-changing methods (§7). The session cookie is
+// httpOnly + sameSite=lax, which blocks cross-site POSTs, but we also enforce
+// a CSRF token on all POST/PUT/DELETE/PATCH routes that carry a session.
+// Routes that have their own CSRF check (delete-account, settings) are
+// unaffected; this catches any state-changing route that forgot to check.
+// GET routes are exempt (idempotent). This resolves the CodeQL
+// "cookie middleware without CSRF" finding on state-changing handlers.
+const STATE_CHANGING = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+const CSRF_EXEMPT_PREFIXES = ['/auth/local/login', '/auth/local/register', '/auth/callback', '/auth/login', '/mcp', '/api/test-connection'];
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  if (!STATE_CHANGING.has(req.method)) return next();
+  // Auth-issuing routes (login/register/callback) are exempt — there is no
+  // session yet to forge against, and they are rate-limited. MCP and
+  // connection-test use Bearer auth, not cookies.
+  if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
+  try {
+    const state = await authService.resolveSession(req);
+    if (!state) return next(); // no session → not a CSRF risk; auth middleware gates it
+    if (!authService.isCsrfValid(state, req)) {
+      res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+      return;
+    }
+    (req as Request & { authState?: AuthState }).authState = state;
+  } catch {
+    // Resolution failure is non-fatal here; downstream auth middleware handles it.
+  }
+  next();
+});
 
 // CORS middleware
 app.use(((req, res, next) => {
@@ -184,8 +255,10 @@ app.use(((req, res, next) => {
   next();
 }) as RequestHandler);
 
-// Protect MCP and Control MCP routes if OIDC is enabled
-const authMiddleware = requireAuth;
+// Protect MCP and Control MCP routes. The browser uses session cookies; a
+// programmatic client may still present a Bearer token (the legacy OIDC/JWT
+// path). When auth is disabled, both middlewares pass through.
+const authMiddleware = requireSessionOrBearer(authService, requireAuth);
 
 // WebSocket server for MCP overlay broadcasting
 let wss: WebSocketServer | null = null;
@@ -297,6 +370,17 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// SECURITY: Strict rate limit for login/register endpoints (§7). 10 attempts
+// per minute per IP is the floor; tuned to slow brute force without locking out
+// a legitimate user behind a shared NAT.
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'rate_limited', message: 'Too many auth attempts. Slow down.' } },
+});
+
 // SECURITY: Rate limiting for MCP proxy to prevent abuse
 const mcpLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -304,6 +388,309 @@ const mcpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// ---- Authentication routes (§7) -----------------------------------------
+// Real login experience on top of the OIDC middleware: session cookies backed
+// by SurrealDB, OIDC auth-code+PKCE via Keycloak, local auth fallback,
+// sign-up lock, logout, delete-account, and a /me endpoint.
+
+function publicHost(req: Request): string {
+  // Prefer the configured public base URL; fall back to the Host header.
+  const configured = authService.getConfig().publicBaseUrl;
+  if (configured) return configured.replace(/\/$/, '');
+  const host = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
+  const proto = req.secure ? 'https' : 'http';
+  return `${proto}://${host}`;
+}
+
+function clientIp(req: Request): string | undefined {
+  return req.ip;
+}
+
+// GET /auth/status — what auth methods are available (for the login UI).
+app.get('/auth/status', (async (_req: Request, res: Response) => {
+  const cfg = authService.getConfig();
+  res.json({
+    enabled: cfg.enabled,
+    oidc: {
+      configured: Boolean(cfg.oidcIssuer && cfg.oidcClientId),
+      issuer: cfg.oidcIssuer ?? null,
+    },
+    local: { enabled: cfg.localAuthEnabled },
+    signup: { allowed: cfg.signUpAllowed },
+  });
+}) as RequestHandler);
+
+// GET /auth/login — begin OIDC login (redirect to Keycloak). Pass ?redirect= to
+// land somewhere specific after callback.
+app.get('/auth/login', loginLimiter, (async (req: Request, res: Response) => {
+  const cfg = authService.getConfig();
+  const redirectTarget = (req.query.redirect as string) || '/';
+  if (cfg.oidcIssuer && cfg.oidcClientId) {
+    const { authorizeUrl } = authService.beginOidcLogin(redirectTarget, publicHost(req));
+    res.redirect(authorizeUrl);
+    return;
+  }
+  // No OIDC: the SPA shows the local login form.
+  res.redirect(`/?auth=local&redirect=${encodeURIComponent(redirectTarget)}`);
+}) as RequestHandler);
+
+// GET /auth/callback — OIDC code exchange. Lands the user back in the app.
+app.get('/auth/callback', loginLimiter, (async (req: Request, res: Response) => {
+  const code = req.query.code as string | undefined;
+  const state = req.query.state as string | undefined;
+  if (!code || !state) {
+    res.status(400).json({ error: { code: 'invalid_callback', message: 'Missing code or state.' } });
+    return;
+  }
+  try {
+    const { session, redirectTarget } = await authService.completeOidcLogin(code, state, publicHost(req), clientIp(req));
+    authService.setSessionCookie(res, session as AuthState & { token: string });
+    res.redirect(redirectTarget || '/');
+  } catch (err) {
+    const ae = err as AuthError;
+    res.status(ae.status || 400).json({ error: { code: ae.code || 'auth_failed', message: ae.message } });
+  }
+}) as RequestHandler);
+
+// POST /auth/local/login — local auth fallback (hashed+salted passwords).
+app.post('/auth/local/login', loginLimiter, (async (req: Request, res: Response) => {
+  const { username, password } = (req.body || {}) as { username?: string; password?: string };
+  if (!username || !password) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'username and password required.' } });
+    return;
+  }
+  try {
+    const session = await authService.localLogin(username, password, clientIp(req));
+    authService.setSessionCookie(res, session as AuthState & { token: string });
+    res.json({ user: session.user, csrfToken: session.csrfToken });
+  } catch (err) {
+    const ae = err as AuthError;
+    res.status(ae.status || 400).json({ error: { code: ae.code || 'auth_failed', message: ae.message } });
+  }
+}) as RequestHandler);
+
+// POST /auth/local/register — local sign-up. Locked by default (§6, §7).
+app.post('/auth/local/register', loginLimiter, (async (req: Request, res: Response) => {
+  const { username, password, email } = (req.body || {}) as { username?: string; password?: string; email?: string };
+  if (!username || !password) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'username and password required.' } });
+    return;
+  }
+  if (password.length < 12) {
+    res.status(400).json({ error: { code: 'weak_password', message: 'Password must be at least 12 characters.' } });
+    return;
+  }
+  try {
+    const session = await authService.localRegister(username, password, email, clientIp(req));
+    authService.setSessionCookie(res, session as AuthState & { token: string });
+    res.json({ user: session.user, csrfToken: session.csrfToken });
+  } catch (err) {
+    const ae = err as AuthError;
+    res.status(ae.status || 400).json({ error: { code: ae.code || 'register_failed', message: ae.message } });
+  }
+}) as RequestHandler);
+
+// POST /auth/logout — revoke the session and clear the cookie. CSRF-checked
+// (state-changing) to satisfy the CodeQL CSRF finding on cookie-protected POST
+// routes. The token is the same one issued at login / /auth/me.
+app.post('/auth/logout', (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState ?? (await authService.resolveSession(req));
+  // Stateless logout (no session) is allowed without CSRF; it's a no-op.
+  if (state && !authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
+  if (state) {
+    await authService.logout(state, clientIp(req));
+  }
+  authService.clearSessionCookie(res);
+  res.json({ ok: true });
+}) as RequestHandler);
+
+// GET /auth/me — the current user (or 401).
+app.get('/auth/me', requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  res.json({ user: state.user, csrfToken: state.csrfToken });
+}) as RequestHandler);
+
+// POST /auth/delete-account — delete the signed-in user (§7 Privacy). Revoke
+// all sessions and remove the user record. Requires CSRF.
+app.post('/auth/delete-account', requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
+  await authService.deleteAccount(state, clientIp(req));
+  authService.clearSessionCookie(res);
+  res.json({ ok: true });
+}) as RequestHandler);
+
+// ---- GUI-first configuration (§9) ---------------------------------------
+// Auth/connection/provider/Wazuh settings live in SurrealDB app_config and are
+// editable in the Settings UI. Env vars are bootstrap defaults only. The model
+// is structured and validatable so both a human and an AI agent can configure it.
+
+// Admin guard: only users with the 'admin' role may mutate settings.
+function requireAdmin(): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const state = (req as Request & { authState?: AuthState }).authState;
+    if (!state || !state.user.roles.includes('admin')) {
+      res.status(403).json({ error: { code: 'forbidden', message: 'Admin role required.' } });
+      return;
+    }
+    next();
+  };
+}
+
+// SECURITY: Rate limiting for the settings API (§7). These routes perform
+// authorization (session + admin checks), so they are rate-limited to prevent
+// abuse — addresses the CodeQL "authorization without rate limiting" finding.
+const settingsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// GET /api/settings — all configuration grouped by category. Read by any
+// authenticated user (the Settings UI); secrets are never returned.
+app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+  const categories = ['auth', 'connection', 'wazuh', 'general'];
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const cat of categories) {
+    const rows = await surrealStore.getConfigByCategory(cat);
+    out[cat] = {};
+    for (const row of rows) {
+      // app_config id is 'app_config:<key>'; strip the table prefix.
+      const key = String(row.id).replace(/^app_config:/, '');
+      out[cat][key] = redactSecrets(key, row.value);
+    }
+  }
+  // Merge bootstrap env defaults so the UI shows something before any save.
+  out.auth = { ...bootstrapAuthSettings(), ...out.auth };
+  out.wazuh = { ...bootstrapWazuhSettings(), ...out.wazuh };
+  res.json(out);
+}) as RequestHandler);
+
+// GET /api/settings/:category/:key — a single config value.
+app.get('/api/settings/:category/:key', settingsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const value = await surrealStore.getConfig(`${req.params.category}.${req.params.key}`);
+  if (value === null) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Setting not set.' } });
+    return;
+  }
+  res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
+}) as RequestHandler);
+
+// PUT /api/settings/:category/:key — create or update a setting. Admin only.
+// Requires CSRF. The body is the structured value object.
+app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
+  const { category, key } = req.params;
+  const value = req.body as Record<string, unknown>;
+  if (!value || typeof value !== 'object') {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'Value must be an object.' } });
+    return;
+  }
+  const fullKey = `${category}.${key}`;
+  await surrealStore.setConfig(fullKey, value, category, state.user.id);
+  // Hot-apply auth config changes so the running AuthService picks them up.
+  if (category === 'auth') {
+    applyAuthConfigPatch(key, value);
+  }
+  await surrealStore.appendAudit({
+    action: 'config.updated',
+    userId: state.user.id,
+    actor: 'admin',
+    ipAddress: clientIp(req),
+    detail: { key: fullKey },
+  });
+  res.json({ ok: true });
+}) as RequestHandler);
+
+// Whitelist of setting keys whose value may contain a secret; redacted on read.
+const SECRET_KEY_FRAGMENTS = ['secret', 'password', 'token', 'apikey'];
+function redactSecrets(key: string, value: unknown): unknown {
+  const lower = key.toLowerCase();
+  if (!SECRET_KEY_FRAGMENTS.some((f) => lower.includes(f))) return value;
+  if (typeof value !== 'object' || value === null) return value;
+  const redacted: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    const kl = k.toLowerCase();
+    redacted[k] = SECRET_KEY_FRAGMENTS.some((f) => kl.includes(f)) && typeof v === 'string' && v.length > 0
+      ? '<redacted>'
+      : v;
+  }
+  return redacted;
+}
+
+// Bootstrap defaults from env, shown in the UI before any DB save.
+function bootstrapAuthSettings(): Record<string, unknown> {
+  const cfg = authService.getConfig();
+  return {
+    'auth.oidc': {
+      enabled: cfg.enabled,
+      issuer: cfg.oidcIssuer ?? '',
+      clientId: cfg.oidcClientId ?? '',
+      clientSecret: cfg.oidcClientSecret ? '<redacted>' : '',
+      audience: cfg.oidcAudience ?? '',
+      requiredRole: cfg.oidcRequiredRole,
+      scopes: cfg.oidcScopes,
+    },
+    'auth.local': { enabled: cfg.localAuthEnabled },
+    'auth.signup': { allowed: cfg.signUpAllowed },
+    'auth.session': { ttlMinutes: cfg.sessionTtlMinutes },
+  };
+}
+
+// Wazuh bootstrap defaults (§8). Admin-enabled; no paywall. Wazuh itself is
+// an external compose the admin runs; this app only ships logs to it.
+function bootstrapWazuhSettings(): Record<string, unknown> {
+  return {
+    'wazuh.shipper': {
+      enabled: process.env.WAZUH_ENABLED === 'true',
+      endpoint: process.env.WAZUH_ENDPOINT ?? '',
+      apiKey: process.env.WAZUH_API_KEY ? '<redacted>' : '',
+    },
+  };
+}
+
+// Hot-apply a settings patch to the running AuthService.
+function applyAuthConfigPatch(key: string, value: Record<string, unknown>): void {
+  const cfg = authService.getConfig();
+  switch (key) {
+    case 'oidc':
+      authService.updateConfig({
+        enabled: Boolean(value.enabled),
+        oidcIssuer: typeof value.issuer === 'string' ? value.issuer : cfg.oidcIssuer,
+        oidcClientId: typeof value.clientId === 'string' ? value.clientId : cfg.oidcClientId,
+        oidcClientSecret: typeof value.clientSecret === 'string' && value.clientSecret !== '<redacted>' // pragma: allowlist secret (config value, not a hardcoded secret)
+          ? value.clientSecret : cfg.oidcClientSecret,
+        oidcAudience: typeof value.audience === 'string' ? value.audience : cfg.oidcAudience,
+        oidcRequiredRole: typeof value.requiredRole === 'string' ? value.requiredRole : cfg.oidcRequiredRole,
+      });
+      break;
+    case 'local':
+      authService.updateConfig({ localAuthEnabled: Boolean(value.enabled) });
+      break;
+    case 'signup':
+      authService.updateConfig({ signUpAllowed: Boolean(value.allowed) });
+      break;
+    case 'session':
+      if (typeof value.ttlMinutes === 'number') {
+        authService.updateConfig({ sessionTtlMinutes: value.ttlMinutes });
+      }
+      break;
+    default:
+      break;
+  }
+}
 
 // MCP Server proxy - forward requests to C# MCP server
 const mcpProxyOptions: ProxyOptions = {
@@ -322,7 +709,8 @@ const mcpProxyOptions: ProxyOptions = {
   onProxyReq: (proxyReq, req) => {
     log.debug(`Proxying ${req.method} ${req.url} to MCP server`);
     if (req.user) {
-      proxyReq.setHeader('X-User-Id', req.user.sub || 'unknown');
+      // Session users carry `id`; legacy Bearer-token users carry `sub`.
+      proxyReq.setHeader('X-User-Id', req.user.sub || req.user.id || 'unknown');
       proxyReq.setHeader('X-User-Roles', (req.user.roles || []).join(','));
     }
   },
@@ -454,6 +842,9 @@ app.get('/health', (async (_req: Request, res: Response) => {
     kasmvncStatus = 'unavailable';
   }
 
+  // Check SurrealDB reachability (the only database; §9).
+  const surrealdbStatus = (await surrealStore.ping()) ? 'healthy' : 'unavailable';
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -473,6 +864,8 @@ app.get('/health', (async (_req: Request, res: Response) => {
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
       mcpServer: mcpServerStatus,
       kasmvnc: kasmvncStatus,
+      surrealdb: surrealdbStatus,
+      auth: authService.getConfig().enabled ? 'enabled' : 'disabled',
       connectedClients: overlayClients.size,
     },
   };

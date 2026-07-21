@@ -33,6 +33,13 @@
     reverse_proxy kasmvnc:3000
   }
 
+  # Keycloak (OIDC IdP). Exposed so the browser can reach the login UI and
+  # the server can exchange the auth code for tokens. Login flow keeps the
+  # user on one origin to avoid CORS/cookie-domain complications.
+  handle_path /auth/idp/* {
+    reverse_proxy keycloak:8080
+  }
+
   # Default: route to custom overlay web interface
   handle {
     reverse_proxy overlay-web:8080

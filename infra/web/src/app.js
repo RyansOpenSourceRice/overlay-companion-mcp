@@ -16,6 +16,10 @@ class OverlayCompanionApp {
         this.currentConnection = null;
         this.websocket = null;
         this.statusInterval = null;
+        // Auth: populated at init from /auth/me. Null when auth is disabled or
+        // before the gate resolves.
+        this.currentUser = null;
+        this._renderSettingsForms = null;
 
         // Initialize the application
         this.init();
@@ -25,6 +29,25 @@ class OverlayCompanionApp {
         console.log('🚀 Initializing Overlay Companion MCP');
 
         try {
+            // Auth gate: if the server requires a session and we have none,
+            // show the login view instead of the app. When auth is disabled
+            // (dev), /auth/me returns the dev user and we proceed.
+            const { getCurrentUser, getAuthStatus } = await import('./auth');
+            const { showLoginView, renderSettingsForms } = await import('./auth-ui');
+            this._renderSettingsForms = renderSettingsForms;
+            const user = await getCurrentUser();
+            if (!user) {
+                const status = await getAuthStatus();
+                if (status.enabled) {
+                    const loading = document.getElementById('loading');
+                    if (loading) loading.style.display = 'none';
+                    showLoginView(document.getElementById('app') ?? document.body, () => window.location.reload());
+                    return;
+                }
+            } else {
+                this.currentUser = user;
+            }
+
             // Load stored connections
             await this.loadConnections();
 
@@ -146,6 +169,28 @@ class OverlayCompanionApp {
             this.renderConnections();
         } else if (page === 'home') {
             this.renderRecentConnections();
+        } else if (page === 'settings') {
+            // Render the GUI-first settings forms (auth/connection/wazuh) into
+            // the existing Settings page, appended to the MCP config section.
+            this.renderSettingsPage();
+        }
+    }
+
+    async renderSettingsPage() {
+        if (!this._renderSettingsForms || !this.currentUser) return;
+        const page = document.getElementById('settings-page');
+        if (!page) return;
+        // Avoid double-render on re-entry.
+        let host = document.getElementById('auth-settings-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'auth-settings-host';
+            page.querySelector('.settings-container')?.prepend(host);
+        }
+        try {
+            await this._renderSettingsForms(host, this.currentUser);
+        } catch (err) {
+            console.error('Settings render failed:', err);
         }
     }
 

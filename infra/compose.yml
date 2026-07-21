@@ -8,6 +8,13 @@ x-common-env: &common_env
   OIDC_ISSUER: ${OIDC_ISSUER:-}
   OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
   OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:-overlay:user}
+  # SurrealDB connection (decoupled service so it can migrate to K3S later).
+  # Format: Server=<endpoint>;Namespace=<ns>;Database=<db>;Username=<u>;Password=<p>
+  SURREALDB_URL: ${SURREALDB_URL:-http://surrealdb:8000}
+  SURREALDB_NAMESPACE: ${SURREALDB_NAMESPACE:-overlay}
+  SURREALDB_DATABASE: ${SURREALDB_DATABASE:-companion}
+  SURREALDB_USERNAME: ${SURREALDB_USERNAME:-root}
+  SURREALDB_PASSWORD: ${SURREALDB_PASSWORD:-root}
 
 services:
   overlay-web:
@@ -22,6 +29,7 @@ services:
       - "${WEB_PORT:-8082}:8080"
     depends_on:
       - mcp-server
+      - surrealdb
 
   mcp-server:
     build:
@@ -33,6 +41,8 @@ services:
       ASPNETCORE_URLS: http://0.0.0.0:3000
     expose:
       - "3000"
+    depends_on:
+      - surrealdb
 
   control-mcp:
     image: overlay-companion/control-mcp:latest
@@ -42,12 +52,35 @@ services:
     expose:
       - "3003"
 
+  # SurrealDB is the only database (per Ryan's preferences §9). Decoupled as a
+  # standalone service so it can move to K3S independently. Backs users,
+  # sessions, connections, audit log, and app configuration for both the TS
+  # management server and the C# MCP server.
+  surrealdb:
+    image: surrealdb/surrealdb:v2.2.1
+    command: ["start", "--user", "${SURREALDB_USERNAME:-root}", "--pass", "${SURREALDB_PASSWORD:-root}", "--bind", "0.0.0.0:8000", "rocksdb:/data/surreal.db"]
+    environment:
+      SURREAL_LOG_LEVEL: ${SURREAL_LOG_LEVEL:-info}
+    volumes:
+      - surrealdb-data:/data
+      - ./surrealdb/schema:/schema:ro
+    ports:
+      - "${SURREALDB_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.2
     command: ["start-dev", "--http-port=8080", "--hostname-strict=false"]
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin # pragma: allowlist secret (dev example)
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin} # pragma: allowlist secret (dev example)
+      # Production: set KEYCLOAK_ADMIN_PASSWORD to a strong secret and enable a
+      # production DB. See docs/DEPLOYMENT.md.
     ports:
       - "8085:8080"
 
@@ -61,7 +94,12 @@ services:
       - overlay-web
       - mcp-server
       - control-mcp
+      - keycloak
 
 networks:
   default:
     name: overlay-net
+
+volumes:
+  surrealdb-data:
+    name: overlay-surrealdb-data

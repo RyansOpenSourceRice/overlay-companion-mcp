@@ -1,0 +1,23 @@
+title: Overlay Companion — Account deleted
+id: 8b4f2d3b-0c5e-4f9b-8a2d-1b2c3d4e5f60
+status: experimental
+description: >
+  Detects that a user account was deleted. The app emits an audit event with
+  action 'account.deleted'. Account deletion is a data-loss signal; an alert
+  here lets an operator confirm the deletion was intentional (§7 Privacy:
+  delete-account is a feature, but unexpected deletions warrant review).
+references:
+  - https://github.com/RyansOpenSourceRice/overlay-companion-mcp
+author: Overlay Companion MCP
+date: 2026/07/21
+logsource:
+  product: overlay-companion
+  service: audit
+detection:
+  selection:
+    action: account.deleted
+  condition: selection
+falsepositives:
+  - Intentional self-service account deletion
+  - Admin-initiated cleanup
+level: low

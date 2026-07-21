@@ -6,6 +6,8 @@ on:
     paths:
       - 'flatpak/clipboard-bridge/**'
       - '.github/workflows/flatpak-clipboard-bridge.yml'
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main, develop ]
     paths:
@@ -22,9 +24,6 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write

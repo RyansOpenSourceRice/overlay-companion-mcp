@@ -1,0 +1,76 @@
+# Filebeat configuration for Overlay Companion MCP → Wazuh log shipping.
+#
+# The app emits structured JSON Lines (JSONL) logs. This Filebeat config reads
+# them, parses the JSON, and forwards to the Wazuh manager. Copy into the
+# Wazuh manager's Filebeat config (typically /etc/filebeat/filebeat.yml) and
+# adjust the paths/hosts.
+#
+# Per §9: logs are JSONL with stable fields (timestamp, level, message,
+# trace_id, span_id, fields). Per §7: redact secrets before emit; nothing here
+# re-extracts them.
+
+filebeat.inputs:
+  # Management server JSONL logs (infra/server).
+  - type: filestream
+    id: overlay-companion-server
+    enabled: true
+    paths:
+      - /var/log/overlay-companion/server.log
+    parsers:
+      - ndjson:
+          target: ""
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      app: overlay-companion
+      component: management-server
+    fields_under_root: true
+
+  # C# MCP server JSONL logs (src).
+  - type: filestream
+    id: overlay-companion-mcp
+    enabled: true
+    paths:
+      - /var/log/overlay-companion/mcp.log
+    parsers:
+      - ndjson:
+          target: ""
+          keys_under_root: true
+          add_error_key: true
+    fields:
+      app: overlay-companion
+      component: mcp-server
+    fields_under_root: true
+
+processors:
+  # Normalize the timestamp to ISO 8601 if the source emitted epoch millis.
+  - timestamp:
+      field: timestamp
+      layouts:
+        - '2006-01-02T15:04:05.999999999Z'
+        - '2006-01-02T15:04:05Z'
+      test:
+        - '2026-07-21T16:13:22Z'
+  # Drop debug noise if the Wazuh index should be lean. Keep info+ by default.
+  - drop_event:
+      when:
+        equals:
+          level: "debug"
+
+output.logstash:
+  hosts: ["wazuh-manager:5000"]
+  # If the Wazuh collector requires an API key, set it here. Keep the secret in
+  # an environment variable or a secrets manager, not in this file.
+  # ssl.certificate_authorities: ["/etc/filebeat/certs/ca.crt"]
+  # ssl.verification_mode: full
+
+# Ship to Wazuh manager directly if Logstash is not in use.
+# output.wazuh:
+#   hosts: ["wazuh-manager:1514"]
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7

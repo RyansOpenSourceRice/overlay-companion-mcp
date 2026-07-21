@@ -1,0 +1,22 @@
+title: Overlay Companion — Security config changed
+id: 9c5a3e4c-1d6f-4f0a-9b3e-2c3d4e5f6071
+status: experimental
+description: >
+  Detects that an admin changed auth, connection, or Wazuh settings. The app
+  emits an audit event with action 'config.updated'. A change to auth settings
+  (e.g. disabling OIDC, enabling sign-ups) can weaken the security posture;
+  this rule surfaces it so an operator can confirm the change was authorized.
+references:
+  - https://github.com/RyansOpenSourceRice/overlay-companion-mcp
+author: Overlay Companion MCP
+date: 2026/07/21
+logsource:
+  product: overlay-companion
+  service: audit
+detection:
+  selection:
+    action: config.updated
+  condition: selection
+falsepositives:
+  - Routine admin configuration during onboarding
+level: low
