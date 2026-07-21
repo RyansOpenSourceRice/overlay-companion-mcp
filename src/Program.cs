@@ -120,6 +120,20 @@ public class Program
         builder.Services.AddSingleton<IOverlayEventBroadcaster, OverlayEventBroadcaster>();
         builder.Services.AddHttpClient();
 
+        // SurrealDB store (the only database; preferences §9). Connection
+        // details come from SURREALDB_* env vars (bootstrap defaults). The store
+        // backs connections, settings, and audit log; services fall back to
+        // file storage when the DB is unreachable.
+        builder.Services.Configure<SurrealStoreOptions>(options =>
+        {
+            options.Endpoint = Environment.GetEnvironmentVariable("SURREALDB_URL") ?? "http://surrealdb:8000";
+            options.Namespace = Environment.GetEnvironmentVariable("SURREALDB_NAMESPACE") ?? "overlay";
+            options.Database = Environment.GetEnvironmentVariable("SURREALDB_DATABASE") ?? "companion";
+            options.Username = Environment.GetEnvironmentVariable("SURREALDB_USERNAME") ?? "root";
+            options.Password = Environment.GetEnvironmentVariable("SURREALDB_PASSWORD") ?? "root";
+        });
+        builder.Services.AddSingleton<ISurrealStore, SurrealStore>();
+
         // Register KasmVNC integration service
         builder.Services.Configure<KasmVNCOptions>(options =>
         {
@@ -174,6 +188,19 @@ public class Program
         });
 
         var app = builder.Build();
+
+        // Initialize the SurrealDB store on startup (connects + signs in).
+        // Non-fatal if it fails; services fall back to file storage.
+        try
+        {
+            var store = app.Services.GetRequiredService<ISurrealStore>();
+            await store.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            var bootLogger = app.Services.GetRequiredService<ILogger<Program>>();
+            bootLogger.LogWarning(ex, "SurrealDB store init skipped");
+        }
 
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");

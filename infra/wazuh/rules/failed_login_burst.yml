@@ -1,0 +1,24 @@
+title: Overlay Companion — Failed login burst
+id: 7a3e1c2a-9b4d-4e8a-9f1c-0a1b2c3d4e5f
+status: experimental
+description: >
+  Detects multiple failed login attempts from a single IP within a short
+  window. The app emits an audit event with action 'auth.login.failed' for
+  every bad local/OIDC login. A burst indicates brute force (§7 threat model:
+  rate limiting is the first defense; this rule is the detection backstop).
+references:
+  - https://github.com/RyansOpenSourceRice/overlay-companion-mcp
+author: Overlay Companion MCP
+date: 2026/07/21
+logsource:
+  product: overlay-companion
+  service: audit
+detection:
+  selection:
+    action: auth.login.failed
+  timeframe: 1m
+  condition: selection | count() by ip_address > 5
+falsepositives:
+  - A user behind a shared NAT mistyping their password
+  - A legitimate load test against the auth endpoints
+level: medium
