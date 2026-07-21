@@ -80,7 +80,10 @@ export async function registerLocal(username: string, password: string, email?: 
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/auth/logout', { method: 'POST' });
+  await fetch('/auth/logout', {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': cachedCsrfToken },
+  });
   cachedCsrfToken = '';
 }
 

@@ -455,9 +455,16 @@ app.post('/auth/local/register', loginLimiter, (async (req: Request, res: Respon
   }
 }) as RequestHandler);
 
-// POST /auth/logout — revoke the session and clear the cookie.
+// POST /auth/logout — revoke the session and clear the cookie. CSRF-checked
+// (state-changing) to satisfy the CodeQL CSRF finding on cookie-protected POST
+// routes. The token is the same one issued at login / /auth/me.
 app.post('/auth/logout', (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState ?? (await authService.resolveSession(req));
+  // Stateless logout (no session) is allowed without CSRF; it's a no-op.
+  if (state && !authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
   if (state) {
     await authService.logout(state, clientIp(req));
   }
@@ -501,9 +508,19 @@ function requireAdmin(): RequestHandler {
   };
 }
 
+// SECURITY: Rate limiting for the settings API (§7). These routes perform
+// authorization (session + admin checks), so they are rate-limited to prevent
+// abuse — addresses the CodeQL "authorization without rate limiting" finding.
+const settingsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // GET /api/settings — all configuration grouped by category. Read by any
 // authenticated user (the Settings UI); secrets are never returned.
-app.get('/api/settings', requireSession(authService), (async (_req: Request, res: Response) => {
+app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
   const categories = ['auth', 'connection', 'wazuh', 'general'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
@@ -522,7 +539,7 @@ app.get('/api/settings', requireSession(authService), (async (_req: Request, res
 }) as RequestHandler);
 
 // GET /api/settings/:category/:key — a single config value.
-app.get('/api/settings/:category/:key', requireSession(authService), (async (req: Request, res: Response) => {
+app.get('/api/settings/:category/:key', settingsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
   const value = await surrealStore.getConfig(`${req.params.category}.${req.params.key}`);
   if (value === null) {
     res.status(404).json({ error: { code: 'not_found', message: 'Setting not set.' } });
@@ -533,7 +550,7 @@ app.get('/api/settings/:category/:key', requireSession(authService), (async (req
 
 // PUT /api/settings/:category/:key — create or update a setting. Admin only.
 // Requires CSRF. The body is the structured value object.
-app.put('/api/settings/:category/:key', requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!authService.isCsrfValid(state, req)) {
     res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });

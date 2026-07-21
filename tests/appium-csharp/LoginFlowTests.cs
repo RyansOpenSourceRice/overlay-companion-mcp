@@ -63,9 +63,13 @@ public class LoginFlowTests : AppiumWebTestBase
     public void LogoutClearsSession()
     {
         TryRegister(TestUsername, TestPassword);
-        // Call logout via the API (the button does a fetch POST).
+        // Fetch the CSRF token from /auth/me (set during login/register).
+        var meRaw = ((IJavaScriptExecutor)Driver!).ExecuteScript(
+            "return fetch('/auth/me', { credentials: 'include' }).then(r => r.text());");
+        var csrf = ExtractCsrf((string)meRaw);
+        // Call logout via the API with the CSRF header (the button does the same).
         ((IJavaScriptExecutor)Driver!).ExecuteScript(
-            "return fetch('/auth/logout', { method: 'POST', credentials: 'include' }).then(r => r.status);");
+            $"return fetch('/auth/logout', {{ method: 'POST', headers: {{ 'X-CSRF-Token': '{csrf}' }}, credentials: 'include' }}).then(r => r.status);");
 
         GoTo("/auth/me");
         var body = Driver!.FindElement(By.TagName("body")).Text;
@@ -73,6 +77,13 @@ public class LoginFlowTests : AppiumWebTestBase
         Assert.IsTrue(
             body.Contains("unauthenticated") || body.Contains("error") || body.Contains("Sign in"),
             "After logout, /auth/me should deny access.");
+    }
+
+    private static string ExtractCsrf(string meJson)
+    {
+        // Minimal extraction of csrfToken from the /auth/me JSON without a JSON lib.
+        var match = System.Text.RegularExpressions.Regex.Match(meJson ?? "", "\"csrfToken\"\\s*:\\s*\"([^\"]+)\"");
+        return match.Success ? match.Groups[1].Value : "";
     }
 
     private void TryRegister(string username, string password)
