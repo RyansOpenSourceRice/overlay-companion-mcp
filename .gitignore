@@ -142,3 +142,7 @@ rust-mcp/.cargo/
 rust-clipboard-bridge/target/
 rust-clipboard-bridge/.cargo/
 
+# Graphify knowledge-graph output (local analysis artifact, not source)
+graphify-out/
+.graphify_*.json
+

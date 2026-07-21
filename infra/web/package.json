@@ -5,8 +5,10 @@
   "private": true,
   "scripts": {
     "build": "webpack --mode production",
+    "build:ts": "tsc --noEmit && webpack --mode production",
     "dev": "webpack serve --mode development",
-    "watch": "webpack --mode development --watch"
+    "watch": "webpack --mode development --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "guacamole-common-js": "^1.5.0"
@@ -16,6 +18,10 @@
     "css-loader": "^6.8.1",
     "html-webpack-plugin": "^5.5.3",
     "style-loader": "^3.3.3",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.23.1",
+    "typescript": "^5.7.0",
     "webpack": "^5.89.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.2.2"

@@ -2,10 +2,13 @@
   "name": "overlay-companion-mcp-management",
   "version": "1.0.0",
   "description": "Management server for Overlay Companion MCP with Guacamole integration",
-  "main": "server.js",
+  "type": "module",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "NODE_ENV=development node dist/server.js",
+    "lint": "eslint 'src/**/*.ts' --ext .ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -29,8 +32,14 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/express": "^4.17.21",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.0",
     "cspell": "^6.13.0",
     "eslint": "^8.46.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
     "eslint-plugin-security": "^1.7.0"
   }
 }

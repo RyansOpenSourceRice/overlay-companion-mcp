@@ -10,7 +10,7 @@
  * - Connection management and testing
  */
 
-import './app.js';
+import './app';
 
-// The main application is initialized in app.js
+// The main application is initialized in app.ts
 // This file serves as the entry point for the module system

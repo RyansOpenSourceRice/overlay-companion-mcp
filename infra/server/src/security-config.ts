@@ -5,7 +5,43 @@
  * Modify with extreme caution and always test changes thoroughly.
  */
 
-module.exports = {
+export interface SecurityLimits {
+  connectionTimeout: number;
+  maxResponseSize: number;
+  maxRedirects: number;
+  rateLimitWindow: number;
+  rateLimitMax: number;
+}
+
+export interface PortRestrictions {
+  min: number;
+  max: number;
+  blocked?: number[];
+}
+
+export interface SecurityLogging {
+  logConnectionAttempts: boolean;
+  logBlockedHosts: boolean;
+  logSecurityEvents: boolean;
+}
+
+export interface KasmVncTarget {
+  host: string;
+  port: number;
+  ssl: boolean;
+}
+
+export interface SecurityConfig {
+  allowedHostPatterns: RegExp[];
+  blockedHostPatterns: RegExp[];
+  limits: SecurityLimits;
+  allowedProtocols: string[];
+  portRestrictions: PortRestrictions;
+  logging: SecurityLogging;
+  kasmVncAllowlist?: Record<string, KasmVncTarget>;
+}
+
+export const securityConfig: SecurityConfig = {
   // SECURITY: Allowed host patterns for connection testing
   // Add your specific development/production hosts here
   allowedHostPatterns: [
@@ -77,5 +113,7 @@ module.exports = {
     logConnectionAttempts: true,
     logBlockedHosts: true,
     logSecurityEvents: true,
-  }
+  },
 };
+
+export default securityConfig;

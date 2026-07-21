@@ -25,7 +25,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME_MCP: ${{ toLower(github.repository) }}/mcp-server
-  IMAGE_NAME_MCP_RUST: ${{ toLower(github.repository) }}/mcp-server-rust
   IMAGE_NAME_WEB: ${{ toLower(github.repository) }}/web-interface
 
 jobs:
@@ -47,10 +46,6 @@ jobs:
             dockerfile: infra/Dockerfile.mcp
             context: .
             image_env: IMAGE_NAME_MCP
-          - name: mcp-server-rust
-            dockerfile: infra/Dockerfile.rust-mcp
-            context: .
-            image_env: IMAGE_NAME_MCP_RUST
           - name: web-interface
             dockerfile: infra/Dockerfile.web
             context: .
