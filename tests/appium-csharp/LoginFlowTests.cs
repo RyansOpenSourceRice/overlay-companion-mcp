@@ -18,7 +18,7 @@ namespace OverlayCompanion.Tests.Appium;
 public class LoginFlowTests : AppiumWebTestBase
 {
     private const string TestUsername = "appium-test-admin";
-    private const string TestPassword = "TestPassphrase!2026";
+    private const string TestPassword = "TestPassphrase!2026"; // pragma: allowlist secret (test fixture, not a real credential)
 
     [ClassInitialize]
     public static void ClassInit(TestContext context)

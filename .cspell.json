@@ -1173,6 +1173,26 @@
     "zk-SNARK",
     "zk-STARK",
     "zsync",
-    "zwlr"
+    "zwlr",
+    "codespell",
+    "filebeat",
+    "hostable",
+    "keycloak",
+    "openhands",
+    "personhood",
+    "pkce",
+    "signup",
+    "surrealdb",
+    "totp",
+    "wazuh",
+    "deployers",
+    "quickstart",
+    "ossec",
+    "opensearch",
+    "validatable",
+    "unconfigured",
+    "upserts",
+    "surql",
+    "ryans"
   ]
 }

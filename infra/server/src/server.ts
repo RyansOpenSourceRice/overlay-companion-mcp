@@ -617,7 +617,7 @@ function applyAuthConfigPatch(key: string, value: Record<string, unknown>): void
         enabled: Boolean(value.enabled),
         oidcIssuer: typeof value.issuer === 'string' ? value.issuer : cfg.oidcIssuer,
         oidcClientId: typeof value.clientId === 'string' ? value.clientId : cfg.oidcClientId,
-        oidcClientSecret: typeof value.clientSecret === 'string' && value.clientSecret !== '<redacted>'
+        oidcClientSecret: typeof value.clientSecret === 'string' && value.clientSecret !== '<redacted>' // pragma: allowlist secret (config value, not a hardcoded secret)
           ? value.clientSecret : cfg.oidcClientSecret,
         oidcAudience: typeof value.audience === 'string' ? value.audience : cfg.oidcAudience,
         oidcRequiredRole: typeof value.requiredRole === 'string' ? value.requiredRole : cfg.oidcRequiredRole,

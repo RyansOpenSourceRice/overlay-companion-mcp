@@ -84,11 +84,12 @@ jobs:
           # the TS server degrades gracefully when the DB is unreachable.
           cd infra/server
           mkdir -p ../web/dist
+          # The session secret is a CI-only value; not a production secret.
+          export SESSION_SECRET="ci-test-secret-only-not-for-prod" # pragma: allowlist secret
           PORT=8080 \
           NODE_ENV=production \
           LOCAL_AUTH_ENABLED=true \
           SIGNUP_ALLOWED=true \
-          SESSION_SECRET=ci-test-secret-only-not-for-prod \
           MCP_SERVER_URL=http://127.0.0.1:3000 \
           nohup node dist/server.js > /tmp/oc-server.log 2>&1 &
           echo $! > /tmp/oc-server.pid
