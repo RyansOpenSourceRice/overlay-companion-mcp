@@ -197,6 +197,35 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+// CSRF protection for state-changing methods (§7). The session cookie is
+// httpOnly + sameSite=lax, which blocks cross-site POSTs, but we also enforce
+// a CSRF token on all POST/PUT/DELETE/PATCH routes that carry a session.
+// Routes that have their own CSRF check (delete-account, settings) are
+// unaffected; this catches any state-changing route that forgot to check.
+// GET routes are exempt (idempotent). This resolves the CodeQL
+// "cookie middleware without CSRF" finding on state-changing handlers.
+const STATE_CHANGING = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+const CSRF_EXEMPT_PREFIXES = ['/auth/local/login', '/auth/local/register', '/auth/callback', '/auth/login', '/mcp', '/api/test-connection'];
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  if (!STATE_CHANGING.has(req.method)) return next();
+  // Auth-issuing routes (login/register/callback) are exempt — there is no
+  // session yet to forge against, and they are rate-limited. MCP and
+  // connection-test use Bearer auth, not cookies.
+  if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
+  try {
+    const state = await authService.resolveSession(req);
+    if (!state) return next(); // no session → not a CSRF risk; auth middleware gates it
+    if (!authService.isCsrfValid(state, req)) {
+      res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+      return;
+    }
+    (req as Request & { authState?: AuthState }).authState = state;
+  } catch {
+    // Resolution failure is non-fatal here; downstream auth middleware handles it.
+  }
+  next();
+});
+
 // CORS middleware
 app.use(((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
