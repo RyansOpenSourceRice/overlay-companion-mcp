@@ -38,10 +38,11 @@ public abstract class AppiumWebTestBase : IDisposable
             // The Appium chromium driver matches on it to pick Chrome.
             BrowserName = "chrome",
         };
-        // goog:chromeOptions is a standard Chrome vendor capability. Use
-        // AddAdditionalOption (not AddAdditionalAppiumOption) so it is NOT
-        // prefixed with appium:.
-        options.AddAdditionalOption("goog:chromeOptions", new Dictionary<string, object>
+        // goog:chromeOptions is passed via AddAdditionalAppiumOption. The Appium
+        // chromium driver reads it nested (per appium/appium-chromium-driver).
+        // Note: AppiumOptions.AddAdditionalOption throws NotImplementedException,
+        // so the appium-option path is the only way to add vendor capabilities.
+        options.AddAdditionalAppiumOption("goog:chromeOptions", new Dictionary<string, object>
         {
             ["args"] = new[] { "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage" },
         });
