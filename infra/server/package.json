@@ -2,6 +2,7 @@
   "name": "overlay-companion-mcp-management",
   "version": "1.0.0",
   "description": "Management server for Overlay Companion MCP with Guacamole integration",
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
