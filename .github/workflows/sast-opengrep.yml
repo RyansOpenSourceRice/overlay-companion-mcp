@@ -1,0 +1,79 @@
+name: SAST (OpenGrep)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'apps/**'
+      - 'infra/server/**'
+      - 'infra/web/src/**'
+      - 'legacy/**'
+      - '.github/workflows/sast-opengrep.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'apps/**'
+      - 'infra/server/**'
+      - 'infra/web/src/**'
+      - 'legacy/**'
+  workflow_dispatch:
+
+# Per Ryan's owned-repo standards §29: OpenGrep is the required SAST scanner in
+# CI/CD. Per §7/§28: scanners surface issues encountered while working; they do
+# not hunt for new rule sets on a schedule. This job runs OpenGrep with the auto
+# config and uploads the SARIF report to GitHub code scanning for triage.
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  opengrep-sast:
+    name: OpenGrep static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install OpenGrep
+        run: |
+          echo "Installing OpenGrep CLI..."
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh -o /tmp/opengrep-install.sh
+          bash /tmp/opengrep-install.sh
+          echo "$HOME/.opengrep/cli" >> "$GITHUB_PATH"
+
+      - name: Run OpenGrep scan
+        id: scan
+        run: |
+          opengrep scan \
+            --config=auto \
+            --quiet \
+            --exclude="*.min.js" \
+            --exclude="node_modules" \
+            --exclude="graphify-out" \
+            --exclude="release/containers" \
+            --include="*.js" \
+            --include="*.ts" \
+            --include="*.cs" \
+            --sarif \
+            --output=opengrep.sarif \
+            . || echo "OpenGrep reported findings (non-zero exit) — review the SARIF upload."
+
+      - name: Upload SARIF to GitHub code scanning
+        if: always() && hashFiles('opengrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: opengrep.sarif
+          category: opengrep
+
+      - name: Upload OpenGrep SARIF artifact
+        if: always() && hashFiles('opengrep.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: opengrep-sarif
+          path: opengrep.sarif
+          retention-days: 14

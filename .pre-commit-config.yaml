@@ -38,6 +38,19 @@ repos:
         files: \.py$
         pass_filenames: false
 
+  # Gitleaks secret scanning (per Ryan's owned-repo standards §29: gitleaks via
+  # pre-commit is the single gate for secret detection; no parallel CI/CD-only
+  # gitleaks step). Auto-installs gitleaks if missing.
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (secret detection)
+        entry: >-
+          bash -c 'command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; (command -v brew >/dev/null 2>&1 && brew install gitleaks) || (command -v go >/dev/null 2>&1 && go install github.com/gitleaks/gitleaks/v8@latest) || echo "WARNING: gitleaks not installed; skipping secret scan. Install: https://github.com/gitleaks/gitleaks/releases"; }; gitleaks protect --staged --redact --verbose'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
   # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
