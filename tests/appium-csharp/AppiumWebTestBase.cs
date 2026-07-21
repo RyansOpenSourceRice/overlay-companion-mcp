@@ -34,10 +34,14 @@ public abstract class AppiumWebTestBase : IDisposable
         {
             PlatformName = "Linux",
             AutomationName = "Chromium",
+            // browserName is a standard W3C capability (not an appium: extension).
+            // The Appium chromium driver matches on it to pick Chrome.
+            BrowserName = "chrome",
         };
-        // The official Appium "chromium" driver drives Chrome in Web mode.
-        options.AddAdditionalAppiumOption("browserName", "Chrome");
-        options.AddAdditionalAppiumOption("goog:chromeOptions", new Dictionary<string, object>
+        // goog:chromeOptions is a standard Chrome vendor capability. Use
+        // AddAdditionalOption (not AddAdditionalAppiumOption) so it is NOT
+        // prefixed with appium:.
+        options.AddAdditionalOption("goog:chromeOptions", new Dictionary<string, object>
         {
             ["args"] = new[] { "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage" },
         });

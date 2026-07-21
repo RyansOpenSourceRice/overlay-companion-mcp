@@ -265,7 +265,7 @@ Ryan answered all three questions:
 - Overlay rendering → **web viewer** (overlays in a browser pane). No host
   overlay app. No GNOME Shell extension. No flatpak.
 - Alt-tab / anti-trapping → fixed at the **VNC client** (KasmVNC fullscreen/PWA
-  + in-session window-cycle rebind + documented release hotkey), not in the
+  - in-session window-cycle rebind + documented release hotkey), not in the
   annotation layer.
 
 **Executed (Rust MCP server retirement):**
