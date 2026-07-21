@@ -45,8 +45,13 @@ repos:
     hooks:
       - id: gitleaks
         name: gitleaks (secret detection)
+        # Install the gitleaks binary release rather than `go install`, because
+        # the upstream module path moved (zricethezav → gitleaks org) and
+        # `go install github.com/gitleaks/gitleaks/v8@latest` fails with a
+        # module-path conflict. The binary release is the supported install
+        # path and keeps the §29 single secret gate working.
         entry: >-
-          bash -c 'command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; (command -v brew >/dev/null 2>&1 && brew install gitleaks) || (command -v go >/dev/null 2>&1 && go install github.com/gitleaks/gitleaks/v8@latest) || echo "WARNING: gitleaks not installed; skipping secret scan. Install: https://github.com/gitleaks/gitleaks/releases"; }; gitleaks protect --staged --redact --verbose'
+          bash -c 'command -v gitleaks >/dev/null 2>&1 || { echo "Installing gitleaks..."; (command -v brew >/dev/null 2>&1 && brew install gitleaks) || { VERSION=v8.21.2; curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tgz && tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks && chmod +x /tmp/gitleaks && sudo mv /tmp/gitleaks /usr/local/bin/gitleaks || echo "WARNING: gitleaks not installed; skipping secret scan. Install: https://github.com/gitleaks/gitleaks/releases"; }; }; gitleaks protect --staged --redact --verbose'
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -135,9 +140,12 @@ repos:
     hooks:
       - id: eslint-security
         name: ESLint Security Analysis
-        entry: bash -c 'cd infra/server && npm list eslint-plugin-security >/dev/null 2>&1 || npm install --no-save eslint@8 eslint-plugin-security; npx eslint --ext .js --config .eslintrc-security.json .'
+        # Scan both .js and .ts — the web layer is TypeScript (per the locked
+        # architecture decision). The previous .js-only pattern found no files
+        # and failed with "No files matching the pattern".
+        entry: bash -c 'cd infra/server && npm list eslint-plugin-security >/dev/null 2>&1 || npm install --no-save eslint@8 eslint-plugin-security; npx eslint --ext .js,.ts --config .eslintrc-security.json .'
         language: system
-        files: \.js$
+        files: \.(js|ts)$
         pass_filenames: false
 
       - id: semgrep-security
