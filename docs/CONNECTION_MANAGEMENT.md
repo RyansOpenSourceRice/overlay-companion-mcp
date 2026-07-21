@@ -401,6 +401,6 @@ Users can:
 
 ## See Also
 
-- [SPECIFICATION.md](../SPECIFICATION.md) - Full MCP specification
-- [Target Protocol Support](../SPECIFICATION.md#target-protocol-support) - Protocol comparison
-- [Multi-Monitor Support](../SPECIFICATION.md#multi-monitor-support) - Multi-monitor capabilities
+- [SPECIFICATION.md](./SPECIFICATION.md) - Full MCP specification
+- [Target Protocol Support](./SPECIFICATION.md#target-protocol-support) - Protocol comparison
+- [Multi-Monitor Support](./SPECIFICATION.md#multi-monitor-support) - Multi-monitor capabilities

@@ -38,7 +38,7 @@ This guide explains how to configure and use multi-monitor support with the Over
 Use the KasmVNC setup script:
 ```bash
 # Install KasmVNC-based containers
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash
 ```
 
 ### 2. Remote System Configuration
@@ -46,7 +46,7 @@ curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-compani
 Configure the remote system with KasmVNC server:
 ```bash
 # Install KasmVNC server on remote system
-curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/vm-setup-kasmvnc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/vm-setup-kasmvnc.sh | bash
 ```
 
 ### 3. KasmVNC Display Manager Configuration

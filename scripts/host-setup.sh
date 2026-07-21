@@ -54,7 +54,7 @@ echo -e "${YELLOW}Continue with deprecated Guacamole setup? (y/N)${NC}"
 read -r response
 if [[ ! "$response" =~ ^[Yy]$ ]]; then
     echo -e "${BLUE}Recommended: Download KasmVNC setup instead:${NC}"
-    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/host-setup-kasmvnc.sh | bash"
+    echo "curl -fsSL https://raw.githubusercontent.com/RyansOpenSourceRice/overlay-companion-mcp/main/scripts/host-setup-kasmvnc.sh | bash"
     exit 0
 fi
 echo -e "${YELLOW}Proceeding with deprecated Guacamole setup...${NC}"

@@ -105,7 +105,7 @@ jobs:
       run: |
         echo "🔍 Checking Table of Contents (max 3 minutes)..."
         # Check if TOC needs updating in specification files
-        for file in SPECIFICATION.md MCP_SPECIFICATION.md; do
+        for file in docs/SPECIFICATION.md docs/MCP_SPECIFICATION.md; do
           if [ -f "$file" ]; then
             echo "Checking TOC for $file"
             markdown-toc --no-firsth1 "$file" > /tmp/expected_toc.md
