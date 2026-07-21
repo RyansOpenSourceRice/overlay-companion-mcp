@@ -239,16 +239,62 @@ These are the decisions only Ryan can make; they determine whether the
 - Need on-screen overlays + staying on GNOME → GNOME Shell extension (GJS).
 - Need on-screen overlays + staying on GNOME + no extension → blocked (no path).
 
-My recommendation, given throughput is the priority: **stay on the container +
-web-viewer path, fix alt-tab at the VNC client, consolidate the MCP server on
-C#, and treat the host overlay app as a future capability to revisit only if
-the web-viewer proves insufficient.**
+### Decision (locked by Ryan, 2026-07-20)
+
+Ryan answered all three questions:
+
+1. **Staying on GNOME.** The tool must work on **any VM** that can appear in
+   software — web browser tech is the portability requirement, not a specific
+   compositor or VM. (This rules out both the wlroots host-app path and the
+   GNOME Shell extension path — neither is "any VM".)
+2. **Web viewer, not GNOME Shell extension.**
+3. **Web viewer is acceptable for throughput.**
+
+**Locked architecture: container + web viewer.**
+
+- MCP server → container, **C#** (the existing `src/` C# server is the sole
+  MCP implementation; the Rust MCP server was a redundant subset and is retired
+  — see "Executed" below).
+- Clipboard bridge → **kept as-is** (Rust `apps/clipboard-bridge-rust/`).
+  Ryan chose to keep the Rust clipboard bridge rather than retire it, because
+  KasmVNC's native clipboard covers the *human* copy/paste flow but the bridge
+  remains the mechanism for *AI-automated* clipboard access (the C# MCP
+  `get_clipboard`/`set_clipboard` tools call it via `ClipboardBridgeService`).
+  No C# clipboard bridge server is being written.
+- Web layer (`infra/server` + `infra/web`) → container, **TypeScript**.
+- Overlay rendering → **web viewer** (overlays in a browser pane). No host
+  overlay app. No GNOME Shell extension. No flatpak.
+- Alt-tab / anti-trapping → fixed at the **VNC client** (KasmVNC fullscreen/PWA
+  + in-session window-cycle rebind + documented release hotkey), not in the
+  annotation layer.
+
+**Executed (Rust MCP server retirement):**
+- Deleted `apps/mcp-server-rust/` (the 17-tool Rust MCP server; the C# server
+  in `src/` has 21 tools and is the superset/primary).
+- Deleted `infra/Dockerfile.rust-mcp`.
+- Removed the `mcp-server-rust` matrix entry and `IMAGE_NAME_MCP_RUST` env from
+  `.github/workflows/container-registry.yml` (the GHCR `mcp-server-rust` image
+  will no longer be built/pushed).
+- Removed the `mcp-server-rust` service from `infra/compose.yml`.
+- **Kept:** `apps/clipboard-bridge-rust/`, `infra/Dockerfile.*` for the C# MCP
+  and web, and the clipboard bridge release pipeline.
+
+**Consequence for Goal 2 (Rust → C#):** the Rust MCP server retirement is done.
+The Rust clipboard bridge is intentionally kept. No overlay-rendering
+migration is needed (the web viewer already covers it). Goal 2 is complete.
+
+**Consequence for Goal 3 (JS → TS):** fully unblocked. The web layer's role is
+confirmed; convert the runtime JS files to TypeScript.
 
 ### Language placement (locked-in unless a substantial reason emerges)
 
-- **MCP server + clipboard bridge:** C# (object-oriented, memory-secure via the
-  .NET runtime; consolidate on the existing `src/` C# server, retire Rust once
-  parity holds).
+- **MCP server:** C# (object-oriented, memory-secure via the .NET runtime; the
+  existing `src/` C# server is the sole MCP implementation — the Rust MCP server
+  has been retired).
+- **Clipboard bridge:** **Rust** (kept as-is per Ryan's decision; KasmVNC native
+  clipboard covers human copy/paste, the Rust bridge remains for AI-automated
+  clipboard access via the C# `ClipboardBridgeService` client). No C# clipboard
+  bridge server is being written.
 - **Web layer (`infra/server` management/proxy + `infra/web` frontend):**
   **TypeScript, not C#.** The web layer is browser/Node-facing; TypeScript is
   the native fit and Ryan's stated preference ("TypeScript instead of JavaScript
