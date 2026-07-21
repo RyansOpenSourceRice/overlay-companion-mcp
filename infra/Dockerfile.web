@@ -44,13 +44,19 @@ COPY infra/server/package.json ./server/
 # Copy package-lock.json if it exists (optional)
 COPY infra/server/package-lock.json* ./server/
 
-# Install server dependencies (use npm install since package-lock.json may not exist)
-RUN cd server && npm install --omit=dev --verbose
+# Install ALL dependencies (including devDependencies for TypeScript build)
+RUN cd server && npm install --verbose
 
 # Copy server source code
 COPY infra/server/ ./server/
 
-# Copy built web frontend to the location expected by server.js
+# Build the TypeScript server (compiles src/*.ts -> dist/*.js)
+RUN cd server && npm run build
+
+# Prune dev dependencies to keep the runtime image lean
+RUN cd server && npm prune --omit=dev
+
+# Copy built web frontend to the location expected by the server
 COPY --from=web-builder /app/web/dist ./public/
 
 # Create supervisor configuration
@@ -71,7 +77,7 @@ EOF
 # Web server program config
 COPY <<EOF /etc/supervisor/conf.d/web-server.conf
 [program:web-server]
-command=node server.js
+command=node dist/server.js
 directory=/app/server
 user=appuser
 autostart=true
