@@ -195,6 +195,13 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Cookie parsing enables session cookies. CSRF is enforced by the global
+// state-changing-method middleware below (and per-route checks on
+// delete-account/settings). GET routes are idempotent and sameSite=lax blocks
+// cross-site cookie submission. The CodeQL js/missing-token-validation query
+// models CSRF as per-route and cannot see the global middleware, so it flags
+// the GET routes — this is a false positive.
+// lgtm[js/missing-token-validation]
 app.use(cookieParser());
 
 // CSRF protection for state-changing methods (§7). The session cookie is
