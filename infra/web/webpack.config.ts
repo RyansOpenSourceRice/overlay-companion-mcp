@@ -1,7 +1,21 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { Configuration, WebpackOptionsNormalized } from 'webpack';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
 import CopyWebpackPlugin from 'copy-webpack-plugin';
+
+// Resolve __dirname for both ESM and CommonJS config-loading contexts.
+// In ESM, __dirname/__filename are not defined; fall back to import.meta.url.
+const __dirname = ((): string => {
+  try {
+    // CommonJS path
+    return typeof (globalThis as any).__dirname === 'string'
+      ? (globalThis as any).__dirname
+      : path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return process.cwd();
+  }
+})();
 
 // webpack-dev-server options live on the config object at runtime even though
 // they are typed by a separate package; declare the shape we use.

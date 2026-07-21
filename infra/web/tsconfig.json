@@ -13,7 +13,6 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
-    "noEmit": true,
     "types": []
   },
   "include": ["src/**/*.ts", "src/**/*.js"],
