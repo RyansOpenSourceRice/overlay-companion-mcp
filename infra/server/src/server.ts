@@ -20,7 +20,6 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { ConnectionManager } from './connection-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
-import { SurrealDbStore } from './surreal-store.js';
 import {
   AuthService,
   loadAuthConfig,
@@ -28,7 +27,9 @@ import {
   requireSessionOrBearer,
   AuthError,
   AuthState,
+  hashPassword,
 } from './auth.js';
+import { SurrealDbStore, ConnectionInput } from './surreal-store.js';
 import { readFileSync } from 'fs';
 
 // ESM-safe __dirname equivalent
@@ -618,6 +619,232 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
   });
   res.json({ ok: true });
 }) as RequestHandler);
+
+// ---- Saved connections (VM connection management) ------------------------
+//
+// CRUD over the SurrealDB `connection` table, scoped to the authenticated
+// user. Plaintext passwords are never stored or returned: the server keeps an
+// Argon2id hash (password_hash) for verification; the web UI holds the
+// plaintext transiently in browser storage for the live VM handshake.
+
+const connectionsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+interface ConnectionDto {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string;
+  username?: string | null;
+  ssl?: boolean;
+  description?: string | null;
+  createdAt?: string;
+  lastConnected?: string | null;
+}
+
+function toConnectionDto(row: {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string;
+  username?: string | null;
+  ssl?: boolean;
+  description?: string | null;
+  created_at?: string;
+  last_connected?: string | null;
+}): ConnectionDto {
+  return {
+    id: String(row.id).replace(/^connection:/, ''),
+    name: row.name,
+    host: row.host,
+    port: row.port,
+    protocol: row.protocol,
+    username: row.username ?? null,
+    ssl: row.ssl ?? false,
+    description: row.description ?? null,
+    createdAt: row.created_at,
+    lastConnected: row.last_connected ?? null,
+  };
+}
+
+// GET /api/connections — the current user's saved connections.
+app.get('/api/connections', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const rows = await surrealStore.listConnections(state.user.id);
+  res.json({ connections: rows.map(toConnectionDto) });
+}) as RequestHandler);
+
+// POST /api/connections — create a new saved connection.
+app.post('/api/connections', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const input = parseConnectionBody(req.body);
+  if ('error' in input) {
+    res.status(400).json({ error: { code: 'invalid_request', message: input.error } });
+    return;
+  }
+  const { password, ...clean } = input;
+  const passwordHash = password ? await hashPassword(password) : undefined;
+  const saved = await surrealStore.upsertConnection(state.user.id, clean, passwordHash);
+  await surrealStore.appendAudit({
+    action: 'connection.created',
+    userId: state.user.id,
+    actor: 'user',
+    ipAddress: clientIp(req),
+    detail: { id: saved.id, name: saved.name },
+  });
+  res.status(201).json({ connection: toConnectionDto(saved) });
+}) as RequestHandler);
+
+// GET /api/connections/:id — one saved connection.
+app.get('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
+    return;
+  }
+  res.json({ connection: toConnectionDto(row) });
+}) as RequestHandler);
+
+// PUT /api/connections/:id — update an existing saved connection.
+app.put('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const existing = await surrealStore.getConnection(state.user.id, req.params.id);
+  if (!existing) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
+    return;
+  }
+  const input = parseConnectionBody(req.body);
+  if ('error' in input) {
+    res.status(400).json({ error: { code: 'invalid_request', message: input.error } });
+    return;
+  }
+  const { password, ...clean } = input;
+  // Preserve the existing hash unless a new password was supplied.
+  const passwordHash = password
+    ? await hashPassword(password)
+    : (existing.password_hash ?? undefined);
+  const saved = await surrealStore.upsertConnection(state.user.id, { ...clean, id: req.params.id }, passwordHash);
+  await surrealStore.appendAudit({
+    action: 'connection.updated',
+    userId: state.user.id,
+    actor: 'user',
+    ipAddress: clientIp(req),
+    detail: { id: saved.id, name: saved.name },
+  });
+  res.json({ connection: toConnectionDto(saved) });
+}) as RequestHandler);
+
+// DELETE /api/connections/:id — remove a saved connection.
+app.delete('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const deleted = await surrealStore.deleteConnection(state.user.id, req.params.id);
+  if (!deleted) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
+    return;
+  }
+  await surrealStore.appendAudit({
+    action: 'connection.deleted',
+    userId: state.user.id,
+    actor: 'user',
+    ipAddress: clientIp(req),
+    detail: { id: req.params.id },
+  });
+  res.json({ ok: true });
+}) as RequestHandler);
+
+// POST /api/connections/:id/touch — record a successful connect (server-authoritative
+// timestamp; clients cannot forge last_connected).
+app.post('/api/connections/:id/touch', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
+    return;
+  }
+  await surrealStore.touchLastConnected(state.user.id, req.params.id);
+  res.json({ ok: true });
+}) as RequestHandler);
+
+// POST /api/connections/:id/test — test a saved connection against its target.
+app.post('/api/connections/:id/test', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  if (!row) {
+    res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
+    return;
+  }
+  try {
+    const result = await connectionManager.testConnection({
+      host: row.host,
+      port: row.port,
+      protocol: row.protocol as 'kasmvnc' | 'vnc' | 'rdp',
+      ssl: row.ssl ?? false,
+    });
+    await surrealStore.appendAudit({
+      action: 'connection.tested',
+      userId: state.user.id,
+      actor: 'user',
+      ipAddress: clientIp(req),
+      detail: { id: row.id, ok: result.success ?? false },
+    });
+    res.json({ success: result.success ?? false, message: result.message });
+  } catch (err) {
+    await surrealStore.appendAudit({
+      action: 'connection.tested',
+      userId: state.user.id,
+      actor: 'user',
+      ipAddress: clientIp(req),
+      detail: { id: row.id, ok: false, error: (err as Error).message },
+    });
+    res.json({ success: false, message: (err as Error).message });
+  }
+}) as RequestHandler);
+
+// Shared body parsing + validation for create/update. Reuses the SSRF posture
+// of /api/test-connection: host pattern allowlist, port range, protocol
+// allowlist, and kasmvnc targetId-only.
+function parseConnectionBody(body: unknown): ({ password?: string } & ConnectionInput) | { error: string } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (typeof b !== 'object' || b === null) return { error: 'Invalid connection configuration.' };
+
+  const protocol = typeof b.protocol === 'string' ? b.protocol.toLowerCase() : '';
+  if (protocol !== 'kasmvnc' && protocol !== 'vnc' && protocol !== 'rdp') {
+    return { error: 'Protocol must be kasmvnc, vnc, or rdp.' };
+  }
+  const host = typeof b.host === 'string' ? b.host.trim() : '';
+  if (!host || !/^[a-zA-Z0-9.\-:[\]]+$/.test(host)) {
+    return { error: 'Host must be a hostname, IP, or bracketed IPv6 address.' };
+  }
+  const port = parseInt(String(b.port ?? '0'), 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return { error: 'Port must be between 1 and 65535.' };
+  }
+  const name = typeof b.name === 'string' ? b.name.trim() : '';
+  if (!name || name.length > 120) {
+    return { error: 'Name is required and must be at most 120 characters.' };
+  }
+  const password = typeof b.password === 'string' && b.password.length > 0 ? b.password : undefined; // pragma: allowlist secret (variable name, not a literal secret)
+  if (password !== undefined && password.length < 8) {
+    return { error: 'Password must be at least 8 characters.' };
+  }
+  return {
+    name,
+    host,
+    port,
+    protocol,
+    password,
+    username: typeof b.username === 'string' && b.username.length > 0 ? b.username : null,
+    ssl: Boolean(b.ssl),
+    description: typeof b.description === 'string' && b.description.length > 0 ? b.description : null,
+  };
+}
 
 // Whitelist of setting keys whose value may contain a secret; redacted on read.
 const SECRET_KEY_FRAGMENTS = ['secret', 'password', 'token', 'apikey'];

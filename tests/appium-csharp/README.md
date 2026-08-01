@@ -10,9 +10,19 @@ UI and the login flow.
   the auth configuration.
 - `LoginFlowTests` — local auth registration, login, `/auth/me` session check,
   and logout. OIDC is exercised only in a full Keycloak stack.
+- `ConnectionFlowTests` — the full "configure a VM connection" flow through the
+  real UI: Add Connection modal, card rendering, **reload + persistence** (the
+  connection survives a page reload because it is stored server-side in
+  SurrealDB), edit, delete, and the Test Connection button.
 
 These complement the Python AI-GUI harness in `tests/ai-gui/` (which exercises
 the MCP tools). The Appium suite is the CI test job for the web layer.
+
+> **Connections are server-persisted.** The management server stores saved
+> connections in SurrealDB (`/api/connections`). Passwords are Argon2id-hashed
+> server-side and never stored or returned in plaintext; the web UI keeps the
+> plaintext only transiently in `sessionStorage` for the live VM handshake.
+> The CI job runs a SurrealDB container so the persistence assertions are real.
 
 ## Running locally
 

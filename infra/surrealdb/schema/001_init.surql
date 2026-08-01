@@ -49,9 +49,10 @@ DEFINE INDEX OVERWRITE session_user_idx   ON session FIELDS user_id;
 DEFINE INDEX OVERWRITE session_expires_idx ON session FIELDS expires_at;
 
 -- Connections: saved remote-desktop connections (KasmVNC/VNC/RDP). Replaces the
--- JSON-file store previously in ConnectionManagementService. Secrets (passwords)
--- are never stored here; the UI keeps credentials in browser storage or the IdP
--- holds them. Only non-secret connection metadata is persisted.
+-- JSON-file store previously in ConnectionManagementService. Plaintext passwords
+-- are never stored; only an Argon2id password hash (for server-side verify) is
+-- persisted alongside non-secret metadata. The web UI keeps the plaintext only
+-- transiently in browser storage for the live VM handshake.
 DEFINE TABLE OVERWRITE connection SCHEMAFULL PERMISSIONS
     FOR select, update, delete WHERE user_id = $auth.id,
     FOR create WHERE user_id = $auth.id;
@@ -63,6 +64,9 @@ DEFINE FIELD OVERWRITE host         ON connection TYPE string;
 DEFINE FIELD OVERWRITE port         ON connection TYPE int;
 DEFINE FIELD OVERWRITE protocol     ON connection TYPE string;      -- 'kasmvnc' | 'vnc' | 'rdp'
 DEFINE FIELD OVERWRITE username     ON connection TYPE option<string>;
+DEFINE FIELD OVERWRITE password_hash ON connection TYPE option<string>;  -- Argon2id
+DEFINE FIELD OVERWRITE ssl          ON connection TYPE bool DEFAULT false;
+DEFINE FIELD OVERWRITE description  ON connection TYPE option<string>;
 DEFINE FIELD OVERWRITE active       ON connection TYPE bool DEFAULT false;
 DEFINE FIELD OVERWRITE created_at   ON connection TYPE datetime DEFAULT time::now();
 DEFINE FIELD OVERWRITE updated_at   ON connection TYPE datetime DEFAULT time::now();

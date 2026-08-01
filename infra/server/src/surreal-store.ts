@@ -393,6 +393,74 @@ export class SurrealDbStore {
     // parsed back to an object for the app).
     return (rows ?? []).map((r) => ({ id: r.name ?? r.id, value: this.parsePayload(r.payload) }));
   }
+  // ---- Connections -------------------------------------------------------
+
+  async listConnections(userId: string): Promise<DbConnection[]> {
+    const rows = await this.query<DbConnection[]>(
+      'SELECT * FROM connection WHERE user_id = type::thing($userId) ORDER BY created_at DESC;',
+      { userId: `user:${userId.replace(/^user:/, '')}` },
+    );
+    return rows ?? [];
+  }
+
+  async getConnection(userId: string, id: string): Promise<DbConnection | null> {
+    const rows = await this.query<DbConnection[]>(
+      'SELECT * FROM connection WHERE id = type::thing($id) AND user_id = type::thing($userId) LIMIT 1;',
+      { id: `connection:${id.replace(/^connection:/, '')}`, userId: `user:${userId.replace(/^user:/, '')}` },
+    );
+    return rows && rows.length > 0 ? rows[0] : null;
+  }
+
+  async upsertConnection(userId: string, input: ConnectionInput, passwordHash?: string): Promise<DbConnection> {
+    const id = input.id ?? `connection:${cryptoRandomId()}`;
+    const cleanId = id.replace(/^connection:/, '');
+    const vars: Record<string, unknown> = {
+      id: `connection:${cleanId}`,
+      userId: `user:${userId.replace(/^user:/, '')}`,
+      name: input.name,
+      host: input.host,
+      port: input.port,
+      protocol: input.protocol,
+      username: input.username ?? null,
+      ssl: input.ssl ?? false,
+      description: input.description ?? null,
+      passwordHash: passwordHash ?? null,
+    };
+    await this.query(
+      `UPSERT type::thing($id) SET
+        user_id = type::thing($userId),
+        \`name\` = $name,
+        host = $host,
+        port = $port,
+        protocol = $protocol,
+        username = $username,
+        password_hash = $passwordHash,
+        ssl = $ssl,
+        \`description\` = $description,
+        updated_at = time::now();`,
+      vars,
+    );
+    const saved = await this.getConnection(userId, cleanId);
+    if (!saved) throw new Error('Connection upsert failed');
+    return saved;
+  }
+
+  async deleteConnection(userId: string, id: string): Promise<boolean> {
+    const cleanId = id.replace(/^connection:/, '');
+    const rows = await this.query<DbConnection[]>(
+      'DELETE type::thing($id) WHERE user_id = type::thing($userId) RETURN BEFORE;',
+      { id: `connection:${cleanId}`, userId: `user:${userId.replace(/^user:/, '')}` },
+    );
+    return rows !== null && rows.length > 0;
+  }
+
+  async touchLastConnected(userId: string, id: string): Promise<void> {
+    const cleanId = id.replace(/^connection:/, '');
+    await this.query(
+      'UPDATE type::thing($id) SET last_connected = time::now(), updated_at = time::now() WHERE user_id = type::thing($userId);',
+      { id: `connection:${cleanId}`, userId: `user:${userId.replace(/^user:/, '')}` },
+    );
+  }
 }
 
 export interface DbUser {
@@ -420,6 +488,38 @@ export interface DbSession {
   created_at?: string;
   expires_at: string;
   revoked: boolean;
+}
+
+// ---- Connections ---------------------------------------------------------
+
+/** A saved remote-desktop connection row. Mirrors the `connection` table. */
+export interface DbConnection {
+  id: string;
+  user_id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string; // 'kasmvnc' | 'vnc' | 'rdp'
+  username?: string | null;
+  password_hash?: string | null;
+  ssl?: boolean;
+  description?: string | null;
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  last_connected?: string | null;
+}
+
+/** Data needed to create or update a connection (no password hash here). */
+export interface ConnectionInput {
+  id?: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: string;
+  username?: string | null;
+  ssl?: boolean;
+  description?: string | null;
 }
 
 function cryptoRandomId(): string {

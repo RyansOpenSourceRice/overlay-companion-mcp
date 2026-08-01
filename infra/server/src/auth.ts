@@ -3,8 +3,9 @@
  *
  * Implements (per Ryan's preferences §7):
  * - OAuth/OIDC via Keycloak (auth code + PKCE). Outsourced identity; RBAC.
- * - Local auth fallback (hashed + salted passwords; never roll our own crypto —
- *   Node's crypto.scrypt is the established primitive).
+ * - Local auth fallback (Argon2id hashing — OWASP-recommended, never roll our
+ *   own crypto; legacy scrypt hashes verify during a transition window and are
+ *   upgraded to Argon2id on next successful login).
  * - Passkeys / TOTP / backup codes: provided by Keycloak when configured; the
  *   admin enables them in the Keycloak realm. The login UI links to the IdP.
  * - Sign-ups locked by default (admin opt-in).
@@ -19,6 +20,7 @@
 
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import crypto from 'crypto';
+import argon2 from 'argon2';
 import { SurrealDbStore, DbUser, AuditEvent } from './surreal-store.js';
 
 // ---- Types --------------------------------------------------------------
@@ -92,17 +94,36 @@ export function loadAuthConfig(store: SurrealDbStore): AuthConfig {
 }
 
 // ---- Password hashing (local auth) --------------------------------------
+//
+// Argon2id is the OWASP-recommended password hashing function (RFC 9106) and
+// the default here (per §7: never roll our own crypto — the `argon2` package is
+// the established implementation). Hashes produced by the previous scrypt
+// scheme are still verifiable during a transition window and are upgraded to
+// Argon2id on the next successful login.
 
 const SCRYPT_KEYLEN = 64;
 const SCRYPT_SALTLEN = 16;
 
-export function hashPassword(password: string): string {
-  const salt = crypto.randomBytes(SCRYPT_SALTLEN);
-  const hash = crypto.scryptSync(password, salt, SCRYPT_KEYLEN);
-  return `scrypt$${salt.toString('base64')}$${hash.toString('base64')}`;
+const ARGON2_PREFIX = '$argon2id$';
+
+export async function hashPassword(password: string): Promise<string> {
+  // argon2.hash defaults to argon2id. Reject a password of zero length first
+  // (argon2 throws on empty input, but fail with a clear message).
+  if (!password) {
+    throw new Error('Password must not be empty');
+  }
+  return argon2.hash(password, { type: argon2.argon2id });
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (stored.startsWith(ARGON2_PREFIX)) {
+    try {
+      return await argon2.verify(stored, password);
+    } catch {
+      return false;
+    }
+  }
+  // Legacy scrypt format: `scrypt$<salt b64>$<hash b64>`.
   const parts = stored.split('$');
   if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
   try {
@@ -113,6 +134,11 @@ export function verifyPassword(password: string, stored: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** True when the stored hash is not Argon2id and should be upgraded. */
+export function needsPasswordUpgrade(stored: string): boolean {
+  return !stored.startsWith(ARGON2_PREFIX);
 }
 
 // ---- Session cookie helpers --------------------------------------------
@@ -206,9 +232,21 @@ export class AuthService {
       await this.audit('auth.login.failed', undefined, ip, { reason: 'no_user', username });
       throw new AuthError('invalid_credentials', 'Invalid username or password', 401);
     }
-    if (!verifyPassword(password, user.password_hash)) {
+    if (!(await verifyPassword(password, user.password_hash))) {
       await this.audit('auth.login.failed', user.id, ip, { reason: 'bad_password' });
       throw new AuthError('invalid_credentials', 'Invalid username or password', 401);
+    }
+    // Transition: legacy scrypt hashes are upgraded to Argon2id in place after
+    // a successful login, so the stronger algorithm takes over without a
+    // forced re-authentication.
+    if (needsPasswordUpgrade(user.password_hash)) {
+      try {
+        await this.store.upsertUser({ ...user, passwordHash: await hashPassword(password) });
+        await this.audit('auth.login.upgrade_hash', user.id, ip);
+      } catch (err) {
+        // Non-fatal: verification succeeded; the upgrade can happen next time.
+        console.warn('[WARN] password hash upgrade failed:', (err as Error).message);
+      }
     }
     return this.issueSession(user, ip);
   }
@@ -229,7 +267,7 @@ export class AuthService {
       username,
       email,
       roles,
-      passwordHash: hashPassword(password),
+      passwordHash: await hashPassword(password),
       displayName: username,
     });
     const user = await this.store.getUser(id);

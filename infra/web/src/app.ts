@@ -10,20 +10,18 @@
  */
 
 import type { CurrentUser } from './auth';
+import {
+  listConnections,
+  createConnection,
+  updateConnection,
+  deleteConnection as apiDeleteConnection,
+  touchConnection,
+  storePassword,
+  withPassword,
+  type Connection,
+} from './connections';
 
-export interface Connection {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  protocol: string;
-  username: string | null;
-  password: string | null;
-  ssl: boolean;
-  description: string | null;
-  createdAt: string;
-  lastConnected: string | null;
-}
+export type { Connection };
 
 type SettingsFormsRenderer = (container: HTMLElement, user: CurrentUser) => Promise<void>;
 
@@ -55,6 +53,7 @@ class OverlayCompanionApp {
   // before the gate resolves.
   private currentUser: CurrentUser | null = null;
   private _renderSettingsForms: SettingsFormsRenderer | null = null;
+  private editingConnectionId: string | null = null;
 
   constructor() {
     // Initialize the application
@@ -234,25 +233,11 @@ class OverlayCompanionApp {
 
   async loadConnections(): Promise<void> {
     try {
-      const stored = localStorage.getItem('overlay-companion-connections');
-      if (stored) {
-        const connections = JSON.parse(stored) as Connection[];
-        connections.forEach(conn => {
-          this.connections.set(conn.id, conn);
-        });
-      }
+      const connections = await listConnections();
+      this.connections = new Map(connections.map((conn) => [conn.id, conn]));
     } catch (error) {
       console.error('Failed to load connections:', error);
-    }
-  }
-
-  async saveConnections(): Promise<void> {
-    try {
-      const connections = Array.from(this.connections.values());
-      localStorage.setItem('overlay-companion-connections', JSON.stringify(connections));
-    } catch (error) {
-      console.error('Failed to save connections:', error);
-      this.showToast('error', 'Save Error', 'Failed to save connections');
+      this.showToast('error', 'Load Error', 'Failed to load connections from the server.');
     }
   }
 
@@ -262,6 +247,7 @@ class OverlayCompanionApp {
     const title = document.getElementById('modal-title');
     if (!title) return;
 
+    this.editingConnectionId = connection ? connection.id : null;
     if (connection) {
       title.textContent = 'Edit Connection';
       this.populateConnectionForm(connection);
@@ -278,6 +264,7 @@ class OverlayCompanionApp {
   hideConnectionModal(): void {
     const modal = document.getElementById('connection-modal');
     modal?.classList.remove('active');
+    this.editingConnectionId = null;
   }
 
   populateConnectionForm(connection: Connection): void {
@@ -295,30 +282,34 @@ class OverlayCompanionApp {
     e.preventDefault();
 
     const formData = new FormData(e.target as HTMLFormElement);
-    const connection: Connection = {
-      id: Date.now().toString(),
+    const payload = {
       name: String(formData.get('name') ?? ''),
       host: String(formData.get('host') ?? ''),
       port: parseInt(String(formData.get('port') ?? '0'), 10),
       protocol: String(formData.get('protocol') ?? ''),
       username: formData.get('username') ? String(formData.get('username')) : null,
-      password: formData.get('password') ? String(formData.get('password')) : null,
+      password: formData.get('password') ? String(formData.get('password')) : undefined,
       ssl: formData.has('ssl'),
       description: formData.get('description') ? String(formData.get('description')) : null,
-      createdAt: new Date().toISOString(),
-      lastConnected: null
     };
 
     try {
-      this.connections.set(connection.id, connection);
-      await this.saveConnections();
-
+      let saved: Connection;
+      if (this.editingConnectionId) {
+        saved = await updateConnection(this.editingConnectionId, payload);
+      } else {
+        saved = await createConnection(payload);
+      }
+      // Keep the plaintext password only transiently in sessionStorage for the
+      // live VM handshake; the server persists only an Argon2id hash.
+      if (payload.password) storePassword(saved.id, payload.password);
+      this.connections.set(saved.id, saved);
       this.hideConnectionModal();
       this.renderConnections();
-      this.showToast('success', 'Connection Saved', `Connection "${connection.name}" has been saved successfully.`);
+      this.showToast('success', 'Connection Saved', `Connection "${saved.name}" has been saved successfully.`);
     } catch (error) {
       console.error('Failed to save connection:', error);
-      this.showToast('error', 'Save Error', 'Failed to save connection');
+      this.showToast('error', 'Save Error', error instanceof Error ? error.message : 'Failed to save connection');
     }
   }
 
@@ -458,7 +449,7 @@ class OverlayCompanionApp {
   editConnection(connectionId: string): void {
     const connection = this.connections.get(connectionId);
     if (connection) {
-      this.showConnectionModal(connection);
+      this.showConnectionModal(withPassword(connection));
     }
   }
 
@@ -467,21 +458,30 @@ class OverlayCompanionApp {
     if (!connection) return;
 
     if (confirm(`Are you sure you want to delete the connection "${connection.name}"?`)) {
-      this.connections.delete(connectionId);
-      await this.saveConnections();
-      this.renderConnections();
-      this.showToast('info', 'Connection Deleted', `Connection "${connection.name}" has been deleted.`);
+      try {
+        await apiDeleteConnection(connectionId);
+        this.connections.delete(connectionId);
+        this.renderConnections();
+        this.renderRecentConnections();
+        this.showToast('info', 'Connection Deleted', `Connection "${connection.name}" has been deleted.`);
+      } catch (error) {
+        console.error('Failed to delete connection:', error);
+        this.showToast('error', 'Delete Error', error instanceof Error ? error.message : 'Failed to delete connection');
+      }
     }
   }
 
   // ==================== VM Connection ====================
 
   async connectToVM(connectionId: string): Promise<void> {
-    const connection = this.connections.get(connectionId);
-    if (!connection) {
+    const base = this.connections.get(connectionId);
+    if (!base) {
       this.showToast('error', 'Connection Error', 'Connection not found');
       return;
     }
+    // Merge any transient plaintext password (sessionStorage) for the live
+    // VM handshake; the server never returns the plaintext.
+    const connection = withPassword(base);
 
     this.currentConnection = connection;
     this.navigateToPage('vm-view');
@@ -498,10 +498,21 @@ class OverlayCompanionApp {
     try {
       await this.initializeKasmVNC(connection);
 
-      // Update last connected time
-      connection.lastConnected = new Date().toISOString();
-      this.connections.set(connectionId, connection);
-      await this.saveConnections();
+      // Record the successful connect server-side (authoritative timestamp).
+      try {
+        await touchConnection(connectionId);
+      } catch (err) {
+        console.warn('Failed to record last_connected:', err);
+      }
+      const refreshed = await listConnections();
+      this.connections = new Map(refreshed.map((c) => [c.id, c]));
+      const latest = this.connections.get(connectionId);
+      if (latest) {
+        this.currentConnection = withPassword(latest);
+        if (latest.lastConnected) {
+          this.currentConnection.lastConnected = latest.lastConnected;
+        }
+      }
 
       if (vmStatus) {
         vmStatus.textContent = 'Connected';
@@ -794,6 +805,7 @@ class OverlayCompanionApp {
     if (confirm('Are you sure you want to clear all stored data? This will remove all connections and settings.')) {
       try {
         localStorage.clear();
+        sessionStorage.clear();
         this.connections.clear();
         this.renderConnections();
         this.renderRecentConnections();

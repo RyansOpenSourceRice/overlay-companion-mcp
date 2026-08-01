@@ -40,9 +40,21 @@ during a DB outage.
 
 Never roll our own identity. Keycloak is self-hostable and admin-configurable;
 passkeys/TOTP/backup codes are provided by the Keycloak realm. Local auth
-(hashed+salted scrypt passwords) is the fallback when OIDC is unavailable.
-Sign-ups are locked by default (admin opt-in). Sessions are signed cookies
-backed by SurrealDB rows (token hashes only).
+(Argon2id-hashed passwords — OWASP-recommended) is the fallback when OIDC is
+unavailable; legacy scrypt hashes verify during a transition window and are
+auto-upgraded to Argon2id on next successful login. Sign-ups are locked by
+default (admin opt-in). Sessions are signed cookies backed by SurrealDB rows
+(token hashes only).
+
+## Decision: Saved connections are server-persisted (§9)
+
+The web UI's saved VM connections live in the SurrealDB `connection` table,
+served through `/api/connections` on the management server and scoped to the
+authenticated user (previously they were browser-`localStorage` only). Plaintext
+passwords are never stored or returned; the server keeps an Argon2id hash and
+the web UI holds the plaintext transiently in `sessionStorage` for the live VM
+handshake. The Appium suite asserts persistence across a page reload against a
+real SurrealDB in CI.
 
 ## Decision: GUI-first config (§9)
 

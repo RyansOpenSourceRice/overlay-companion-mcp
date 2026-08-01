@@ -6,6 +6,22 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+- **Saved VM connections (server-persisted).** Full `/api/connections` CRUD on
+  the management server (list/create/get/update/delete/test/touch) backed by the
+  SurrealDB `connection` table and scoped to the authenticated user. The web UI
+  now loads and saves connections through the API instead of `localStorage`, so
+  a connection survives page reloads and cross-tab sessions.
+- **Argon2id password hashing (OWASP-recommended) for local auth and connection
+  passwords.** Legacy scrypt hashes still verify during a transition window and
+  are auto-upgraded to Argon2id on the next successful login. Plaintext
+  connection passwords are never stored or returned; the web UI keeps them only
+  transiently in `sessionStorage` for the live VM handshake.
+- **Appium connection-flow E2E.** `ConnectionFlowTests` drives the real UI:
+  add connection → card renders → reload + persistence → edit → delete → test
+  button. The CI Appium job now boots a SurrealDB container (real persistence)
+  and serves the built SPA (`web/dist` → `server/public`, fixing a latent 404).
+
 ### Fixed
 - **markdown-toc-check CI failure.** Removed the auto-TOC markers from
   `docs/SPECIFICATION.md` (markdown-toc emits malformed output on this file and

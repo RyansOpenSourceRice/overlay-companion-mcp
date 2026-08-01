@@ -110,6 +110,9 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 
+# Built SPA copied into the management server's static dir (see appium-tests.yml)
+infra/server/public/
+
 # Flatpak build artifacts
 flatpak/clipboard-bridge/.flatpak-builder/
 flatpak/clipboard-bridge/build/

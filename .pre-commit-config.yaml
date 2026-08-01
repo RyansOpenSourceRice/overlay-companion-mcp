@@ -143,7 +143,7 @@ repos:
         # Scan both .js and .ts — the web layer is TypeScript (per the locked
         # architecture decision). The previous .js-only pattern found no files
         # and failed with "No files matching the pattern".
-        entry: bash -c 'cd infra/server && npm list eslint-plugin-security >/dev/null 2>&1 || npm install --no-save eslint@8 eslint-plugin-security; npx eslint --ext .js,.ts --config .eslintrc-security.json . --ignore-pattern dist/ --ignore-pattern node_modules/'
+        entry: bash -c 'cd infra/server && npm list eslint-plugin-security >/dev/null 2>&1 || npm install --no-save eslint@8 eslint-plugin-security; npx eslint --ext .js,.ts --config .eslintrc-security.json . --ignore-pattern dist/ --ignore-pattern public/ --ignore-pattern node_modules/'
         language: system
         files: \.(js|ts)$
         pass_filenames: false
