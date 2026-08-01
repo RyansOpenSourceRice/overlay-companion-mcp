@@ -30,11 +30,15 @@ public class WebSmokeTests : AppiumWebTestBase
     public void HomePageLoads_AndShowsAppName()
     {
         GoTo("/");
-        // The header or loading screen should mention the app name.
-        var body = Driver!.FindElement(By.TagName("body")).Text;
-        Assert.IsTrue(
-            body.Contains("Overlay Companion") || body.Contains("Initializing"),
-            "Expected the app name or loading screen on the home page.");
+        // The header, loading screen, or login view should mention the app
+        // name. Wait for rendered text rather than asserting immediately, so a
+        // transient blank-body read during SPA bootstrap cannot flake.
+        var body = Wait!.Until(d =>
+        {
+            var text = d.FindElement(By.TagName("body")).Text;
+            return text.Contains("Overlay Companion") || text.Contains("Initializing") ? text : null;
+        });
+        Assert.IsNotNull(body, "Expected the app name or loading screen on the home page.");
     }
 
     [TestMethod]

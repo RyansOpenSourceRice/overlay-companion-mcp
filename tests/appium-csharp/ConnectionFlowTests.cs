@@ -21,7 +21,10 @@ public class ConnectionFlowTests : AppiumWebTestBase
     private const string TestUsername = "conn-test-admin";
     private const string TestPassword = "TestPassphrase!2026"; // pragma: allowlist secret (test fixture, not a real credential)
     private const string ConnPassword = "VncPass123!"; // pragma: allowlist secret (test fixture, not a real credential)
-    private static string _connName = $"VM {System.DateTime.Now.Ticks}";
+
+    // Each test gets a unique connection name so server-side persistence from
+    // one test can never collide with another test's assertions.
+    private static string UniqueConnName(string prefix) => $"{prefix} {System.DateTime.Now.Ticks}";
 
     [ClassInitialize]
     public static void ClassInit(TestContext context)
@@ -38,6 +41,7 @@ public class ConnectionFlowTests : AppiumWebTestBase
     [TestMethod]
     public void AddConnection_RendersCard_AndPersistsAcrossReload()
     {
+        var connName = UniqueConnName("VM");
         // Register/login so the SPA boots past the auth gate.
         TryRegister(TestUsername, TestPassword);
         GoTo("/");
@@ -47,60 +51,61 @@ public class ConnectionFlowTests : AppiumWebTestBase
         OpenAddModal();
 
         // Fill the form and submit.
-        FillConnectionForm(_connName, "127.0.0.1", "5900", "vnc", ConnPassword);
+        FillConnectionForm(connName, "127.0.0.1", "5900", "vnc", ConnPassword);
         SubmitConnectionForm();
 
         // The card should render in the connections list.
-        var card = WaitForConnectionCard(_connName);
-        Assert.IsNotNull(card, $"Connection card for '{_connName}' should appear after saving.");
+        var card = WaitForConnectionCard(connName);
+        Assert.IsNotNull(card, $"Connection card for '{connName}' should appear after saving.");
 
         // Reload the page: the connection must still be there (server-persisted).
         GoTo("/");
         GoToConnectionsPage();
-        var cardAfterReload = WaitForConnectionCard(_connName);
+        var cardAfterReload = WaitForConnectionCard(connName);
         Assert.IsNotNull(cardAfterReload, "Connection should persist across a page reload (server-backed).");
     }
 
     [TestMethod]
     public void EditConnection_UpdatesTheCard()
     {
+        var connName = UniqueConnName("VM");
         TryRegister(TestUsername, TestPassword);
         GoTo("/");
         GoToConnectionsPage();
         OpenAddModal();
-        FillConnectionForm(_connName, "127.0.0.1", "5900", "vnc", ConnPassword);
+        FillConnectionForm(connName, "127.0.0.1", "5900", "vnc", ConnPassword);
         SubmitConnectionForm();
-        WaitForConnectionCard(_connName);
+        WaitForConnectionCard(connName);
 
         // Edit the connection via the card's Edit button.
-        var card = WaitForConnectionCard(_connName);
+        var card = WaitForConnectionCard(connName);
         var editBtn = card!.FindElement(By.ClassName("btn-secondary"));
         editBtn.Click();
 
         var nameInput = Wait!.Until(d => d.FindElement(By.Id("connection-name")));
         nameInput.Clear();
-        var renamed = _connName + " (edited)";
+        var renamed = connName + " (edited)";
         nameInput.SendKeys(renamed);
         SubmitConnectionForm();
 
         var renamedCard = WaitForConnectionCard(renamed);
         Assert.IsNotNull(renamedCard, $"Connection card should show the updated name '{renamed}'.");
-        _connName = renamed;
     }
 
     [TestMethod]
     public void DeleteConnection_RemovesCard()
     {
+        var connName = UniqueConnName("VM");
         TryRegister(TestUsername, TestPassword);
         GoTo("/");
         GoToConnectionsPage();
         OpenAddModal();
-        FillConnectionForm(_connName, "127.0.0.1", "5900", "vnc", ConnPassword);
+        FillConnectionForm(connName, "127.0.0.1", "5900", "vnc", ConnPassword);
         SubmitConnectionForm();
-        WaitForConnectionCard(_connName);
+        WaitForConnectionCard(connName);
 
         // Delete via the card's Delete button (confirm() is native; accept it).
-        var card = WaitForConnectionCard(_connName);
+        var card = WaitForConnectionCard(connName);
         card!.FindElement(By.ClassName("btn-danger")).Click();
         try
         {
@@ -112,20 +117,21 @@ public class ConnectionFlowTests : AppiumWebTestBase
         }
 
         // The card must disappear.
-        var gone = WaitUntilGone(_connName);
-        Assert.IsTrue(gone, $"Connection card for '{_connName}' should be removed after delete.");
+        var gone = WaitUntilGone(connName);
+        Assert.IsTrue(gone, $"Connection card for '{connName}' should be removed after delete.");
     }
 
     [TestMethod]
     public void ConnectionCard_HasTestButton()
     {
+        var connName = UniqueConnName("VM");
         TryRegister(TestUsername, TestPassword);
         GoTo("/");
         GoToConnectionsPage();
         OpenAddModal();
-        FillConnectionForm(_connName, "127.0.0.1", "5900", "vnc", ConnPassword);
+        FillConnectionForm(connName, "127.0.0.1", "5900", "vnc", ConnPassword);
         SubmitConnectionForm();
-        WaitForConnectionCard(_connName);
+        WaitForConnectionCard(connName);
 
         // The Test Connection button must be present and clickable in the modal
         // (asserts the request path exists; no live VNC target in CI).
@@ -234,7 +240,9 @@ public class ConnectionFlowTests : AppiumWebTestBase
     private void TryRegister(string username, string password)
     {
         // Hit the register endpoint directly; the UI form does the same. If the
-        // user already exists (from a prior run), fall back to login.
+        // user already exists (from a prior run), fall back to login. Navigate
+        // to the origin first so the relative fetch() below has a base URL.
+        GoTo("/");
         var script =
             $"return fetch('/auth/local/register', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, " +
             $"body: JSON.stringify({{ username: '{username}', password: '{password}' }}) }}).then(r => r.status);";
@@ -246,5 +254,9 @@ public class ConnectionFlowTests : AppiumWebTestBase
                 $"body: JSON.stringify({{ username: '{username}', password: '{password}' }}) }}).then(r => r.status);";
             ((IJavaScriptExecutor)Driver!).ExecuteScript(loginScript);
         }
+        // Reload so the SPA re-boots past the auth gate into the app view now
+        // that a session cookie exists (the fetch above did not reload the page).
+        GoTo("/");
+        Wait!.Until(d => d.FindElements(By.CssSelector(".nav-btn")).Count > 0);
     }
 }

@@ -49,7 +49,9 @@ public abstract class AppiumWebTestBase : IDisposable
 
         var options = new AppiumOptions
         {
-            PlatformName = "Linux",
+            // W3C platformName must be lowercase; chromedriver rejects a
+            // capitalized value with "No matching capabilities found".
+            PlatformName = "linux",
             AutomationName = "Chromium",
             // browserName is the standard W3C capability the chromium driver
             // matches on to select Chrome.

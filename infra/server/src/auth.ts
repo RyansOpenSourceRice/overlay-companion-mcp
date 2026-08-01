@@ -144,9 +144,13 @@ export function needsPasswordUpgrade(stored: string): boolean {
 // ---- Session cookie helpers --------------------------------------------
 
 const COOKIE_NAME = 'oc_session';
+// Secure-flag default: this is a self-hosted app commonly served over plain
+// HTTP on a LAN (see DEPLOYMENT.md); marking the cookie Secure unconditionally
+// in production would make the browser refuse to store it on http:// hosts.
+// Opt in explicitly with COOKIE_SECURE=true when serving over HTTPS.
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: process.env.COOKIE_SECURE === 'true',
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 60 * 60 * 24 * 7, // 7 days; the DB row's expires_at is the real gate

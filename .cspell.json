@@ -1201,6 +1201,8 @@
     "unconfigured",
     "upserts",
     "surql",
-    "ryans"
+    "ryans",
+    "EPEL",
+    "autodownload"
   ]
 }

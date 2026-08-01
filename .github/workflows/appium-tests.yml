@@ -116,6 +116,10 @@ jobs:
           export SURREALDB_DATABASE="companion"
           export SURREALDB_USERNAME="root"
           export SURREALDB_PASSWORD="root" # pragma: allowlist secret (test fixture)
+          # Over HTTP (no TLS in the test stack) the session cookie must NOT be
+          # Secure, or the browser would refuse to store it and the SPA would
+          # stay on the login view. (auth.ts defaults Secure off; explicit here.)
+          export COOKIE_SECURE=false
           PORT=8080 \
           NODE_ENV=production \
           LOCAL_AUTH_ENABLED=true \

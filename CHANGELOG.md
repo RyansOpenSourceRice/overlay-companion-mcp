@@ -21,8 +21,20 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   add connection → card renders → reload + persistence → edit → delete → test
   button. The CI Appium job now boots a SurrealDB container (real persistence)
   and serves the built SPA (`web/dist` → `server/public`, fixing a latent 404).
+- **Local Appium verification + test hardening.** The suite now runs green
+  against a real local stack (Google Chrome + Appium chromium driver). Fixed the
+  WebDriver session "No matching capabilities found" failure (`platformName`
+  must be lowercase), stale `index.js` script reference in the SPA template,
+  transient blank-body reads in `WebSmokeTests`, and cross-test connection-name
+  collisions in `ConnectionFlowTests`.
 
 ### Fixed
+- **Session cookie broken over HTTP (`Secure` flag).** `auth.ts` previously set
+  `Secure` on the session cookie whenever `NODE_ENV=production`, which made
+  browsers refuse to store it on the plain-`http://` self-hosted deployments
+  this app targets — users could never stay logged in. The flag is now off by
+  default and opt-in via `COOKIE_SECURE=true` (for HTTPS deployments); compose
+  exposes it and the Appium CI job sets it explicitly.
 - **markdown-toc-check CI failure.** Removed the auto-TOC markers from
   `docs/SPECIFICATION.md` (markdown-toc emits malformed output on this file and
   the CI comparison was structurally broken); root `SPECIFICATION.md` never had

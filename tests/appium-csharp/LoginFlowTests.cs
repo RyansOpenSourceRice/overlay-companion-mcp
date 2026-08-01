@@ -89,7 +89,9 @@ public class LoginFlowTests : AppiumWebTestBase
     private void TryRegister(string username, string password)
     {
         // Hit the register endpoint directly; the UI form does the same. If the
-        // user already exists (from a prior run), fall back to login.
+        // user already exists (from a prior run), fall back to login. Navigate
+        // to the origin first so the relative fetch() below has a base URL.
+        GoTo("/");
         var script =
             $"return fetch('/auth/local/register', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, " +
             $"body: JSON.stringify({{ username: '{username}', password: '{password}' }}) }}).then(r => r.status);";

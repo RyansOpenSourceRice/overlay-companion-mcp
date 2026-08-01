@@ -15,6 +15,11 @@ x-common-env: &common_env
   # production (fail-closed guard in infra/server/src/auth.ts). No default here
   # so a deployment without it is visibly broken rather than forgeable.
   SESSION_SECRET: ${SESSION_SECRET:-}
+  # Session cookie Secure flag. This app is commonly self-hosted over plain
+  # HTTP on a LAN, where a Secure cookie would be refused by the browser, so the
+  # flag is OFF by default. Set COOKIE_SECURE=true only when serving over HTTPS
+  # (directly or behind a TLS-terminating reverse proxy).
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
   # Reverse-proxy hop count/address for rate-limiting IP extraction. Default
   # 'loopback' (no proxy). Behind Caddy/Traefik set TRUST_PROXY to the proxy
   # hop count (e.g. 1). Never spoofable: server refuses 'true'.

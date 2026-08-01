@@ -30,9 +30,20 @@ Prerequisites:
 
 1. The management server + web frontend running (`cd infra && podman-compose
    up`), with `LOCAL_AUTH_ENABLED=true` and `SIGNUP_ALLOWED=true` in `.env`.
-2. Node.js + Appium: `npm install -g appium` then `appium` (the server must be
-   running on the default port 4723).
-3. Chrome installed.
+   The connection tests need SurrealDB reachable (the compose stack includes
+   it) so persistence assertions are real.
+2. Node.js + Appium: `npm install -g appium` and `appium driver install chromium`.
+   The tests spawn their own Appium server, so do not start one manually.
+3. **A Chromium-family browser + driver.** Either:
+   - **Google Chrome**: install the official `.rpm`/package, or
+   - **Chromium + chromedriver** at the same version (e.g. from EPEL).
+   The Appium chromium driver auto-downloads a matching chromedriver
+   (`autodownloadEnabled`), but a system browser must be present.
+4. **HTTP stack**: when the server runs with `NODE_ENV=production` over plain
+   `http://`, the session cookie must not be `Secure` or the browser will refuse
+   to store it and the SPA will stay on the login view. `auth.ts` defaults the
+   cookie `Secure` flag **off**; set `COOKIE_SECURE=true` only for HTTPS
+   deployments. The CI workflow sets `COOKIE_SECURE=false` explicitly.
 
 Then:
 
@@ -46,6 +57,12 @@ To point at a non-local target:
 ```bash
 APP_TARGET_URL=https://my-stack.example.com dotnet test
 ```
+
+> **Known WebDriver gotchas (fixed in this repo):**
+> - `platformName` must be lowercase (`"linux"`); chromedriver rejects a
+>   capitalized value with "No matching capabilities found".
+> - Relative `fetch()` calls in test helper scripts need a loaded origin first,
+>   so helpers navigate to `/` before registering.
 
 ## Runner strategy: graceful skip on shared CI, hard fail everywhere else
 
