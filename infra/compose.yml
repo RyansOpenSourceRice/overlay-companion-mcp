@@ -4,10 +4,21 @@ x-common-env: &common_env
   TZ: ${TZ:-Etc/UTC}
   PUID: ${PUID:-1000}
   PGID: ${PGID:-1000}
+  # Production shape: Secure cookies + fail-closed session-secret guard in
+  # infra/server/src/auth.ts. For local dev via compose, set NODE_ENV=development.
+  NODE_ENV: ${NODE_ENV:-production}
   OIDC_ENABLED: ${OIDC_ENABLED:-false}
   OIDC_ISSUER: ${OIDC_ISSUER:-}
   OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
   OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:-overlay:user}
+  # Session-cookie signing secret. MUST be set to a long random value in
+  # production (fail-closed guard in infra/server/src/auth.ts). No default here
+  # so a deployment without it is visibly broken rather than forgeable.
+  SESSION_SECRET: ${SESSION_SECRET:-}
+  # Reverse-proxy hop count/address for rate-limiting IP extraction. Default
+  # 'loopback' (no proxy). Behind Caddy/Traefik set TRUST_PROXY to the proxy
+  # hop count (e.g. 1). Never spoofable: server refuses 'true'.
+  TRUST_PROXY: ${TRUST_PROXY:-loopback}
   # SurrealDB connection (decoupled service so it can migrate to K3S later).
   # Format: Server=<endpoint>;Namespace=<ns>;Database=<db>;Username=<u>;Password=<p>
   SURREALDB_URL: ${SURREALDB_URL:-http://surrealdb:8000}

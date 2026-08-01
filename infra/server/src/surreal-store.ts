@@ -182,8 +182,14 @@ export class SurrealDbStore {
     passwordHash?: string;
   }): Promise<{ id: string }> {
     const id = user.id ?? `user:${cryptoRandomId()}`;
+    // Local-auth users are looked up by username (never by IdP subject), but
+    // the unique (provider, subject) index would collide for every local user
+    // (subject=NONE). Give locals a unique per-user subject sentinel so the
+    // subject index stays meaningful for OIDC without breaking multi-local
+    // registration. OIDC callers still provide their real subject.
+    const subject = user.subject ?? (user.provider === 'local' ? `local:${id}` : null);
     await this.query(
-      `CREATE OR UPDATE ${'$id'} SET
+      `UPSERT type::thing($id) SET
         provider = $provider,
         subject = $subject,
         username = $username,
@@ -196,7 +202,7 @@ export class SurrealDbStore {
       {
         id,
         provider: user.provider,
-        subject: user.subject ?? null,
+        subject,
         username: user.username,
         email: user.email ?? null,
         displayName: user.displayName ?? null,
@@ -255,13 +261,13 @@ export class SurrealDbStore {
   }): Promise<string> {
     const id = `session:${cryptoRandomId()}`;
     await this.query(
-      `CREATE ${'$id'} SET
+      `UPSERT type::thing($id) SET
         user_id = type::thing($userId),
         token_hash = $tokenHash,
         csrf_token = $csrfToken,
         ip_address = $ipAddress,
         user_agent = $userAgent,
-        expires_at = $expiresAt,
+        expires_at = type::datetime($expiresAt),
         created_at = time::now(),
         revoked = false;`,
       {
@@ -300,59 +306,92 @@ export class SurrealDbStore {
 
   async appendAudit(event: AuditEvent): Promise<void> {
     const id = `audit_log:${cryptoRandomId()}`;
+    // user_id is an option<record<user>>. When a userId is present it must be
+    // cast with type::thing to satisfy the record type; when absent it stays
+    // NONE (type::thing(NONE) would error).
+    const userIdClause = event.userId
+      ? `type::thing($userId)`
+      : `NONE`;
+    const vars: Record<string, unknown> = {
+      id,
+      actor: event.actor ?? 'system',
+      action: event.action,
+      ipAddress: event.ipAddress ?? null,
+      detail: event.detail ?? null,
+      traceId: event.traceId ?? null,
+    };
+    if (event.userId) vars.userId = event.userId;
     await this.query(
-      `CREATE ${'$id'} SET
+      `UPSERT type::thing($id) SET
         timestamp = time::now(),
-        user_id = $userId,
+        user_id = ${userIdClause},
         actor = $actor,
         action = $action,
         ip_address = $ipAddress,
         detail = $detail,
         trace_id = $traceId;`,
-      {
-        id,
-        userId: event.userId ?? null,
-        actor: event.actor ?? 'system',
-        action: event.action,
-        ipAddress: event.ipAddress ?? null,
-        detail: event.detail ?? null,
-        traceId: event.traceId ?? null,
-      },
+      vars,
     );
   }
 
   // ---- App configuration (GUI-first) ------------------------------------
 
+  // The dotted key (e.g. 'auth.oidc') cannot be a SurrealDB record id directly
+  // ('.' is the field separator), so the record id is a dot-free encoded form
+  // and the canonical dotted key is stored in `name`. Lookups use `name`.
+  private static configRecordId(key: string): string {
+    return 'app_config:' + Buffer.from(key).toString('base64url');
+  }
+
   async getConfig(key: string): Promise<unknown | null> {
-    const rows = await this.query<Array<{ value: unknown }>>(
-      `SELECT value FROM app_config WHERE id = type::thing($id);`,
-      { id: `app_config:${key}` },
+    const rows = await this.query<Array<{ payload: string }>>(
+      'SELECT `payload` FROM app_config WHERE `name` = $name LIMIT 1;',
+      { name: key },
     );
-    return rows && rows.length > 0 ? rows[0].value : null;
+    if (!rows || rows.length === 0) return null;
+    return this.parsePayload(rows[0].payload);
+  }
+
+  // payload is stored as a JSON string (SurrealQL can't take arbitrary JSON
+  // object literals via string interpolation). Parse back to an object.
+  private parsePayload(payload: string): unknown {
+    if (payload == null) return null;
+    try {
+      return JSON.parse(payload);
+    } catch {
+      return payload;
+    }
   }
 
   async setConfig(key: string, value: Record<string, unknown>, category: string, updatedBy?: string): Promise<void> {
+    const vars: Record<string, unknown> = {
+      id: SurrealDbStore.configRecordId(key),
+      name: key,
+      value: JSON.stringify(value),
+      category,
+    };
+    const updatedByClause = updatedBy ? `type::thing($updatedBy)` : `NONE`;
+    if (updatedBy) vars.updatedBy = updatedBy;
     await this.query(
-      `CREATE OR UPDATE ${'$id'} SET
-        value = $value,
+      `UPSERT type::thing($id) SET
+        \`name\` = $name,
+        \`payload\` = $value,
         category = $category,
         updated_at = time::now(),
-        updated_by = $updatedBy;`,
-      {
-        id: `app_config:${key}`,
-        value,
-        category,
-        updatedBy: updatedBy ?? null,
-      },
+        updated_by = ${updatedByClause};`,
+      vars,
     );
   }
 
   async getConfigByCategory(category: string): Promise<Array<{ id: string; value: unknown }>> {
-    const rows = await this.query<Array<{ id: string; value: unknown }>>(
-      `SELECT id, value FROM app_config WHERE category = $category;`,
+    const rows = await this.query<Array<{ id: string; name: string; payload: string }>>(
+      'SELECT id, `name`, `payload` FROM app_config WHERE category = $category;',
       { category },
     );
-    return rows ?? [];
+    // The app reads the canonical dotted key from `name`; `id` is the encoded
+    // record id. `value` here is the settings payload (JSON string in the DB,
+    // parsed back to an object for the app).
+    return (rows ?? []).map((r) => ({ id: r.name ?? r.id, value: this.parsePayload(r.payload) }));
   }
 }
 

@@ -70,10 +70,12 @@ Wazuh is an external compose the admin runs. This app ships log shipping
 ## AI contribution rules (§28)
 
 - Do not imply AI personhood in shipped text. Present as a tool.
-- Include the AI disclosure note and `Co-authored-by: openhands` on PRs.
+- Include the AI disclosure note and a `Co-authored-by:` trailer naming the
+  agent tool actually used (e.g. `opencode`, `openhands`) on PRs. Naming is
+  vendor-agnostic: use the tool that produced the change, not a fixed name.
 - First name only ("Ryan") in committed artifacts.
 
 ---
 
-*Authored by an AI agent (OpenHands) on behalf of Ryan. This is a validated
-subset of Ryan's preferences; the binding decisions are Ryan's.*
+*Authored by an AI agent on behalf of Ryan. This is a validated subset of
+Ryan's preferences; the binding decisions are Ryan's.*

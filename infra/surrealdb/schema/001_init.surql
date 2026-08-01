@@ -89,17 +89,24 @@ DEFINE INDEX OVERWRITE audit_action_idx ON audit_log FIELDS action;
 
 -- Application configuration: GUI-first settings (per §9 "Configuration:
 -- GUI-first"). Env vars are bootstrap defaults only; the GUI is the source of
--- truth. `key` is a dotted path (e.g. 'auth.oidc.issuer'); `value` is a flex
--- object so the GUI can store structured, machine-readable defaults.
+-- truth.
+--
+-- NOTE: the dotted `key` (e.g. 'auth.oidc.issuer') lives in the `name` field,
+-- NOT as the record id, because SurrealDB record ids cannot contain a bare '.'
+-- ('.' is the field-path separator). The record id is an encoded (dot-free)
+-- form: app_config:auth.oidc.issuer -> app_config:aXRoLm9pZGMuaXNzdWVy. The
+-- `value` is a flex object so the GUI can store structured, machine-readable
+-- defaults.
 DEFINE TABLE OVERWRITE app_config SCHEMAFULL PERMISSIONS
     -- Readable by any authenticated user (settings UI); writable only by admins.
     FOR select WHERE $auth,
     FOR create, update, delete WHERE $auth IN (SELECT id FROM user WHERE 'admin' IN roles);
 
-DEFINE FIELD OVERWRITE id           ON app_config TYPE string;       -- the dotted key
-DEFINE FIELD OVERWRITE value        ON app_config TYPE object;
+DEFINE FIELD OVERWRITE name         ON app_config TYPE string;       -- dotted key (canonical; used for lookup)
+DEFINE FIELD OVERWRITE payload      ON app_config TYPE string;       -- settings object as a JSON string (SurrealQL can't take arbitrary JSON object literals by interpolation)
 DEFINE FIELD OVERWRITE category     ON app_config TYPE string;       -- 'auth' | 'connection' | 'wazuh' | 'general'
 DEFINE FIELD OVERWRITE updated_at   ON app_config TYPE datetime DEFAULT time::now();
 DEFINE FIELD OVERWRITE updated_by   ON app_config TYPE option<record<user>>;
 
+DEFINE INDEX OVERWRITE app_config_name_idx  ON app_config FIELDS name UNIQUE;
 DEFINE INDEX OVERWRITE app_config_category_idx ON app_config FIELDS category;

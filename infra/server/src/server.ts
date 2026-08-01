@@ -106,8 +106,13 @@ const log = {
 
 // Express app setup
 const app = express();
-// Trust reverse proxy (e.g., Caddy/Traefik) so req.secure and X-Forwarded-* are respected
-app.set('trust proxy', true);
+// Trust reverse proxy (e.g., Caddy/Traefik) so req.secure and X-Forwarded-* are
+// respected. We do NOT trust all proxies: `true` would let any client spoof
+// X-Forwarded-For and bypass the IP-based rate limiters (§7), and
+// express-rate-limit refuses to run on it. Default to loopback (no proxy, e.g.
+// local dev / direct access). Behind a reverse proxy, set TRUST_PROXY to the
+// proxy hop count or address(es); see .env.example.
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 

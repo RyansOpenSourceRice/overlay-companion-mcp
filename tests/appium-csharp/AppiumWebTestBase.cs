@@ -22,6 +22,22 @@ public abstract class AppiumWebTestBase : IDisposable
         Environment.GetEnvironmentVariable("APP_TARGET_URL") ?? "http://localhost:8080";
 
     /// <summary>
+    /// Controls how the suite behaves when a Chrome session cannot be
+    /// provisioned. Set to "skip" on the shared GitHub runner so a transient
+    /// chromedriver/Chrome mismatch is reported as Inconclusive instead of red.
+    /// Any other value (or unset) makes the suite fail hard — so a NEW runner
+    /// that does not explicitly opt in can never silently pass with unrun
+    /// tests. Per §9 (tests run locally on demand when CI provisioning is
+    /// unavailable), the real run is a self-hosted/local runner with this
+    /// unset.
+    /// </summary>
+    protected static readonly bool AllowSkipOnProvisionFailure =
+        string.Equals(
+            Environment.GetEnvironmentVariable("APPIUM_PROVISION_MODE"),
+            "skip",
+            StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Start an Appium service + a Chrome browser session. Called by each test
     /// class's Init. Appium must be installed (npm i -g appium) and a Chrome
     /// driver available. In CI this is provisioned by the test workflow.
@@ -54,17 +70,38 @@ public abstract class AppiumWebTestBase : IDisposable
         {
             Driver = new WebAppiumDriver(Service, options);
         }
-        catch (WebDriverException ex) when (ex.Message.Contains("No matching capabilities") || ex.Message.Contains("session not created"))
+        catch (WebDriverException ex) when (
+            ex.Message.Contains("No matching capabilities")
+            || ex.Message.Contains("session not created")
+            || ex.Message.Contains("Could not find a driver")
+            || ex.Message.Contains("Could not find installed driver"))
         {
             // The Appium chromium driver is sensitive to the exact capability
-            // wiring and chromedriver/Chrome version match. Per §9 ("when
-            // CI/CD is not available in the cloud, tests are run locally on
-            // demand"), skip rather than fail the build on environment-
-            // provisioning issues. The tests still run in a correctly
-            // provisioned environment (local or a dedicated CI runner).
-            throw new AssertInconclusiveException(
-                "Appium could not create a Chrome session in this environment. " +
-                "Run locally with Appium + Chrome installed. Details: " + ex.Message);
+            // wiring and chromedriver/Chrome version match.
+            //
+            // On the shared GitHub runner we opt IN to a graceful skip
+            // (APPIUM_PROVISION_MODE=skip) and report Inconclusive per §9
+            // ("when CI/CD is not available in the cloud, tests are run
+            // locally on demand"). The workflow surfaces this skip explicitly
+            // so a green run never falsely implies the tests executed.
+            //
+            // Any other environment (local dev, a self-hosted runner) leaves
+            // the mode unset and FAILS HARD here — a provisioning problem
+            // must never silently pass with the suite unrun.
+            if (AllowSkipOnProvisionFailure)
+            {
+                throw new AssertInconclusiveException(
+                    "Appium could not create a Chrome session in this environment. " +
+                    "This is a graceful skip on the shared CI runner. " +
+                    "Run locally with Appium + Chrome installed. Details: " + ex.Message);
+            }
+
+            throw new InvalidOperationException(
+                "Appium could not create a Chrome session. " +
+                "APPIUM_PROVISION_MODE is not 'skip', so the suite fails hard " +
+                "rather than silently passing with unrun tests. " +
+                "Fix the provisioning (chromedriver/Chrome match) or run where " +
+                "it works. Details: " + ex.Message, ex);
         }
         Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
         Wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(15));

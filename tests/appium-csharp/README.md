@@ -37,8 +37,33 @@ To point at a non-local target:
 APP_TARGET_URL=https://my-stack.example.com dotnet test
 ```
 
+## Runner strategy: graceful skip on shared CI, hard fail everywhere else
+
+The suite treats a Chrome-session provisioning failure differently depending on
+where it runs, so a green result can never silently mean "tests didn't run".
+
+- **Shared GitHub runner** (`APPIUM_PROVISION_MODE=skip`): if the
+  chromedriver/Chrome version can't be matched, the tests report **Inconclusive**
+  and the workflow passes, but `.github/workflows/appium-tests.yml` emits an
+  explicit `::warning::` annotation ("Appium suite was SKIPPED") so the skip is
+  never invisible. continue-on-error keeps the shared-forge job fast (§9
+  capacity awareness).
+- **Local / self-hosted runner** (`APPIUM_PROVISION_MODE` **unset**, the
+  default): a provisioning failure **fails hard** — no silent pass. This is
+  where the real suite must run green.
+
+To force the hard-fail behavior locally:
+
+```bash
+cd tests/appium-csharp
+dotnet test
+```
+
+(no `APPIUM_PROVISION_MODE` set → provisioning failures fail the run).
+
 ## CI
 
 `.github/workflows/appium-tests.yml` runs this suite on every push and pull
 request. It installs Appium + Chrome, boots the compose stack with local auth
-enabled, and runs `dotnet test`.
+enabled, runs `dotnet test`, and reports whether the suite actually executed or
+was skipped (never silently).

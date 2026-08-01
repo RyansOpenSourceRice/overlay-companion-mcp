@@ -65,7 +65,16 @@ const DEFAULT_SCOPES = ['openid', 'profile', 'email'];
 export function loadAuthConfig(store: SurrealDbStore): AuthConfig {
   // Bootstrap defaults from env. The Settings GUI can override these via
   // app_config; this keeps the app runnable before any GUI config exists.
-  const secret = process.env.SESSION_SECRET || 'dev-only-change-me';
+  const secret = process.env.SESSION_SECRET || 'dev-only-change-me'; // pragma: allowlist secret (dev default, guarded by fail-closed check below)
+  // Fail closed in production: signing session cookies with the known dev
+  // default would let anyone forge a valid session. In non-production (local
+  // dev, CI) the default is acceptable. §7: never ship a forgeable secret.
+  if (process.env.NODE_ENV === 'production' && secret === 'dev-only-change-me') { // pragma: allowlist secret
+    throw new Error(
+      'SESSION_SECRET must be set to a long random value when NODE_ENV=production. ' +
+      'Refusing to start with the default dev secret.',
+    );
+  }
   return {
     enabled: process.env.OIDC_ENABLED === 'true' || process.env.LOCAL_AUTH_ENABLED === 'true',
     oidcIssuer: process.env.OIDC_ISSUER || undefined,

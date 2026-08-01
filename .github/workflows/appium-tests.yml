@@ -131,6 +131,11 @@ jobs:
         continue-on-error: true
         env:
           APP_TARGET_URL: http://localhost:8080
+          # Explicit opt-in to graceful skip on the shared GitHub runner.
+          # A self-hosted/local runner leaves this unset so the suite FAILS
+          # HARD on provisioning problems instead of silently passing with
+          # unrun tests.
+          APPIUM_PROVISION_MODE: skip
         run: |
           cd tests/appium-csharp
           # The Appium chromium driver is sensitive to the exact chromedriver/
@@ -139,6 +144,23 @@ jobs:
           # demand when CI provisioning is unavailable). continue-on-error lets
           # the workflow succeed while still surfacing results as an artifact.
           dotnet test --configuration Release --logger "trx;LogFileName=appium-results.trx" --verbosity normal
+
+      # Never let a skip be silent: if the suite did not actually execute
+      # (no TRX, or every test Inconclusive), emit an explicit annotation so a
+      # green run can never be mistaken for a run that exercised the UI.
+      - name: Surface Appium skip (never silent)
+        if: always()
+        run: |
+          trx=$(ls tests/appium-csharp/TestResults/*.trx 2>/dev/null | head -n1)
+          if [ -z "$trx" ]; then
+            echo "::warning title=Appium suite did not run::No TRX file was produced. The Appium suite did NOT execute this run."
+            exit 0
+          fi
+          if grep -qi 'outcome="Inconclusive"' "$trx" || grep -qi 'outcome="NotExecuted"' "$trx"; then
+            echo "::warning title=Appium suite was SKIPPED::The Appium suite reported Inconclusive (Chrome session could not be provisioned). The real UI tests did NOT run this time."
+          else
+            echo "::notice title=Appium suite ran::The Appium suite executed and produced results in TestResults/appium-results.trx."
+          fi
 
       - name: Upload test results
         if: always()

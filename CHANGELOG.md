@@ -33,6 +33,44 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 ### Changed
 - `infra/compose.yml`: added `surrealdb` service + volume; `overlay-web` and
   `mcp-server` now depend on it; Keycloak admin password is env-configurable.
+  Adds `SESSION_SECRET`, `NODE_ENV`, and `TRUST_PROXY` to the common env so a
+  production deployment passes a real session secret and a safe trusted-proxy
+  value (never the permissive `true`).
+- `infra/server/src/surreal-store.ts`: fixed SurrealQL so the auth flow can
+  actually persist — replaced invalid `CREATE OR UPDATE`/`CREATE $id` with
+  `UPSERT type::thing($id)`; local users get a unique `subject` sentinel so the
+  unique `(provider, subject)` index no longer blocks registering a second
+  local user; `expires_at`/`updated_by`/`user_id` cast with `type::thing` /
+  `type::datetime` to satisfy SCHEMAFULL record/datetime types; `app_config`
+  uses a dot-free encoded record id with the dotted key stored in `name` (bare
+  `.` is not allowed in SurrealDB record ids); `payload` is stored as a JSON
+  string and parsed on read (SurrealQL rejects JSON-stringified object
+  literals in `SET`); reserved identifiers (`name`, `value`) backticked.
+- `infra/surrealdb/schema/001_init.surql`: `app_config` now has `name`
+  (canonical dotted key) + `payload` (JSON string) + a `name` unique index;
+  removed the conflicting `id`/`value` field definitions.
+- `infra/server/src/server.ts`: `trust proxy` is now `TRUST_PROXY` env-driven
+  defaulting to `loopback` instead of `true` (the permissive value that let
+  clients spoof `X-Forwarded-For` to bypass rate limits and that
+  express-rate-limit refuses to run under).
+- `tests/appium-csharp` + `.github/workflows/appium-tests.yml`: Appium suite
+  now branches on `APPIUM_PROVISION_MODE`. `skip` (set on the shared GitHub
+  runner) reports Inconclusive and the workflow emits an explicit warning when
+  the suite was skipped; any other value (local/self-hosted) fails hard so
+  unrun tests can never silently pass.
+- `.pre-commit-config.yaml`: bandit hook targets `legacy/clipboard-bridge-python`
+  (the old `flatpak/clipboard-bridge` path no longer exists); ESLint hook
+  excludes `dist/` and `node_modules`.
+- `.cspell.json`: added `chromedriver`, `APPIUM`, `Appium`.
+
+### Security
+- Fail-closed `SESSION_SECRET`: with `NODE_ENV=production`, the server refuses
+  to start if `SESSION_SECRET` is unset/missing, instead of silently signing
+  cookies with the known `dev-only-change-me` default (which would let anyone
+  forge a valid session cookie).
+- Fixed six SurrealDB-store bugs that blocked every auth write (registration,
+  sessions, settings, audit log), and enforced CSRF/admin checks on settings
+  mutations.
 - `infra/Caddyfile`: routes `/auth/idp/*` to Keycloak so the OIDC login flow
   stays on one origin.
 - `infra/server/src/server.ts`: added cookie-parser, SurrealDB store, auth
