@@ -1,7 +1,7 @@
 /**
  * ⚠️ DEPRECATED: Guacamole Client Component
  *
- * This component is DEPRECATED in favor of KasmVNCClient.js
+ * This component is DEPRECATED in favor of KasmVNCClient.
  *
  * Issues with Guacamole:
  * - Requires complex PostgreSQL database setup
@@ -9,7 +9,7 @@
  * - Legacy VNC/RDP protocol bridging
  * - Complex credential management
  *
- * Use KasmVNCClient.js instead for:
+ * Use KasmVNCClient instead for:
  * ✅ No database required
  * ✅ True multi-monitor support
  * ✅ Modern WebSocket/WebRTC protocols
@@ -18,41 +18,57 @@
  * Handles connection to the Fedora Silverblue VM via Guacamole
  */
 
+export interface GuacamoleClientOptions {
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+  onError?: (error: unknown) => void;
+}
+
+export interface GuacamoleConnectionState {
+  connected: boolean;
+  resolution: string;
+  protocol: string;
+  target: string;
+}
+
 export default class GuacamoleClient {
-    constructor(options = {}) {
-        this.options = {
-            onConnect: options.onConnect || (() => {}),
-            onDisconnect: options.onDisconnect || (() => {}),
-            onError: options.onError || (() => {})
-        };
+  private options: Required<GuacamoleClientOptions>;
+  private client: unknown = null;
+  private display: unknown = null;
+  private container: HTMLElement | null = null;
+  private connected = false;
 
-        this.client = null;
-        this.display = null;
-        this.container = null;
-        this.connected = false;
-    }
+  constructor(options: GuacamoleClientOptions = {}) {
+    this.options = {
+      onConnect: options.onConnect ?? (() => {}),
+      onDisconnect: options.onDisconnect ?? (() => {}),
+      onError: options.onError ?? (() => {})
+    };
+  }
 
-    initialize(container) {
-        this.container = container;
+  initialize(container: HTMLElement): void {
+    this.container = container;
 
-        // For now, we'll create a placeholder since we don't have the actual Guacamole setup
-        // In a real implementation, this would use guacamole-common-js
-        this.createPlaceholder();
+    // For now, we'll create a placeholder since we don't have the actual Guacamole setup
+    // In a real implementation, this would use guacamole-common-js
+    this.createPlaceholder();
 
-        // Simulate connection after a delay
-        setTimeout(() => {
-            this.simulateConnection();
-        }, 2000);
-    }
+    // Simulate connection after a delay
+    setTimeout(() => {
+      this.simulateConnection();
+    }, 2000);
+  }
 
-    createPlaceholder() {
-        // Clear existing content
-        this.container.innerHTML = '';
+  createPlaceholder(): void {
+    if (!this.container) return;
 
-        // Create a placeholder desktop environment
-        const desktop = document.createElement('div');
-        desktop.className = 'fedora-desktop-placeholder';
-        desktop.style.cssText = `
+    // Clear existing content
+    this.container.innerHTML = '';
+
+    // Create a placeholder desktop environment
+    const desktop = document.createElement('div');
+    desktop.className = 'fedora-desktop-placeholder';
+    desktop.style.cssText = `
             width: 100%;
             height: 100%;
             background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
@@ -66,8 +82,8 @@ export default class GuacamoleClient {
             overflow: hidden;
         `;
 
-        // Add Fedora logo and info
-        desktop.innerHTML = `
+    // Add Fedora logo and info
+    desktop.innerHTML = `
             <div style="text-align: center; z-index: 2;">
                 <div style="font-size: 4rem; margin-bottom: 1rem;">🐧</div>
                 <h2 style="font-size: 2rem; margin-bottom: 0.5rem; font-weight: 600;">Fedora Silverblue</h2>
@@ -114,33 +130,35 @@ export default class GuacamoleClient {
             </style>
         `;
 
-        // Add click handlers for app icons
-        const appIcons = desktop.querySelectorAll('.app-icon');
-        appIcons.forEach(icon => {
-            icon.addEventListener('click', (e) => {
-                const appName = icon.querySelector('span').textContent;
-                this.simulateAppLaunch(appName);
-            });
-        });
+    // Add click handlers for app icons
+    const appIcons = desktop.querySelectorAll<HTMLElement>('.app-icon');
+    appIcons.forEach(icon => {
+      icon.addEventListener('click', () => {
+        const appName = icon.querySelector('span')?.textContent ?? '';
+        this.simulateAppLaunch(appName);
+      });
+    });
 
-        this.container.appendChild(desktop);
-    }
+    this.container.appendChild(desktop);
+  }
 
-    // Helper to escape HTML for app names to prevent XSS
-    escapeHTML(str) {
-        if (!str) return '';
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
+  // Helper to escape HTML for app names to prevent XSS
+  escapeHTML(str: string): string {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
 
-    simulateAppLaunch(appName) {
-        // Create a simple app window simulation
-        const appWindow = document.createElement('div');
-        appWindow.style.cssText = `
+  simulateAppLaunch(appName: string): void {
+    if (!this.container) return;
+
+    // Create a simple app window simulation
+    const appWindow = document.createElement('div');
+    appWindow.style.cssText = `
             position: absolute;
             top: 50%;
             left: 50%;
@@ -157,7 +175,7 @@ export default class GuacamoleClient {
             animation: windowOpen 0.3s ease;
         `;
 
-        appWindow.innerHTML = `
+    appWindow.innerHTML = `
             <div style="padding: 1rem; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 0.5rem 0.5rem 0 0;">
                 <h3 style="margin: 0; font-size: 1rem;">${this.escapeHTML(appName)}</h3>
                 <button onclick="this.closest('[style*=\"position: absolute\"]').remove()" style="background: #ff5f56; border: none; width: 12px; height: 12px; border-radius: 50%; cursor: pointer;"></button>
@@ -173,100 +191,74 @@ export default class GuacamoleClient {
             </div>
         `;
 
-        // Add animation styles
-        const style = document.createElement('style');
-        style.textContent = `
+    // Add animation styles
+    const style = document.createElement('style');
+    style.textContent = `
             @keyframes windowOpen {
                 from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
                 to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
             }
         `;
-        document.head.appendChild(style);
+    document.head.appendChild(style);
 
-        this.container.appendChild(appWindow);
+    this.container.appendChild(appWindow);
 
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-            if (appWindow.parentNode) {
-                appWindow.style.animation = 'windowOpen 0.3s ease reverse';
-                setTimeout(() => appWindow.remove(), 300);
-            }
-        }, 5000);
+    // Auto-close after 5 seconds
+    setTimeout(() => {
+      if (appWindow.parentNode) {
+        appWindow.style.animation = 'windowOpen 0.3s ease reverse';
+        setTimeout(() => appWindow.remove(), 300);
+      }
+    }, 5000);
+  }
+
+  simulateConnection(): void {
+    this.connected = true;
+    this.options.onConnect();
+
+    // Update VM status in the UI
+    const vmConnectionStatus = document.getElementById('vm-connection-status');
+    if (vmConnectionStatus) {
+      vmConnectionStatus.textContent = 'Connected';
+      vmConnectionStatus.style.color = '#48bb78';
     }
 
-    simulateConnection() {
-        this.connected = true;
-        this.options.onConnect();
-
-        // Update VM status in the UI
-        const vmConnectionStatus = document.getElementById('vm-connection-status');
-        if (vmConnectionStatus) {
-            vmConnectionStatus.textContent = 'Connected';
-            vmConnectionStatus.style.color = '#48bb78';
-        }
-
-        // Update resolution display
-        const vmResolution = document.getElementById('vm-resolution');
-        if (vmResolution) {
-            vmResolution.textContent = '1920x1080';
-        }
+    // Update resolution display
+    const vmResolution = document.getElementById('vm-resolution');
+    if (vmResolution) {
+      vmResolution.textContent = '1920x1080';
     }
+  }
 
-    disconnect() {
-        if (this.connected) {
-            this.connected = false;
-            this.options.onDisconnect();
+  disconnect(): void {
+    if (this.connected) {
+      this.connected = false;
+      this.options.onDisconnect();
 
-            // Update UI
-            const vmConnectionStatus = document.getElementById('vm-connection-status');
-            if (vmConnectionStatus) {
-                vmConnectionStatus.textContent = 'Disconnected';
-                vmConnectionStatus.style.color = '#f56565';
-            }
-        }
+      // Update UI
+      const vmConnectionStatus = document.getElementById('vm-connection-status');
+      if (vmConnectionStatus) {
+        vmConnectionStatus.textContent = 'Disconnected';
+        vmConnectionStatus.style.color = '#f56565';
+      }
     }
+  }
 
-    // Real Guacamole integration methods (for future implementation)
+  // Real Guacamole integration methods (for future implementation)
 
-    /*
-    initializeRealGuacamole() {
-        // This would be the actual Guacamole client initialization
-        // using guacamole-common-js library
+  /*
+  initializeRealGuacamole() {
+      // This would be the actual Guacamole client initialization
+      // using guacamole-common-js library
+  }
+  */
 
-        const tunnel = new Guacamole.WebSocketTunnel('/guacamole/websocket-tunnel');
-        this.client = new Guacamole.Client(tunnel);
-
-        // Set up display
-        this.display = this.client.getDisplay();
-        this.container.appendChild(this.display.getElement());
-
-        // Handle connection events
-        this.client.onerror = (error) => {
-            console.error('Guacamole error:', error);
-            this.options.onError(error);
-        };
-
-        this.client.onstatechange = (state) => {
-            if (state === Guacamole.Client.CONNECTED) {
-                this.connected = true;
-                this.options.onConnect();
-            } else if (state === Guacamole.Client.DISCONNECTED) {
-                this.connected = false;
-                this.options.onDisconnect();
-            }
-        };
-
-        // Connect to VM
-        this.client.connect('fedora-silverblue');
-    }
-    */
-
-    getConnectionState() {
-        return {
-            connected: this.connected,
-            resolution: '1920x1080',
-            protocol: 'RDP',
-            target: 'fedora-silverblue'
-        };
-    }
+  getConnectionState(): GuacamoleConnectionState {
+    return {
+      connected: this.connected,
+      resolution: '1920x1080',
+      protocol: 'RDP',
+      target: 'fedora-silverblue'
+    };
+  }
 }

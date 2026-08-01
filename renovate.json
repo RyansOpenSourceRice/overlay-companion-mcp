@@ -20,12 +20,22 @@
   },
   "packageRules": [
     {
-      "description": "Group GitHub Actions updates",
+      "description": "Pin GitHub Actions to commit hashes and group updates",
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions",
       "automerge": true,
       "automergeType": "pr",
-      "platformAutomerge": true
+      "platformAutomerge": true,
+      "pinDigests": true
+    },
+    {
+      "description": "Pin container images to digests",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "container digests",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "pinDigests": true
     },
     {
       "description": "Group pre-commit hook updates",
@@ -91,15 +101,6 @@
       "matchUpdateTypes": ["major", "minor"],
       "groupName": "Cargo updates",
       "automerge": false
-    },
-    {
-      "description": "Pin/replace Docker digests for container images",
-      "matchManagers": ["dockerfile", "docker-compose"],
-      "matchUpdateTypes": ["pin", "digest"],
-      "groupName": "container digests",
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
     }
   ]
 }

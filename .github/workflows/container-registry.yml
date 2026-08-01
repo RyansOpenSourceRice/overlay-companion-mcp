@@ -27,6 +27,10 @@ env:
   IMAGE_NAME_MCP: ${{ toLower(github.repository) }}/mcp-server
   IMAGE_NAME_WEB: ${{ toLower(github.repository) }}/web-interface
 
+# Security: least privilege; jobs elevate individually
+permissions:
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest

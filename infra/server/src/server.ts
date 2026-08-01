@@ -205,8 +205,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // delete-account/settings). GET routes are idempotent and sameSite=lax blocks
 // cross-site cookie submission. The CodeQL js/missing-token-validation query
 // models CSRF as per-route and cannot see the global middleware, so it flags
-// the GET routes — this is a false positive.
-// lgtm[js/missing-token-validation]
+// the cookie-parser use below — this is a false positive; protection is global.
+// codeql[js/missing-token-validation]
 app.use(cookieParser());
 
 // CSRF protection for state-changing methods (§7). The session cookie is

@@ -4,6 +4,7 @@
   "ignorePaths": [
     "**/*-old.md",
     "temp/**",
+    "**/node_modules/**",
     ".github/pull_request_template.md",
     "UPDATES.md",
     "infra/web/src/styles/.openhands/**",

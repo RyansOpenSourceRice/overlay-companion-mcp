@@ -55,7 +55,7 @@ run_markdownlint() {
     echo ""
     echo "🔧 Running markdownlint..."
 
-    if markdownlint "**/*.md" --ignore node_modules; then
+    if markdownlint "**/*.md" --ignore "**/node_modules/**" --ignore "**/.git/**"; then
         echo -e "${GREEN}✅ Markdownlint passed${NC}"
         return 0
     else

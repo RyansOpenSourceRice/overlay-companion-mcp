@@ -25,6 +25,10 @@ on:
 env:
   REGISTRY: ghcr.io
 
+# Security: least privilege; jobs elevate individually
+permissions:
+  contents: read
+
 jobs:
   cleanup-images:
     runs-on: ubuntu-latest

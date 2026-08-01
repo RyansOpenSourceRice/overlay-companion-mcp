@@ -6,6 +6,29 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+- **markdown-toc-check CI failure.** Removed the auto-TOC markers from
+  `docs/SPECIFICATION.md` (markdown-toc emits malformed output on this file and
+  the CI comparison was structurally broken); root `SPECIFICATION.md` never had
+  one. `scripts/lint-markdown.sh` now ignores `**/node_modules/**` so local runs
+  match CI, and `.cspell.json` gains the same ignore.
+- **CodeQL findings.** Replaced the LGTM-only suppression on the cookie-parser
+  CSRF finding with the CodeQL `codeql[js/missing-token-validation]` annotation
+  (the global state-changing CSRF middleware already covers it), and escaped
+  `title`/`message` in the legacy `index.js` `showError` template that CodeQL
+  flagged as unsafe HTML.
+- **Scorecard findings.** Removed stale committed `packages-microsoft-prod.deb`
+  binaries (`src/`, `legacy/vendor/`); `container-registry.yml` and
+  `cleanup-containers.yml` now declare least-privilege top-level permissions;
+  Renovate now pins GitHub Actions and container image digests.
+
+### Changed
+- **Web frontend fully migrated from JavaScript to TypeScript.** Converted
+  `app.js`, `GuacamoleClient.js`, `KasmVNCClient.js`, `OverlaySystem.js`, and
+  `StatusMonitor.js` to strict-mode TypeScript (typed payload/option interfaces,
+  discriminated bounds unions) and disabled `allowJs` in `infra/web/tsconfig.json`.
+  `legacy/` remains JavaScript (frozen snapshot, not built by CI).
+
 ### Added
 - **Real login flow + identity (§7, §8).** OIDC auth-code+PKCE via Keycloak
   with session cookies, local auth fallback (hashed+salted via scrypt),

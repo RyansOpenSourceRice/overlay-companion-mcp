@@ -404,14 +404,20 @@ class OverlayCompanionApp {
         app.innerHTML = `
             <div class="error-screen">
                 <div class="error-content">
-                    <h1>❌ ${title}</h1>
-                    <p>${message}</p>
+                    <h1>❌ ${this.escapeHtml(title)}</h1>
+                    <p>${this.escapeHtml(message)}</p>
                     <button onclick="location.reload()" class="btn btn-primary">
                         🔄 Reload Application
                     </button>
                 </div>
             </div>
         `;
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 
