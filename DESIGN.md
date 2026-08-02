@@ -58,9 +58,23 @@ real SurrealDB in CI.
 
 ## Decision: GUI-first config (§9)
 
-Auth/connection/provider/Wazuh settings live in the web Settings UI, backed by
+Auth/connection/provider/Wazuh/TLS settings live in the web Settings UI, backed by
 SurrealDB `app_config`. Env vars are bootstrap defaults only. The config model
 is structured and validatable so both a human and an AI agent can configure it.
+
+## Decision: HTTPS is ACME, terminated by Caddy or Traefik (§7)
+
+The management server stays HTTP behind a terminator. The serving certificate
+is the server's identity and is managed by the admin in Settings → "HTTPS &
+Certificates": ACME public (Let's Encrypt) or private (step-ca) with automatic
+renewal, an uploaded server cert + key, or a self-signed no-domain fallback
+(generated with explicit admin permission). ACME is the protocol for
+provisioning/renewal — a private step-ca is the same integration as a public CA,
+just a different directory URL. The custom CA's trust anchor lives on client
+devices (installed by the admin); client keys are never uploaded. Both Caddy
+and Traefik are first-class terminators (managed and unmanaged modes), and the
+TLS config is rendered by `infra/server/src/tls-manager.ts` into the terminator
+volume. Ports are fully configurable so HTTPS never collides with other projects.
 
 ## Decision: Wazuh is external (§8)
 

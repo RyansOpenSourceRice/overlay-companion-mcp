@@ -113,6 +113,10 @@ package-lock.json
 # Built SPA copied into the management server's static dir (see appium-tests.yml)
 infra/server/public/
 
+# TLS cert material + rendered terminator config (server identity; never commit
+# private keys). Written by infra/server/src/tls-manager.ts.
+infra/server/certs/
+
 # Flatpak build artifacts
 flatpak/clipboard-bridge/.flatpak-builder/
 flatpak/clipboard-bridge/build/

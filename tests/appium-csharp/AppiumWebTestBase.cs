@@ -21,6 +21,9 @@ public abstract class AppiumWebTestBase : IDisposable
     protected static readonly string TargetUrl =
         Environment.GetEnvironmentVariable("APP_TARGET_URL") ?? "http://localhost:8080";
 
+    /// <summary>Public accessor so assembly-level setup can reach the target URL.</summary>
+    public static string BaseUrl => TargetUrl;
+
     /// <summary>
     /// Controls how the suite behaves when a Chrome session cannot be
     /// provisioned. Set to "skip" on the shared GitHub runner so a transient

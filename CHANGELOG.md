@@ -7,6 +7,39 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **HTTPS & Certificates management (§7, admin GUI + API).** The root admin can
+  configure the app's serving certificate for the Caddy/Traefik terminator:
+  ACME public (Let's Encrypt) or private (step-ca) with automatic renewal,
+  upload of a server certificate + private key (validated key match, PEM),
+  and self-signed generation for no-domain/`localhost`/LAN HTTPS (explicit
+  admin permission required). The certificate is the server's identity; client
+  trust anchors are installed on end devices; client keys are never uploaded.
+  GUI: Settings → "HTTPS & Certificates" with mode/terminator/managed/redirect,
+  upload + generate buttons, and live cert status (subject/issuer/expiry).
+  API: `GET /api/tls/status`, `GET /api/tls/config`, `POST /api/tls/cert`,
+  `POST /api/tls/self-signed` (admin-only, CSRF-protected, audit-logged).
+- **Caddy + Traefik both first-class.** The terminator config renderer emits a
+  Caddy `tls` directive or a Traefik `certificatesResolvers`, in managed and
+  unmanaged (external proxy) modes. Compose exposes Caddy and an optional
+  Traefik service with fully custom ports (`CADDY_HTTP/HTTPS`,
+  `TRAEFIK_HTTP/HTTPS`) and a mounted certs volume.
+- **Appium TLS GUI E2E.** `TlsSettingsTests` drives Settings → HTTPS &
+  Certificates end-to-end in Chrome: card renders, self-signed generate updates
+  the status, and the ACME/mode form is present. `AssemblyInit` registers a
+  shared admin once and reuses its session cookie so a full-suite run never
+  exhausts the login rate limit.
+
+### Changed
+- **Session cookie (earlier fix, doc note).** `Secure` flag is opt-in via
+  `COOKIE_SECURE=true` for HTTPS deployments; off by default for the plain-HTTP
+  LAN deployments this app targets.
+
+### Fixed
+- **Pre-existing Appium flakiness under full-suite load.** `WaitForConnectionCard`
+  and card-button clicks now tolerate `StaleElementReferenceException` (the SPA
+  re-renders the list mid-poll), and the `EditConnection` name is set via JS to
+  avoid stale-input races.
+- **markdown-toc-check CI failure.** Removed the auto-TOC markers from
 - **Saved VM connections (server-persisted).** Full `/api/connections` CRUD on
   the management server (list/create/get/update/delete/test/touch) backed by the
   SurrealDB `connection` table and scoped to the authenticated user. The web UI

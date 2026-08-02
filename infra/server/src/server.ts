@@ -19,6 +19,7 @@ import { createProxyMiddleware, Options as ProxyOptions } from 'http-proxy-middl
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { ConnectionManager } from './connection-manager.js';
+import { TlsManager, TlsSettings } from './tls-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import {
   AuthService,
@@ -136,6 +137,22 @@ surrealStore.ensureSchema(schemaSql).catch((e) => log.warn('SurrealDB schema app
 // sign-ups locked by default; rate-limit auth endpoints; delete-account is a
 // feature.
 const authService = new AuthService(surrealStore, loadAuthConfig(surrealStore));
+
+// TLS / HTTPS certificate management (§7). The management server stays HTTP
+// behind the terminator (Caddy/Traefik); this manager owns the serving-cert
+// lifecycle and renders the terminator config. Settings live in SurrealDB
+// app_config (category "tls") and are loaded asynchronously on boot.
+const tlsManager = new TlsManager();
+void (async () => {
+  try {
+    const stored = await surrealStore.getConfig('tls.settings');
+    if (stored && typeof stored === 'object') {
+      tlsManager.update(stored as Partial<TlsSettings>);
+    }
+  } catch (err) {
+    log.warn('[TLS] failed to load TLS settings:', (err as Error).message);
+  }
+})();
 
 // Optional OIDC/JWT middleware (no-op if OIDC is disabled) — kept for
 // programmatic Bearer-token clients. The browser uses session cookies via the
@@ -563,7 +580,7 @@ const settingsLimiter = rateLimit({
 // GET /api/settings — all configuration grouped by category. Read by any
 // authenticated user (the Settings UI); secrets are never returned.
 app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
-  const categories = ['auth', 'connection', 'wazuh', 'general'];
+  const categories = ['auth', 'connection', 'wazuh', 'general', 'tls'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
     const rows = await surrealStore.getConfigByCategory(cat);
@@ -577,6 +594,7 @@ app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_
   // Merge bootstrap env defaults so the UI shows something before any save.
   out.auth = { ...bootstrapAuthSettings(), ...out.auth };
   out.wazuh = { ...bootstrapWazuhSettings(), ...out.wazuh };
+  out.tls = { ...bootstrapTlsSettings(), ...out.tls };
   res.json(out);
 }) as RequestHandler);
 
@@ -610,6 +628,11 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
   if (category === 'auth') {
     applyAuthConfigPatch(key, value);
   }
+  // Hot-apply TLS settings so the TlsManager and any generated terminator
+  // config stay current.
+  if (category === 'tls') {
+    tlsManager.update(value as Partial<TlsSettings>);
+  }
   await surrealStore.appendAudit({
     action: 'config.updated',
     userId: state.user.id,
@@ -618,6 +641,85 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
     detail: { key: fullKey },
   });
   res.json({ ok: true });
+}) as RequestHandler);
+
+// ---- TLS / HTTPS management (§7) -----------------------------------------
+// Admin-only. The management server stays HTTP behind the terminator; these
+// endpoints manage the serving certificate and render terminator config.
+
+const tlsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// GET /api/tls/status — current serving-cert + mode/terminator info for the GUI.
+app.get('/api/tls/status', tlsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+  res.json(tlsManager.status());
+}) as RequestHandler);
+
+// GET /api/tls/config — the rendered terminator TLS config fragment (reference).
+app.get('/api/tls/config', tlsLimiter, requireSession(authService), requireAdmin(), (async (_req: Request, res: Response) => {
+  res.type('text/plain').send(tlsManager.renderTerminatorConfig());
+}) as RequestHandler);
+
+// POST /api/tls/cert — upload the server's serving certificate + private key.
+// Admin only. Validates the pair before persisting. Client keys are never
+// accepted here (this is the server's own identity).
+app.post('/api/tls/cert', tlsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
+  const body = (req.body ?? {}) as { certificate?: string; privateKey?: string }; // pragma: allowlist secret (request field name, not a literal secret)
+  if (typeof body.certificate !== 'string' || typeof body.privateKey !== 'string') { // pragma: allowlist secret (field name only)
+    res.status(400).json({ error: { code: 'invalid_request', message: 'certificate and privateKey (PEM) are required.' } }); // pragma: allowlist secret (field name / message, not a real credential)
+    return;
+  }
+  const result = tlsManager.uploadServerCert(body.certificate, body.privateKey);
+  if (!result.ok) {
+    res.status(400).json({ error: { code: 'invalid_cert', message: result.error } });
+    return;
+  }
+  await surrealStore.appendAudit({
+    action: 'tls.cert_uploaded',
+    userId: state.user.id,
+    actor: 'admin',
+    ipAddress: clientIp(req),
+    detail: { mode: tlsManager.getSettings().mode },
+  });
+  res.json({ ok: true, status: tlsManager.status() });
+}) as RequestHandler);
+
+// POST /api/tls/self-signed — generate a self-signed server cert (no-domain
+// fallback). Explicit admin permission required (opt-in via body.permission,
+// per §7 "self-signed generated with permission").
+app.post('/api/tls/self-signed', tlsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!authService.isCsrfValid(state, req)) {
+    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+    return;
+  }
+  const body = (req.body ?? {}) as { permission?: boolean; commonName?: string };
+  if (body.permission !== true) {
+    res.status(403).json({ error: { code: 'permission_required', message: 'Explicit permission:true is required to generate a self-signed certificate.' } });
+    return;
+  }
+  const result = tlsManager.generateSelfSigned(typeof body.commonName === 'string' ? body.commonName : 'overlay-companion-mcp.local');
+  if (!result.ok) {
+    res.status(500).json({ error: { code: 'generate_failed', message: result.error } });
+    return;
+  }
+  await surrealStore.appendAudit({
+    action: 'tls.self_signed_generated',
+    userId: state.user.id,
+    actor: 'admin',
+    ipAddress: clientIp(req),
+    detail: { cn: body.commonName ?? 'overlay-companion-mcp.local' },
+  });
+  res.json({ ok: true, status: tlsManager.status() });
 }) as RequestHandler);
 
 // ---- Saved connections (VM connection management) ------------------------
@@ -889,6 +991,21 @@ function bootstrapWazuhSettings(): Record<string, unknown> {
       enabled: process.env.WAZUH_ENABLED === 'true',
       endpoint: process.env.WAZUH_ENDPOINT ?? '',
       apiKey: process.env.WAZUH_API_KEY ? '<redacted>' : '',
+    },
+  };
+}
+
+// TLS bootstrap defaults (§7). The terminator defaults to Caddy and HTTPS is
+// off until the admin chooses a mode; the server stays HTTP behind the proxy.
+function bootstrapTlsSettings(): Record<string, unknown> {
+  return {
+    'tls.settings': {
+      mode: process.env.TLS_MODE ?? 'none',
+      terminator: process.env.TLS_TERMINATOR ?? 'caddy',
+      managed: process.env.TLS_MANAGED === 'true',
+      redirectHttp: process.env.TLS_REDIRECT_HTTP === 'true',
+      acmeDirectory: process.env.TLS_ACME_DIRECTORY ?? '',
+      acmeRootCa: process.env.TLS_ACME_ROOT_CA ?? '',
     },
   };
 }

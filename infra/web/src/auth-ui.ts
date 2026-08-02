@@ -166,6 +166,114 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
     ], () => saveSection(container, 'wazuh', 'shipper', isAdmin)),
   );
 
+  // TLS / HTTPS management (§7).
+  const tls = (settings.tls?.['tls.settings'] as Record<string, unknown>) ?? {};
+  container.appendChild(
+    settingsCard(
+      'HTTPS & Certificates',
+      'How this instance serves HTTPS. The certificate is the server\u2019s identity (served by ' +
+        'the Caddy/Traefik terminator); client trust anchors are installed on end devices. ' +
+        'ACME renews automatically. No client keys are ever uploaded to the server.',
+      [
+        selectRow(
+          'terminator',
+          'Terminator',
+          String(tls.terminator ?? 'caddy'),
+          ['caddy', 'traefik'],
+          isAdmin,
+        ),
+        selectRow(
+          'mode',
+          'Mode',
+          String(tls.mode ?? 'none'),
+          ['none', 'acme-public', 'acme-private', 'upload', 'self-signed'],
+          isAdmin,
+        ),
+        toggleRow('managed', 'App-managed terminator (vs unmanaged/external proxy)', Boolean(tls.managed), isAdmin),
+        toggleRow('redirectHttp', 'Redirect HTTP to HTTPS', Boolean(tls.redirectHttp), isAdmin),
+        textRow('acmeDirectory', 'Private ACME directory URL (step-ca)', String(tls.acmeDirectory ?? ''), isAdmin),
+        textareaRow(
+          'acmeRootCa',
+          'ACME endpoint root CA (PEM)',
+          String(tls.acmeRootCa ?? ''),
+          isAdmin,
+          'Optional: trust anchor for a private ACME endpoint, server-side.',
+        ),
+      ],
+      () => saveSection(container, 'tls', 'settings', isAdmin),
+    ),
+  );
+
+  // TLS actions: upload server cert, generate self-signed, view status/config.
+  const tlsActions = el('div', 'settings-section');
+  tlsActions.appendChild(el('h4', '', 'Certificate actions'));
+  const statusLine = el('p', 'settings-card-desc', 'Loading certificate status…');
+  tlsActions.appendChild(statusLine);
+
+  const uploadCert = el('input', 'file-input') as HTMLInputElement;
+  uploadCert.type = 'file';
+  uploadCert.accept = '.crt,.pem,.cer';
+  uploadCert.id = 'tls-cert-file';
+  uploadCert.disabled = !isAdmin;
+  const keyInput = el('input', 'file-input') as HTMLInputElement;
+  keyInput.type = 'file';
+  keyInput.accept = '.key,.pem';
+  keyInput.id = 'tls-key-file';
+  keyInput.disabled = !isAdmin;
+  tlsActions.appendChild(el('label', '', 'Server certificate (PEM)'));
+  tlsActions.appendChild(uploadCert);
+  tlsActions.appendChild(el('label', '', 'Private key (PEM, server\u2019s own key)'));
+  tlsActions.appendChild(keyInput);
+  const uploadBtn = el('button', 'btn btn-primary', 'Upload certificate') as HTMLButtonElement;
+  uploadBtn.disabled = !isAdmin;
+  uploadBtn.addEventListener('click', async () => {
+    const certFile = uploadCert.files?.[0];
+    const keyFile = keyInput.files?.[0];
+    if (!certFile || !keyFile) {
+      alert('Select a certificate and its matching private key first.');
+      return;
+    }
+    try {
+      const cert = await certFile.text();
+      const key = await keyFile.text();
+      const res = await fetch('/api/tls/cert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+        body: JSON.stringify({ certificate: cert, privateKey: key }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? `Upload failed (${res.status})`);
+      flashSaved(tlsActions);
+      await refreshTlsStatus(statusLine);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  });
+  tlsActions.appendChild(uploadBtn);
+
+  const genSelfSigned = el('button', 'btn btn-secondary', 'Generate self-signed cert') as HTMLButtonElement;
+  genSelfSigned.disabled = !isAdmin;
+  genSelfSigned.addEventListener('click', async () => {
+    if (!confirm('Generate a self-signed server certificate for local/LAN HTTPS? This does not touch a CA.')) return;
+    try {
+      const res = await fetch('/api/tls/self-signed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+        body: JSON.stringify({ permission: true, commonName: 'overlay-companion-mcp.local' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? `Generate failed (${res.status})`);
+      flashSaved(tlsActions);
+      await refreshTlsStatus(statusLine);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  });
+  tlsActions.appendChild(genSelfSigned);
+
+  container.appendChild(tlsActions);
+  void refreshTlsStatus(statusLine, isAdmin);
+
   // Account actions
   container.appendChild(el('h3', '', 'Account'));
   const accountBox = el('div', 'settings-section');
@@ -201,6 +309,35 @@ async function saveAuthSection(container: HTMLElement, key: string, isAdmin: boo
     flashSaved(container);
   } catch (err) {
     alert((err as Error).message);
+  }
+}
+
+interface TlsStatus {
+  mode: string;
+  terminator: string;
+  managed: boolean;
+  redirectHttp: boolean;
+  certLoaded: boolean;
+  subject?: string;
+  issuer?: string;
+  notAfter?: string;
+  acmeDirectory?: string;
+}
+
+async function refreshTlsStatus(el: HTMLElement, isAdmin = true): Promise<void> {
+  if (!isAdmin) {
+    el.textContent = 'Certificate status available to admins.';
+    return;
+  }
+  try {
+    const res = await fetch('/api/tls/status');
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const s = (await res.json()) as TlsStatus;
+    el.textContent = s.certLoaded
+      ? `Loaded: ${s.subject ?? 'cert'} | issuer ${s.issuer ?? '?'} | expires ${s.notAfter ?? '?'} | mode ${s.mode} | ${s.terminator}`
+      : `No server certificate loaded yet (mode ${s.mode}). Upload one or generate a self-signed cert.`;
+  } catch {
+    el.textContent = 'Could not load certificate status.';
   }
 }
 
@@ -315,5 +452,37 @@ function toggleRow(field: string, label: string, checked: boolean, enabled: bool
   input.disabled = !enabled;
   lbl.prepend(input);
   row.appendChild(lbl);
+  return row;
+}
+
+function selectRow(field: string, label: string, value: string, options: string[], enabled: boolean): HTMLElement {
+  const row = el('div', 'setting-item');
+  const lbl = el('label', '', label) as HTMLLabelElement;
+  const select = document.createElement('select');
+  select.value = value;
+  select.dataset.field = field;
+  select.disabled = !enabled;
+  for (const opt of options) {
+    const o = document.createElement('option');
+    o.value = opt;
+    o.textContent = opt;
+    select.appendChild(o);
+  }
+  row.appendChild(lbl);
+  row.appendChild(select);
+  return row;
+}
+
+function textareaRow(field: string, label: string, value: string, enabled: boolean, placeholder = ''): HTMLElement {
+  const row = el('div', 'setting-item');
+  const lbl = el('label', '', label) as HTMLLabelElement;
+  const ta = document.createElement('textarea');
+  ta.value = value;
+  ta.placeholder = placeholder;
+  ta.rows = 3;
+  ta.dataset.field = field;
+  ta.disabled = !enabled;
+  row.appendChild(lbl);
+  row.appendChild(ta);
   return row;
 }

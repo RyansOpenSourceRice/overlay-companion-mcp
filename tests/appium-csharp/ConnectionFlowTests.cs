@@ -77,15 +77,18 @@ public class ConnectionFlowTests : AppiumWebTestBase
         SubmitConnectionForm();
         WaitForConnectionCard(connName);
 
-        // Edit the connection via the card's Edit button.
-        var card = WaitForConnectionCard(connName);
-        var editBtn = card!.FindElement(By.ClassName("btn-secondary"));
-        editBtn.Click();
+        // Edit the connection via the card's Edit button. Re-resolve the card
+        // and its button freshly immediately before interacting to avoid stale
+        // element references if the SPA re-renders the list.
+        ClickConnectionButton(connName, "btn-secondary");
 
-        var nameInput = Wait!.Until(d => d.FindElement(By.Id("connection-name")));
-        nameInput.Clear();
+        // Set the name via JS so a mid-interaction re-render cannot stale the
+        // input reference; then submit the form normally.
         var renamed = connName + " (edited)";
-        nameInput.SendKeys(renamed);
+        Wait!.Until(d => d.FindElement(By.Id("connection-name")));
+        ((IJavaScriptExecutor)Driver!).ExecuteScript(
+            "var i=document.getElementById('connection-name'); i.value='" + renamed +
+            "'; i.dispatchEvent(new Event('input',{bubbles:true})); i.dispatchEvent(new Event('change',{bubbles:true}));");
         SubmitConnectionForm();
 
         var renamedCard = WaitForConnectionCard(renamed);
@@ -200,11 +203,18 @@ public class ConnectionFlowTests : AppiumWebTestBase
         {
             return Wait!.Until(d =>
             {
-                var cards = d.FindElements(By.CssSelector(".connection-card"));
-                foreach (var c in cards)
+                try
                 {
-                    if (c.Text.Contains(name, System.StringComparison.Ordinal))
-                        return c;
+                    var cards = d.FindElements(By.CssSelector(".connection-card"));
+                    foreach (var c in cards)
+                    {
+                        if (c.Text.Contains(name, System.StringComparison.Ordinal))
+                            return c;
+                    }
+                }
+                catch (StaleElementReferenceException)
+                {
+                    // List re-rendered mid-iteration; retry on the next poll.
                 }
                 return null;
             });
@@ -235,6 +245,35 @@ public class ConnectionFlowTests : AppiumWebTestBase
         {
             return false;
         }
+    }
+
+    // Re-resolve the card containing `name` and click the button with the given
+    // class inside it, restarting the lookup if the SPA re-renders the list.
+    private void ClickConnectionButton(string name, string buttonClass)
+    {
+        Wait!.Until(d =>
+        {
+            try
+            {
+                foreach (var c in d.FindElements(By.CssSelector(".connection-card")))
+                {
+                    if (c.Text.Contains(name, System.StringComparison.Ordinal))
+                    {
+                        var btn = c.FindElements(By.ClassName(buttonClass)).FirstOrDefault();
+                        if (btn != null && btn.Displayed)
+                        {
+                            btn.Click();
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch (StaleElementReferenceException)
+            {
+                // List re-rendered mid-iteration; retry on the next poll.
+            }
+            return false;
+        });
     }
 
     private void TryRegister(string username, string password)

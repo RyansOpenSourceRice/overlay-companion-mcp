@@ -24,6 +24,16 @@ x-common-env: &common_env
   # 'loopback' (no proxy). Behind Caddy/Traefik set TRUST_PROXY to the proxy
   # hop count (e.g. 1). Never spoofable: server refuses 'true'.
   TRUST_PROXY: ${TRUST_PROXY:-loopback}
+  # TLS / HTTPS serving (§7). The app stays HTTP behind the terminator (Caddy or
+  # Traefik); these control the serving-cert mode and are the bootstrap defaults
+  # for the GUI (Settings -> HTTPS & Certificates). ACSME renews automatically;
+  # the custom CA's trust anchor lives on client devices.
+  TLS_MODE: ${TLS_MODE:-none}            # none | acme-public | acme-private | upload | self-signed
+  TLS_TERMINATOR: ${TLS_TERMINATOR:-caddy}  # caddy | traefik
+  TLS_MANAGED: ${TLS_MANAGED:-false}     # true = app manages the terminator container
+  TLS_REDIRECT_HTTP: ${TLS_REDIRECT_HTTP:-false}
+  TLS_ACME_DIRECTORY: ${TLS_ACME_DIRECTORY:-}  # step-ca / private ACME directory URL
+  TLS_ACME_ROOT_CA: ${TLS_ACME_ROOT_CA:-}      # PEM trust anchor for the ACME endpoint
   # SurrealDB connection (decoupled service so it can migrate to K3S later).
   # Format: Server=<endpoint>;Namespace=<ns>;Database=<db>;Username=<u>;Password=<p>
   SURREALDB_URL: ${SURREALDB_URL:-http://surrealdb:8000}
@@ -103,14 +113,42 @@ services:
   caddy:
     image: caddy:2.8.4
     ports:
-      - "${CONTAINER_PORT:-8080}:80"
+      # Fully custom ports so they don't collide with other projects. HTTP on
+      # 8080 by default (non-privileged); HTTPS on 8443 by default. Set to 80/443
+      # when those are free. HTTPS is served when a TLS mode is active; otherwise
+      # Caddy just proxies HTTP.
+      - "${CADDY_HTTP_PORT:-8080}:80"
+      - "${CADDY_HTTPS_PORT:-8443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Uploaded/generated server cert + ACME root CA + rendered TLS config.
+      # Written by the management server (see infra/server/src/tls-manager.ts).
+      - ./certs:/certs:ro
     depends_on:
       - overlay-web
       - mcp-server
       - control-mcp
       - keycloak
+
+  # Traefik terminator (managed mode option; see Settings -> HTTPS & Certificates).
+  # Uncomment to use Traefik instead of Caddy. The dynamic TLS config is rendered
+  # by the management server into infra/server/certs/traefik-dynamic.yml and
+  # mounted read-only. Requires the docker provider socket.
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --configFile=/etc/traefik/traefik-static.yml
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-8080}:80"
+      - "${TRAEFIK_HTTPS_PORT:-8443}:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik-static.yml:/etc/traefik/traefik-static.yml:ro
+      - ./server/certs:/etc/traefik/dynamic:ro
+    depends_on:
+      - overlay-web
+      - mcp-server
 
 networks:
   default:

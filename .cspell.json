@@ -1203,6 +1203,13 @@
     "surql",
     "ryans",
     "EPEL",
-    "autodownload"
+    "autodownload",
+    "unmanaged",
+    "stepca",
+    "step-ca",
+    "selfsigned",
+    "self-signed",
+    "keyserver",
+    "httpOnly"
   ]
 }

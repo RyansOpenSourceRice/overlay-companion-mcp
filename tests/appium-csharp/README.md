@@ -14,6 +14,9 @@ UI and the login flow.
   real UI: Add Connection modal, card rendering, **reload + persistence** (the
   connection survives a page reload because it is stored server-side in
   SurrealDB), edit, delete, and the Test Connection button.
+- `TlsSettingsTests` — the HTTPS & Certificates admin flow (§7): the Settings
+  card renders, generating a self-signed server cert through the GUI updates
+  the status, and the ACME/mode/terminator controls are present.
 
 These complement the Python AI-GUI harness in `tests/ai-gui/` (which exercises
 the MCP tools). The Appium suite is the CI test job for the web layer.
@@ -63,6 +66,11 @@ APP_TARGET_URL=https://my-stack.example.com dotnet test
 >   capitalized value with "No matching capabilities found".
 > - Relative `fetch()` calls in test helper scripts need a loaded origin first,
 >   so helpers navigate to `/` before registering.
+> - `AssemblyInit` registers a shared admin once at assembly start and reuses
+>   its session cookie across admin-gated tests, so a full-suite run does not
+>   exhaust the server's login rate limit (10/min/IP).
+> - SPA re-renders can stale `WebElement` references mid-poll; the connection
+>   card helpers tolerate `StaleElementReferenceException` and retry.
 
 ## Runner strategy: graceful skip on shared CI, hard fail everywhere else
 

@@ -28,6 +28,7 @@ export interface SettingsBundle {
   connection?: Record<string, unknown>;
   wazuh?: Record<string, unknown>;
   general?: Record<string, unknown>;
+  tls?: Record<string, unknown>;
 }
 
 let cachedCsrfToken = '';
