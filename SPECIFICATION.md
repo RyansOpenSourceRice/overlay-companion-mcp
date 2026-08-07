@@ -47,10 +47,11 @@ re-run. Record-level permissions enforce user-scoped access.
 - Rules: `infra/wazuh/rules/*.yml` (Sigma-style).
 - Wazuh is external; the app only ships logs. No paywall.
 
-## Appium tests (build scope D)
+## Playwright tests (build scope D)
 
-- `tests/appium-csharp/`: `WebSmokeTests`, `LoginFlowTests`.
-- CI: `.github/workflows/appium-tests.yml` (Chrome + Appium chromium driver).
+- `tests/playwright-csharp/`: `WebSmokeTests`, `LoginFlowTests`,
+  `ConnectionFlowTests`, `TlsSettingsTests`.
+- CI: `.github/workflows/playwright-tests.yml` (FireFox).
 
 ---
 

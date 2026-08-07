@@ -1,0 +1,123 @@
+# Observability glue — for OTHERS to point their OpenRouter Broadcast at.
+#
+# Phase D. This is NOT part of the Overlay Companion deploy stack. Like the
+# Wazuh integration, this app ships *config and a compose* so a deployer who
+# already runs (or wants to run) an observability stack can point OpenRouter's
+# "Broadcast" (Settings → Observability) at a self-hosted OTLP endpoint.
+#
+# OpenRouter Broadcast emits OpenTelemetry traces (gen_ai.*) for every request
+# to configured destinations. You configure the destination in YOUR OpenRouter
+# dashboard; the app never sees those traces.
+#
+# Included destinations (self-hostable / OSS):
+#   1. OpenTelemetry Collector  — universal OTLP intake (base for the rest)
+#   2. SigNoz                    — full LLM trace dashboard + alerts
+#   3. Grafana LGTM + Alloy      — Tempo (traces) / Loki (logs) / Mimir (metrics)
+#   4. Langfuse                  — LLM tracing, evals, cost tracking
+#
+# Bring up what you already use; everything speaks OTLP/HTTP on 4318 by default.
+
+version: '3.9'
+
+x-otel-collector: &otel-collector
+  build:
+    context: .
+    dockerfile: Dockerfile.otel-collector
+  restart: unless-stopped
+  ports:
+    - '4318:4318'      # OTLP HTTP (the OpenRouter Broadcast destination)
+    - '13133:13133'    # collector health
+  networks:
+    - obs-network
+
+services:
+  # 1. OpenTelemetry Collector — the intake every other backend reads from.
+  otel-collector:
+    <<: *otel-collector
+    volumes:
+      - ./otel-collector.yml:/etc/otelcol/config.yml:ro
+
+  # 2. SigNoz (traces + metrics + logs, self-hosted).
+  signoz:
+    image: signoz/signoz:latest
+    command: ['-mode', 'clickhouse']
+    restart: unless-stopped
+    depends_on:
+      - otel-collector
+    ports:
+      - '3301:3301'     # SigNoz UI
+    environment:
+      SIGNOZ_OTEL_COLLECTOR_ENDPOINT: otel-collector:4317
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: ${SIGNOZ_CLICKHOUSE_PASSWORD:-signoz-password}
+    networks:
+      - obs-network
+
+  # 3. Grafana LGTM (Tempo traces) + Alloy (OTLP intake).
+  alloy:
+    image: grafana/alloy:latest
+    restart: unless-stopped
+    volumes:
+      - ./alloy.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - tempo
+    ports:
+      - '4317:4317'     # OTLP gRPC (Alloy)
+      - '4318:4318'     # OTLP HTTP (Alloy) — conflicts with collector; comment one out
+    networks:
+      - obs-network
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: ['-config.file=/etc/tempo.yml']
+    volumes:
+      - ./tempo.yml:/etc/tempo.yml:ro
+    networks:
+      - obs-network
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    depends_on:
+      - tempo
+    ports:
+      - '3000:3000'     # Grafana UI (admin/admin)
+    networks:
+      - obs-network
+
+  # 4. Langfuse (LLM tracing / evals / cost tracking, self-hosted).
+  langfuse:
+    image: langfuse/langfuse:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse}@postgres:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-change-me}   # pragma: allowlist secret (bootstrap default, override in .env)
+      NEXTAUTH_URL: ${LANGFUSE_URL:-http://localhost:3333}
+      SALT: ${LANGFUSE_SALT:-change-me}                          # pragma: allowlist secret (bootstrap default, override in .env)
+      ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-change-me}      # pragma: allowlist secret (bootstrap default, override in .env)
+      SIGNUP_DISABLED: 'true'
+    depends_on:
+      - postgres
+    ports:
+      - '3333:3000'     # Langfuse UI
+    networks:
+      - obs-network
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse}       # pragma: allowlist secret (bootstrap default, override in .env)
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_pgdata:/var/lib/postgresql/data
+    networks:
+      - obs-network
+
+volumes:
+  langfuse_pgdata:
+
+networks:
+  obs-network:

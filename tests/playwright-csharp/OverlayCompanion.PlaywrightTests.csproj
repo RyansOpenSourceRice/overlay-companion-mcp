@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>OverlayCompanion.Tests.Playwright</RootNamespace>
+    <AssemblyName>overlay-companion-playwright-tests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Playwright is the unified web E2E framework (supersedes Appium per plan:
+         browser product, first-class FireFox support, trace viewer for CI).
+         C# is the implementation language (preferences §9). FireFox is the
+         tested engine; headless on the test host. -->
+    <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
+    <PackageReference Include="Microsoft.Playwright.MSTest" Version="1.48.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.4.3" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.4.3" />
+  </ItemGroup>
+
+</Project>

@@ -58,6 +58,27 @@ services:
     networks:
       - overlay-network
 
+  # Bidirectional clipboard (Phase E2/E3). The viewer bridges the browser
+  # clipboard to the VM's clipboard through this service. Requires a strong
+  # CLIPBOARD_BRIDGE_API_KEY (fail-fast if absent); CORS is pinned to the web
+  # origin. /dev/input + udev mounts stay on the kasmvnc service; this bridge
+  # only needs xclip/wl-clipboard inside the VM session it reads.
+  clipboard-bridge:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.clipboard
+    container_name: overlay-companion-clipboard
+    environment:
+      CLIPBOARD_BRIDGE_API_KEY: ${CLIPBOARD_BRIDGE_API_KEY:?CLIPBOARD_BRIDGE_API_KEY must be set}
+      CLIPBOARD_BRIDGE_ALLOWED_ORIGIN: ${CLIPBOARD_BRIDGE_ALLOWED_ORIGIN:-http://localhost:8080}
+      DISPLAY: ${DISPLAY:-}
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-}
+    ports:
+      - "${CLIPBOARD_BRIDGE_PORT:-8765}:8765"
+    restart: unless-stopped
+    networks:
+      - overlay-network
+
   # Simplified Caddy proxy - fewer services to route
   caddy:
     image: docker.io/library/caddy:2.8.4

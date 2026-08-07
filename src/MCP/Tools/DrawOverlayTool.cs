@@ -19,6 +19,7 @@ public static class DrawOverlayTool
         IOverlayService overlayService,
         IModeManager modeManager,
         IScreenCaptureService screenCaptureService,
+        IDisplayActorGate displayActor,
         [Description("X coordinate of the overlay")] int x,
         [Description("Y coordinate of the overlay")] int y,
         [Description("Width of the overlay")] int width,
@@ -26,12 +27,20 @@ public static class DrawOverlayTool
         [Description("Color of the overlay (hex format, e.g., #FF0000)")] string color = "#FF0000",
         [Description("Opacity of the overlay (0.0 to 1.0)")] double opacity = 0.5,
         [Description("Unique identifier for the overlay")] string? id = null,
-        [Description("Monitor index to draw overlay on (0 = primary)")] int monitor_index = 0)
+        [Description("Monitor index to draw overlay on (0 = primary)")] int monitor_index = 0,
+        [Description("Display actor: 'interior' (in-app assistant) or 'exterior' (external MCP agent). Must match active owner.")] string actor = "exterior")
     {
         // Check if action is allowed in current mode
         if (!modeManager.CanExecuteAction("draw_overlay"))
         {
             throw new InvalidOperationException($"Action 'draw_overlay' not allowed in {modeManager.CurrentMode} mode");
+        }
+
+        var caller = actor.ToActor();
+        if (!await displayActor.CanWriteAsync(caller))
+        {
+            var active = await displayActor.GetActiveActorAsync();
+            throw new InvalidOperationException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
         }
 
         // Validate monitor index
@@ -60,7 +69,8 @@ public static class DrawOverlayTool
             Label = id, // keep minimal metadata
             TemporaryMs = opacity < 1.0 ? 5000 : 0,
             ClickThrough = true,
-            Opacity = Math.Clamp(opacity, 0.0, 1.0)
+            Opacity = Math.Clamp(opacity, 0.0, 1.0),
+            Actor = caller.ToKey()
         };
         var actualOverlayId = await overlayService.DrawOverlayAsync(overlayElement);
 

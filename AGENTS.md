@@ -32,12 +32,12 @@ surface.
 
 ## Language placement
 
-- **C#** where feasible (memory-safe, OO). The MCP server and the Appium tests
+- **C#** where feasible (memory-safe, OO). The MCP server and the Playwright tests
   are C#.
 - **TypeScript** for the web layer.
 - **Rust** for the clipboard bridge only (kept as-is).
 - **Python** is not for production systems; the existing `tests/ai-gui/`
-  harness is legacy and being superseded by C# Appium tests.
+  harness is legacy and being superseded by the C# Playwright web suite.
 
 ## Security (§7)
 
@@ -51,7 +51,7 @@ surface.
 
 - Pre-commit (incl. Gitleaks + Codespell) is the gate; CI/CD runs
   `pre-commit run --all-files`.
-- OpenGrep is the SAST job. Trivy scans containers. Appium tests run in CI.
+- OpenGrep is the SAST job. Trivy scans containers. Playwright (FireFox) tests run in CI.
 - Renovate is on. CalVer (`YYYY.MM.DD.N`).
 
 ## GUI-first config (§9)

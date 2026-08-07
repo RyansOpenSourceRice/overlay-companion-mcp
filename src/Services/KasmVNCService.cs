@@ -41,6 +41,24 @@ public class OverlayCommand
     public double? Opacity { get; set; }
     public int MonitorIndex { get; set; }
     public bool ClickThrough { get; set; } = true;
+
+    /// <summary>Named template reference (templates/OverlayTemplates registry key).</summary>
+    public string? Template { get; set; }
+
+    /// <summary>Template parameters (text, size, align, background, ...).</summary>
+    public Dictionary<string, System.Text.Json.JsonElement> TemplateParams { get; set; } = new();
+
+    /// <summary>Raw SVG passthrough when Template == "svg".</summary>
+    public string? Svg { get; set; }
+
+    /// <summary>Resolved accessible name.</summary>
+    public string? AccessibleName { get; set; }
+
+    /// <summary>Opaque object passthrough (serialized JSON) when Template == "object".</summary>
+    public System.Text.Json.JsonElement? ObjectData { get; set; }
+
+    /// <summary>Display actor that authored this overlay ("interior"/"exterior").</summary>
+    public string? Actor { get; set; }
 }
 
 public interface IKasmVNCService : IDisposable
@@ -319,6 +337,12 @@ public class KasmVNCService : IKasmVNCService
                 opacity = command.Opacity,
                 monitor_index = command.MonitorIndex,
                 click_through = command.ClickThrough,
+                template = command.Template,
+                template_params = command.TemplateParams,
+                svg = command.Svg,
+                accessible_name = command.AccessibleName,
+                object_data = command.ObjectData,
+                actor = command.Actor,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             });
 

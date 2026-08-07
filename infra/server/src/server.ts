@@ -31,6 +31,8 @@ import {
   hashPassword,
 } from './auth.js';
 import { SurrealDbStore, ConnectionInput } from './surreal-store.js';
+import { createChat } from './chat.js';
+import { AudioBridge } from './audio.js';
 import { readFileSync } from 'fs';
 
 // ESM-safe __dirname equivalent
@@ -123,6 +125,10 @@ const connectionManager = new ConnectionManager();
 // Failure to reach the DB is non-fatal at boot; routes that need it surface a
 // clear error. The schema is applied on boot (idempotent OVERWRITE).
 const surrealStore = new SurrealDbStore();
+// In-app chat assistant (B1): a second client to the same C# MCP tools.
+const chat = createChat(surrealStore);
+// Voice/transcription bridge (Phase C): cloud fish or local whisper, off by default.
+const audioBridge = new AudioBridge(surrealStore);
 let schemaSql = '';
 try {
   // The schema file ships with the repo; read it for boot-time apply.
@@ -580,7 +586,7 @@ const settingsLimiter = rateLimit({
 // GET /api/settings — all configuration grouped by category. Read by any
 // authenticated user (the Settings UI); secrets are never returned.
 app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
-  const categories = ['auth', 'connection', 'wazuh', 'general', 'tls'];
+  const categories = ['auth', 'connection', 'wazuh', 'general', 'tls', 'provider', 'audio'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
     const rows = await surrealStore.getConfigByCategory(cat);
@@ -595,6 +601,8 @@ app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_
   out.auth = { ...bootstrapAuthSettings(), ...out.auth };
   out.wazuh = { ...bootstrapWazuhSettings(), ...out.wazuh };
   out.tls = { ...bootstrapTlsSettings(), ...out.tls };
+  out.provider = { ...bootstrapProviderSettings(), ...out.provider };
+  out.audio = { ...bootstrapAudioSettings(), ...out.audio };
   res.json(out);
 }) as RequestHandler);
 
@@ -633,6 +641,10 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
   if (category === 'tls') {
     tlsManager.update(value as Partial<TlsSettings>);
   }
+  // Voice/transcription settings (Phase C): drop the cached audio config.
+  if (category === 'audio') {
+    audioBridge.invalidate();
+  }
   await surrealStore.appendAudit({
     action: 'config.updated',
     userId: state.user.id,
@@ -641,6 +653,173 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
     detail: { key: fullKey },
   });
   res.json({ ok: true });
+}) as RequestHandler);
+
+// ---- In-app chat assistant (Phase B1/B3) ---------------------------------
+// The chat panel is a SECOND client to the SAME C# MCP tools. It streams an
+// OpenRouter completion and, when the model requests a tool, executes the
+// allowlisted tool against the MCP `/mcp` endpoint (or serves config tools
+// locally). SSE streamed back to the panel.
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// POST /api/chat — body { messages: OpenAI chat messages[] }. Streams assistant
+// text (SSE) and runs the tool loop server-side. Admin users may use config
+// tools (B3); role is enforced here, not by the model.
+app.post('/api/chat', chatLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const { messages } = (req.body ?? {}) as { messages?: Array<Record<string, unknown>> };
+  if (!Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: { code: 'bad_request', message: 'messages[] is required.' } });
+    return;
+  }
+  const role = state.user.roles.includes('admin') ? 'admin' : 'user';
+  const provider = (await surrealStore.getConfig('provider.chat')) as Record<string, unknown> | null;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const opts = {
+    mcpServerUrl: config.mcpServerUrl,
+    providerBaseUrl: (provider?.baseUrl as string) || 'https://openrouter.ai/api/v1',
+    providerApiKey: (provider?.apiKey as string) || process.env.PROVIDER_API_KEY || '',
+    providerModel: (provider?.model as string) || 'deepseek/deepseek-chat-v3-0324',
+    userRole: role,
+  };
+
+  try {
+    if (!opts.providerApiKey) {
+      res.write(`data: ${JSON.stringify({ error: 'Chat provider is not configured. Set the provider API key in Settings.' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    // Tool loop: stream text; on tool_calls, execute and re-issue.
+    let currentMessages = messages;
+    for (let turn = 0; turn < 5; turn++) {
+      const collected: Array<string> = [];
+      let toolCalls: Array<import('./chat.js').ChatToolCall> = [];
+
+      const gen = chat.stream(opts, currentMessages);
+      for await (const chunk of gen) {
+        if (chunk.startsWith('{') && chunk.includes('__tool_calls')) {
+          try {
+            toolCalls = (JSON.parse(chunk).__tool_calls as Array<import('./chat.js').ChatToolCall>) ?? [];
+          } catch {
+            /* ignore malformed tool marker */
+          }
+        } else {
+          collected.push(chunk);
+          res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        }
+      }
+
+      if (toolCalls.length === 0) break;
+
+      // Execute each tool, append the tool results as assistant + tool messages.
+      const toolResults: Array<Record<string, unknown>> = [];
+      for (const tc of toolCalls) {
+        const result = await chat.runTool(opts, tc);
+        toolResults.push({ role: 'tool', tool_call_id: tc.id, content: result });
+        res.write(`data: ${JSON.stringify({ tool: tc.name, result })}\n\n`);
+      }
+      currentMessages = [
+        ...currentMessages,
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: toolCalls.map((tc) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } })),
+        },
+        ...toolResults,
+      ];
+    }
+  } catch (err) {
+    log.error('Chat error:', (err as Error).message);
+    res.write(`data: ${JSON.stringify({ error: (err as Error).message })}\n\n`);
+  } finally {
+    res.end();
+  }
+}) as RequestHandler);
+
+// GET /api/chat/tools — the bounded allowlist + active display actor, so the
+// panel can render what the assistant may do and who currently owns the canvas.
+app.get('/api/chat/tools', chatLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+  const actorRaw = await surrealStore.getConfig('general.activeActor');
+  res.json({
+    allowlist: [
+      'draw_overlay', 'template_overlay', 'take_screenshot', 'get_display_info',
+      'set_display_actor', 'get_overlay_capabilities',
+    ],
+    configTools: ['get_config', 'set_config'],
+    activeActor: actorRaw ?? 'exterior',
+  });
+}) as RequestHandler);
+
+// ---- Voice & transcription (Phase C) -------------------------------------
+// Optional STT/TTS for the chat panel. Default OFF; provider is "openrouter"
+// (fish-audio) or "local" (whisper.cpp / faster-whisper). Enforced here.
+
+const audioLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// POST /api/audio/transcribe — body { audio: base64, mime } → { text }.
+app.post('/api/audio/transcribe', audioLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const { audio, mime } = (req.body ?? {}) as { audio?: string; mime?: string };
+  if (!audio) {
+    res.status(400).json({ error: { code: 'bad_request', message: 'audio (base64) is required.' } });
+    return;
+  }
+  try {
+    const provider = await audioBridge.provider();
+    if (!provider) {
+      res.status(400).json({ error: { code: 'audio_disabled', message: 'Voice is disabled. Enable it in Settings → Voice & transcription.' } });
+      return;
+    }
+    const buf = Buffer.from(audio, 'base64');
+    const result = await provider.transcribe(buf, mime ?? 'audio/wav');
+    res.json({ text: result.text, durationSec: result.durationSec });
+  } catch (err) {
+    log.error('Audio transcribe failed:', (err as Error).message);
+    res.status(502).json({ error: { code: 'audio_error', message: (err as Error).message } });
+  }
+}) as RequestHandler);
+
+// POST /api/audio/speak — body { text } → synthesized audio bytes (if supported).
+app.post('/api/audio/speak', audioLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+  const { text } = (req.body ?? {}) as { text?: string };
+  if (!text) {
+    res.status(400).json({ error: { code: 'bad_request', message: 'text is required.' } });
+    return;
+  }
+  try {
+    const provider = await audioBridge.provider();
+    if (!provider) {
+      res.status(400).json({ error: { code: 'audio_disabled', message: 'Voice is disabled.' } });
+      return;
+    }
+    const out = await provider.synthesize(text);
+    if (!out) {
+      res.status(501).json({ error: { code: 'tts_unsupported', message: 'The configured provider does not expose a speech endpoint.' } });
+      return;
+    }
+    res.setHeader('Content-Type', out.mime);
+    res.setHeader('Content-Length', out.audio.length);
+    res.end(out.audio);
+  } catch (err) {
+    log.error('Audio speak failed:', (err as Error).message);
+    res.status(502).json({ error: { code: 'audio_error', message: (err as Error).message } });
+  }
 }) as RequestHandler);
 
 // ---- TLS / HTTPS management (§7) -----------------------------------------
@@ -1006,6 +1185,36 @@ function bootstrapTlsSettings(): Record<string, unknown> {
       redirectHttp: process.env.TLS_REDIRECT_HTTP === 'true',
       acmeDirectory: process.env.TLS_ACME_DIRECTORY ?? '',
       acmeRootCa: process.env.TLS_ACME_ROOT_CA ?? '',
+    },
+  };
+}
+
+// Provider bootstrap defaults (§B1). The in-app chat panel is a second client
+// to the same MCP tools; it streams an OpenRouter completion and executes a
+// bounded tool allowlist against the C# MCP `/mcp` endpoint. The API key is
+// stored via SurrealDB app_config (redacted) and is never returned to the UI.
+function bootstrapProviderSettings(): Record<string, unknown> {
+  return {
+    'provider.chat': {
+      baseUrl: process.env.PROVIDER_BASE_URL ?? 'https://openrouter.ai/api/v1',
+      model: process.env.PROVIDER_MODEL ?? 'deepseek/deepseek-chat-v3-0324',
+      apiKey: process.env.PROVIDER_API_KEY ? '<redacted>' : '',
+      enabled: process.env.PROVIDER_CHAT_ENABLED === 'true',
+    },
+  };
+}
+
+// Audio bootstrap defaults (§C). Default OFF; provider may be "openrouter"
+// (Fish Audio STT/TTS) or "local" (whisper.cpp / faster-whisper).
+function bootstrapAudioSettings(): Record<string, unknown> {
+  return {
+    'audio.provider': {
+      enabled: process.env.AUDIO_ENABLED === 'true',
+      provider: process.env.AUDIO_PROVIDER ?? 'off',
+      sttModel: process.env.AUDIO_STT_MODEL ?? 'fish-audio/transcribe-1',
+      ttsModel: process.env.AUDIO_TTS_MODEL ?? 'fish-audio/s1',
+      sttUrl: process.env.AUDIO_STT_URL ?? '',
+      ttsUrl: process.env.AUDIO_TTS_URL ?? '',
     },
   };
 }

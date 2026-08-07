@@ -7,6 +7,57 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **Overlay templates (§A3).** New `template_overlay` MCP tool lets the AI draw
+  named templates with a small parameter set (`template="text", text="yada",
+  color="red", x=43, y=32, size=23`) instead of re-emitting geometry/SVG.
+  Registry: `text`, `button`, `region`, `rectangle`, `circle`, `highlight`,
+  `arrow`, plus raw **SVG** and opaque **object** passthrough. Text supports
+  multi-line + centered-in-box layout. Catalog advertised via
+  `GetOverlayCapabilities`.
+- **Accessible overlay semantics (§A2).** Every overlay maps to a hidden
+  `#overlay-companion-a11y` semantic tree (`role` + `aria-label` + bounds) with
+  an `aria-live="polite"` announcer — screen-reader usable and CI-assertable by
+  accessible name instead of pixel coordinates.
+- **Playwright E2E (FireFox) supersedes Appium (§A1).** `tests/playwright-csharp`
+  (13 tests across WebSmoke, LoginFlow, ConnectionFlow, TlsSettings) replaces
+  `tests/appium-csharp`; `.github/workflows/playwright-tests.yml` replaces the
+  Appium job. No Appium/chromedriver dependency; trace-viewer ready.
+- **In-app chat assistant (§B1).** Built-in chat panel is a **second client to
+  the same C# MCP tools**. Server streams an OpenRouter completion
+  (`POST /api/chat`, SSE) and executes a bounded tool allowlist
+  (`draw_overlay`, `template_overlay`, `take_screenshot`, `get_display_info`,
+  `set_display_actor`, `get_overlay_capabilities`) against the C# `/mcp`
+  endpoint. Never an input tool.
+- **Display-ownership token (§B2).** Only one agent owns the overlay canvas:
+  `interior` (in-app assistant) vs `exterior` (external MCP agent). Persisted in
+  SurrealDB `general.activeActor`; switching releases the other actor's
+  overlays. Overlay-write tools are gated on the active owner; new
+  `set_display_actor` MCP tool.
+- **Config-via-chat (§B3).** Admin users can configure the app through the
+  chat panel (`get_config`/`set_config` allowlisted tools, role-enforced
+  server-side). GUI-first Settings adds Provider, Display ownership, and Voice
+  cards.
+- **Voice & transcription (§C).** Optional STT/TTS for the chat panel (default
+  OFF). Provider abstraction: cloud (**OpenRouter fish-audio**:
+  `fish-audio/transcribe-1` STT + `fish-audio/s1` TTS) or **local**
+  (whisper.cpp / faster-whisper OpenAI-compatible). GUI toggle + mic button in
+  the panel.
+- **Observability glue for deployers (§D).** `infra/observability/` ships a
+  compose + config so OTHERS can point **OpenRouter Broadcast** (OTLP traces)
+  at a self-hosted stack: OpenTelemetry Collector, SigNoz, Grafana LGTM + Alloy,
+  Langfuse. Not part of this app's deploy stack. See
+  `docs/OBSERVABILITY_INTEGRATION.md`.
+- **Container-desktop test target (§E1).** Kasm-reuse container desktop doubles
+  as the Playwright E2E target; no nested VM/KVM. See
+  `docs/CONTAINER_DESKTOP_TEST_TARGET.md`.
+- **Bidirectional clipboard + hardened bridge (§E2/E3).** Copy in/out of the
+  VM via the Rust bridge. The bridge now **requires** a strong
+  `CLIPBOARD_BRIDGE_API_KEY` (fail-fast; legacy default rejected) and restricts
+  CORS to `CLIPBOARD_BRIDGE_ALLOWED_ORIGIN` (never `*`).
+
+### Changed
+- `docs/CLIPBOARD_BRIDGE.md` documents the hardened env surface.
+- `DESIGN.md` and `SPECIFICATION.md` updated for Playwright + templates.
 - **HTTPS & Certificates management (§7, admin GUI + API).** The root admin can
   configure the app's serving certificate for the Caddy/Traefik terminator:
   ACME public (Let's Encrypt) or private (step-ca) with automatic renewal,

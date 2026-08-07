@@ -166,6 +166,40 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
     ], () => saveSection(container, 'wazuh', 'shipper', isAdmin)),
   );
 
+  // In-app assistant provider (B1): the chat panel is a second client to the
+  // same MCP tools; this supplies the OpenRouter model + key for streaming.
+  const provider = (settings.provider?.['provider.chat'] as Record<string, unknown>) ?? {};
+  container.appendChild(
+    settingsCard('In-app assistant (provider)', 'Model + API key used by the built-in chat panel. It calls the same MCP overlay tools an external agent uses.', [
+      toggleRow('enabled', 'Enable chat panel', Boolean(provider.enabled), isAdmin),
+      textRow('baseUrl', 'Provider base URL', String(provider.baseUrl ?? 'https://openrouter.ai/api/v1'), isAdmin),
+      textRow('model', 'Model', String(provider.model ?? 'deepseek/deepseek-chat-v3-0324'), isAdmin),
+      textRow('apiKey', 'API key', String(provider.apiKey ?? ''), isAdmin, 'password'),
+    ], () => saveSection(container, 'provider', 'chat', isAdmin)),
+  );
+
+  // Display ownership (B2): which agent may draw on the shared canvas.
+  const actor = String(settings.general?.['general.activeActor'] ?? 'exterior');
+  container.appendChild(
+    settingsCard('Display ownership', 'Only one agent owns the overlay canvas at a time; switching releases the other\u2019s overlays. The in-app assistant is \u201cinterior\u201d; external MCP agents are \u201cexterior\u201d.', [
+      selectRow('activeActor', 'Active owner', actor, ['interior', 'exterior'], isAdmin),
+    ], () => saveSection(container, 'general', 'activeActor', isAdmin)),
+  );
+
+  // Audio provider (Phase C): default OFF; cloud (OpenRouter fish) or local
+  // (whisper.cpp / faster-whisper) STT/TTS for the chat panel.
+  const audio = (settings.audio?.['audio.provider'] as Record<string, unknown>) ?? {};
+  container.appendChild(
+    settingsCard('Voice & transcription (Phase C)', 'Optional STT/TTS for the chat panel. Off by default. Cloud uses OpenRouter fish-audio; local points at a whisper.cpp / faster-whisper server.', [
+      toggleRow('enabled', 'Enable voice', Boolean(audio.enabled), isAdmin),
+      selectRow('provider', 'Provider', String(audio.provider ?? 'off'), ['off', 'openrouter', 'local'], isAdmin),
+      textRow('sttModel', 'STT model (OpenRouter)', String(audio.sttModel ?? 'fish-audio/transcribe-1'), isAdmin),
+      textRow('ttsModel', 'TTS model (OpenRouter)', String(audio.ttsModel ?? 'fish-audio/s1'), isAdmin),
+      textRow('sttUrl', 'Local STT URL', String(audio.sttUrl ?? ''), isAdmin),
+      textRow('ttsUrl', 'Local TTS URL', String(audio.ttsUrl ?? ''), isAdmin),
+    ], () => saveSection(container, 'audio', 'provider', isAdmin)),
+  );
+
   // TLS / HTTPS management (§7).
   const tls = (settings.tls?.['tls.settings'] as Record<string, unknown>) ?? {};
   container.appendChild(

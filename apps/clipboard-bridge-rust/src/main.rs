@@ -2,7 +2,7 @@ use std::{env, net::SocketAddr};
 
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -10,7 +10,7 @@ use axum::{
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -47,7 +47,31 @@ async fn main() -> anyhow::Result<()> {
 
     let host = env::var("CLIPBOARD_BRIDGE_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port: u16 = env::var("CLIPBOARD_BRIDGE_PORT").ok().and_then(|s| s.parse().ok()).unwrap_or(8765);
-    let api_key = env::var("CLIPBOARD_BRIDGE_API_KEY").unwrap_or_else(|_| "overlay-companion-mcp".to_string());
+
+    // SECURITY (Phase E3): require an explicit, non-default API key. Refusing to
+    // start with a weak/absent key beats running an open clipboard endpoint. The
+    // old hardcoded default is rejected outright so a forgotten env var cannot
+    // silently ship an open bridge.
+    let api_key = env::var("CLIPBOARD_BRIDGE_API_KEY")
+        .unwrap_or_else(|_| {
+            error!("CLIPBOARD_BRIDGE_API_KEY is not set. Refusing to start: the clipboard bridge would be unauthenticated.");
+            std::process::exit(1);
+        });
+    if api_key.is_empty() || api_key == "overlay-companion-mcp" { // pragma: allowlist secret (the legacy default, explicitly rejected)
+        error!("CLIPBOARD_BRIDGE_API_KEY must be set to a strong, non-default value. Refusing to start.");
+        std::process::exit(1);
+    }
+
+    // SECURITY (Phase E3): restrict CORS to an explicit allowed origin. Defaults
+    // to the management server's web origin; "any" is never used. Methods are
+    // limited to the endpoints we actually expose.
+    let allowed_origin = env::var("CLIPBOARD_BRIDGE_ALLOWED_ORIGIN")
+        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
+        .allow_headers([HeaderName::from_static("content-type"), HeaderName::from_static("x-api-key")])
+        .allow_origin(allowed_origin.parse::<HeaderValue>()
+            .expect("CLIPBOARD_BRIDGE_ALLOWED_ORIGIN must be a valid origin header value"));
 
     let state = AppState { api_key };
 
@@ -56,11 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health))
         .route("/clipboard", get(get_clipboard).post(set_clipboard).delete(clear_clipboard))
         .with_state(state)
-        .layer(CorsLayer::new()
-            .allow_methods(Any)
-            .allow_headers(Any)
-            .allow_origin(Any)
-        );
+        .layer(cors);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     info!("Starting Clipboard Bridge on {}", addr);

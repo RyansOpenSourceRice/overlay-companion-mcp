@@ -21,14 +21,23 @@ public static class BatchOverlayTool
         IOverlayService overlayService,
         IModeManager modeManager,
             IScreenCaptureService screenCaptureService,
+        IDisplayActorGate displayActor,
 
         [Description("JSON array of overlay definitions with x, y, width, height, color, opacity (0..1), label, temporary_ms, click_through, monitor_index")] string overlays,
-        [Description("Draw overlays one at a time with delays")] bool oneAtATime = false)
+        [Description("Draw overlays one at a time with delays")] bool oneAtATime = false,
+        [Description("Display actor: 'interior' or 'exterior'. Must match active owner.")] string actor = "exterior")
     {
         // Check if action is allowed in current mode
         if (!modeManager.CanExecuteAction("batch_overlay"))
         {
             throw new InvalidOperationException($"Action 'batch_overlay' not allowed in {modeManager.CurrentMode} mode");
+        }
+
+        var caller = actor.ToActor();
+        if (!await displayActor.CanWriteAsync(caller))
+        {
+            var active = await displayActor.GetActiveActorAsync();
+            throw new InvalidOperationException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
         }
 
         if (string.IsNullOrEmpty(overlays))
@@ -90,7 +99,8 @@ public static class BatchOverlayTool
                     TemporaryMs = tempMs,
                     ClickThrough = clickThrough,
                     Opacity = Math.Clamp(opacity, 0.0, 1.0),
-                    MonitorIndex = monitorIndex
+                    MonitorIndex = monitorIndex,
+                    Actor = caller.ToKey()
                 };
 
                 overlayElements.Add(overlay);

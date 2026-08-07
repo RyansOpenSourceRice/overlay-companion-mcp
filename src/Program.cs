@@ -134,6 +134,10 @@ public class Program
         });
         builder.Services.AddSingleton<ISurrealStore, SurrealStore>();
 
+        // Display-ownership gate: only one agent (interior chat vs exterior MCP)
+        // writes overlays at a time; switching releases the other's overlays.
+        builder.Services.AddSingleton<IDisplayActorGate, DisplayActorGate>();
+
         // Register KasmVNC integration service
         builder.Services.Configure<KasmVNCOptions>(options =>
         {

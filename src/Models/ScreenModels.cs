@@ -35,6 +35,23 @@ public class Screenshot
 }
 
 /// <summary>
+/// Template-backed overlay content so the AI references a named template plus a
+/// small parameter set instead of re-emitting geometry/SVG on every call.
+/// </summary>
+public enum OverlayTemplateKind
+{
+    Text,        // label / callout text; supports multi-line and centered-in-box
+    Button,      // drawn button hint with centered text
+    Region,      // titled boundary box
+    Rectangle,
+    Circle,
+    Highlight,
+    Arrow,
+    Svg,         // raw SVG passthrough (rendered in the web layer)
+    Object       // opaque object passthrough (consumed by a host renderer hook)
+}
+
+/// <summary>
 /// Represents an overlay element on the screen
 /// </summary>
 public class OverlayElement
@@ -48,6 +65,23 @@ public class OverlayElement
     public int MonitorIndex { get; set; } = 0;
     public bool ClickThrough { get; set; } = true; // Enable click-through by default
     public double Opacity { get; set; } = 0.5; // 0.0 transparent, 1.0 opaque
+
+    /// <summary>When non-empty, this overlay is a named template reference.</summary>
+    public string Template { get; set; } = string.Empty;
+
+    /// <summary>Named parameters for the template (text, size, align, background, ...).</summary>
+    public Dictionary<string, System.Text.Json.JsonElement> TemplateParams { get; set; } = new();
+
+    /// <summary>Raw SVG string for the <see cref="OverlayTemplateKind.Svg"/> template.</summary>
+    public string? Svg { get; set; }
+
+    public OverlayTemplateKind? TemplateKind { get; set; }
+
+    /// <summary>Resolved accessible name for the element (aria/semantics).</summary>
+    public string? AccessibleName { get; set; }
+
+    /// <summary>The display actor that authored this overlay ("interior"/"exterior").</summary>
+    public string? Actor { get; set; }
 }
 
 /// <summary>

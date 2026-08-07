@@ -10,6 +10,7 @@
  */
 
 import type { CurrentUser } from './auth';
+import { ChatPanel } from './components/ChatPanel';
 import {
   listConnections,
   createConnection,
@@ -54,6 +55,7 @@ class OverlayCompanionApp {
   private currentUser: CurrentUser | null = null;
   private _renderSettingsForms: SettingsFormsRenderer | null = null;
   private editingConnectionId: string | null = null;
+  private chatPanel: ChatPanel | null = null;
 
   constructor() {
     // Initialize the application
@@ -105,6 +107,19 @@ class OverlayCompanionApp {
   // ==================== Navigation ====================
 
   setupEventListeners(): void {
+    // In-app assistant (B1): toggles the chat panel, a second client to the
+    // same MCP tools.
+    const chatToggle = document.getElementById('chat-toggle-btn');
+    if (chatToggle) {
+      chatToggle.addEventListener('click', () => {
+        const host = document.getElementById('chat-panel-host');
+        if (!host) return;
+        if (!this.chatPanel) this.chatPanel = new ChatPanel(host);
+        this.chatPanel.toggle();
+        chatToggle.classList.toggle('active', this.chatPanel.isOpen());
+      });
+    }
+
     // Navigation
     document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {

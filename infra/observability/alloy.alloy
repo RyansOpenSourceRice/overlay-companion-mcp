@@ -1,0 +1,27 @@
+// Grafana Alloy config for the Overlay Companion observability glue (Phase D).
+// Alloy acts as an OTLP intake for Grafana LGTM: it receives OpenRouter
+// Broadcast traces and forwards them to Tempo.
+
+otelcol.receiver.otlp "default" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  exporter {
+    arguments = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls { insecure = true }
+  }
+}

@@ -53,7 +53,7 @@ served through `/api/connections` on the management server and scoped to the
 authenticated user (previously they were browser-`localStorage` only). Plaintext
 passwords are never stored or returned; the server keeps an Argon2id hash and
 the web UI holds the plaintext transiently in `sessionStorage` for the live VM
-handshake. The Appium suite asserts persistence across a page reload against a
+handshake. The Playwright suite asserts persistence across a page reload against a
 real SurrealDB in CI.
 
 ## Decision: GUI-first config (§9)
@@ -82,11 +82,45 @@ Wazuh is an external compose the admin runs. The app ships log shipping
 (Filebeat config) and Sigma-style rules; it does not build or bundle Wazuh. No
 paywall — "enterprise tier" means features that help everyone.
 
-## Decision: C# Appium tests (§9)
+## Decision: C# Playwright tests (§9)
 
-Appium is the preferred unified testing framework; C# Selenium/Appium is the
-implementation language. The web suite lives in `tests/appium-csharp/` and runs
-in CI. The Python `tests/ai-gui/` harness is legacy and being superseded.
+Playwright is the web E2E framework, superseding Appium (this is a browser-based
+product with first-class FireFox support and a trace viewer that is invaluable
+in CI). C# remains the implementation language. The web suite lives in
+`tests/playwright-csharp/` and runs FireFox in CI. Overlay annotations carry a
+semantic layer (roles + accessible names + an ARIA live region) so both screen
+reader users and CI (accessibility-tree assertions) can read them deterministically.
+The Python `tests/ai-gui/` harness is legacy and being superseded.
+
+## Decision: in-app chat is a second client to the same MCP tools (§B1)
+
+The built-in chat panel is **not** a new agent surface — it is another consumer
+of the existing C# MCP tools. It streams an OpenRouter completion and executes a
+bounded tool allowlist (overlay, screenshot, display-actor) against the C#
+`/mcp` endpoint. External MCP clients keep working unchanged, and the
+"annotation, not autopilot" guarantee holds: neither client can click or type.
+
+## Decision: display-ownership token prevents dual canvas ownership (§B2)
+
+Two agents (the in-app "interior" assistant and an external "exterior" MCP
+agent) could otherwise fight over the same overlay canvas. Only the **active
+owner** may draw; the owner is persisted in SurrealDB `general.activeActor`
+(both servers agree), switching releases the other actor's overlays, and
+overlay-write tools are gated on it. The human decides who owns the display.
+
+## Decision: templates and accessible semantics (§A2/A3)
+
+The AI references named templates plus a small parameter set instead of
+re-emitting SVG/geometry; raw SVG and opaque objects pass through. Overlays also
+carry roles + accessible names in a queryable semantic tree, so CI asserts on
+meaning, not pixels, and screen-reader users get a usable annotation surface.
+
+## Decision: observability is glue for OTHERS (§D)
+
+Like Wazuh, observability is **not** in this app's deploy stack. The project
+ships compose + config so a deployer can point OpenRouter Broadcast (OTLP
+traces) at their own self-hosted stack (OTel Collector, SigNoz, Grafana LGTM +
+Alloy, Langfuse). See `docs/OBSERVABILITY_INTEGRATION.md`.
 
 ---
 

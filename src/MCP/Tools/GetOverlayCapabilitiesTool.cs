@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using OverlayCompanion.Services;
 
 namespace OverlayCompanion.MCP.Tools;
 
@@ -9,7 +10,7 @@ namespace OverlayCompanion.MCP.Tools;
 [McpServerToolType]
 public static class GetOverlayCapabilitiesTool
 {
-    [McpServerTool, Description("Get overlay engine capabilities: opacity, color formats, click-through, compositor")]
+    [McpServerTool, Description("Get overlay engine capabilities: opacity, color formats, click-through, compositor, and templates")]
     public static string GetOverlayCapabilities()
     {
         var compositor = Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") != null ? "wayland" : "unknown";
@@ -22,7 +23,9 @@ public static class GetOverlayCapabilitiesTool
             opacity_range = new { min = 0.0, max = 1.0, default_value = 0.5 },
             color_formats = new[] { "#RRGGBB", "#RRGGBBAA", "#RGB", "0xRRGGBB", "named (fallback)" },
             layering = new { uses_layer_shell = false, notes = "web-only viewer; native desktop layer-shell is disabled in this build" },
-            coordinates = new { origin = "global", monitor_relative_under_layer_shell = true, tool_inputs = "tools accept monitor-relative coords; auto-adjust to global when not using layer-shell" }
+            coordinates = new { origin = "global", monitor_relative_under_layer_shell = true, tool_inputs = "tools accept monitor-relative coords; auto-adjust to global when not using layer-shell" },
+            templates = "use template_overlay; catalog + per-template params listed below",
+            template_catalog = OverlayTemplates.JsonCatalog()
         };
         // Coordinate system notes: global coords everywhere; when layer-shell is active the window is per-monitor and drawing
         // adjusts by monitor offset internally. MCP tools accept monitor-relative positions and internally convert as needed.

@@ -19,6 +19,7 @@ public static class CreateOverlayTool
     public static async Task<object> CreateOverlay(
         IOverlayService overlayService,
         IKasmVNCService kasmvncService,
+        IDisplayActorGate displayActor,
         ILogger<object> logger,
         [Description("X coordinate of the overlay")] int x,
         [Description("Y coordinate of the overlay")] int y,
@@ -29,10 +30,17 @@ public static class CreateOverlayTool
         [Description("Optional label text for the overlay")] string? label = null,
         [Description("Whether the overlay should be click-through")] bool clickThrough = true,
         [Description("Monitor index to display overlay on (0 = primary)")] int monitorIndex = 0,
-        [Description("Auto-remove overlay after this many milliseconds (optional)")] int? temporaryMs = null)
+        [Description("Auto-remove overlay after this many milliseconds (optional)")] int? temporaryMs = null,
+        [Description("Display actor: 'interior' or 'exterior'. Must match active owner.")] string actor = "exterior")
     {
         try
         {
+            var caller = actor.ToActor();
+            if (!await displayActor.CanWriteAsync(caller))
+            {
+                var active = await displayActor.GetActiveActorAsync();
+                return new { success = false, error = $"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays." };
+            }
             logger.LogInformation("Creating overlay at ({X}, {Y}) with size {Width}x{Height}",
                 x, y, width, height);
 
@@ -55,7 +63,8 @@ public static class CreateOverlayTool
                 Label = label,
                 ClickThrough = clickThrough,
                 MonitorIndex = monitorIndex,
-                TemporaryMs = temporaryMs ?? 0
+                TemporaryMs = temporaryMs ?? 0,
+                Actor = caller.ToKey()
             };
 
             var overlayId = await overlayService.DrawOverlayAsync(overlay);
@@ -82,7 +91,8 @@ public static class CreateOverlayTool
                     Color = color,
                     Opacity = opacity,
                     MonitorIndex = monitorIndex,
-                    ClickThrough = clickThrough
+                    ClickThrough = clickThrough,
+                    Actor = caller.ToKey()
                 };
 
                 await kasmvncService.SendOverlayCommandAsync(overlayCommand);

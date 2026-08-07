@@ -1,0 +1,18 @@
+# Clipboard bridge (Rust) — hardened (Phase E3).
+# Runtime image is minimal; the bridge is compiled in a Rust builder.
+FROM rust:1.85-alpine AS builder
+WORKDIR /app
+RUN apk add --no-cache musl-dev
+COPY apps/clipboard-bridge-rust/Cargo.toml apps/clipboard-bridge-rust/Cargo.lock ./
+RUN mkdir -p src && echo "fn main(){}" > src/main.rs \
+    && cargo build --release 2>/dev/null || true
+COPY apps/clipboard-bridge-rust/src ./src
+RUN touch src/main.rs && cargo build --release
+
+FROM alpine:3.20
+RUN apk add --no-cache xclip wl-clipboard ca-certificates \
+    && adduser -D -H -u 1000 clip
+USER clip
+COPY --from=builder /app/target/release/clipboard-bridge /usr/local/bin/clipboard-bridge
+EXPOSE 8765
+ENTRYPOINT ["/usr/local/bin/clipboard-bridge"]

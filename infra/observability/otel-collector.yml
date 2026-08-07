@@ -1,0 +1,56 @@
+# OpenTelemetry Collector config for the Overlay Companion observability glue.
+# OTLP intake (HTTP :4318 / gRPC :4317) receives OpenRouter Broadcast traces
+# (gen_ai.*) and forwards to whichever backend a deployer enables. Uncomment the
+# exporters you actually run; keep the rest disabled to avoid noisy logs.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 2s
+    send_batch_size: 512
+  resource:
+    attributes:
+      - key: service.name
+        value: openrouter
+        action: upsert
+
+exporters:
+  # SigNoz (traces + metrics). SigNoz can read directly from the collector's
+  # OTLP receiver; if you point SigNoz at the collector, use this exporter:
+  otlp/signoz:
+    endpoint: signoz:4317
+    tls:
+      insecure: true
+  # Grafana Tempo via Alloy. Alloy also exposes OTLP on :4318; enable this only
+  # if you use the alloy service as the Tempo intake instead of this collector.
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  # Langfuse: OTLP/HTTP. Langfuse ingests traces via its own endpoint.
+  otlphttp/langfuse:
+    endpoint: http://langfuse:3000/api/public/otel
+    headers:
+      Authorization: "Basic ${LANGFUSE_OTLP_AUTH}"   # base64(public_key:secret_key), set in .env
+  # Logging fallback: always-on, so a deployer sees traces even with no backend.
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource, batch]
+      exporters:
+        - debug
+        # - otlp/signoz
+        # - otlp/tempo
+        # - otlphttp/langfuse

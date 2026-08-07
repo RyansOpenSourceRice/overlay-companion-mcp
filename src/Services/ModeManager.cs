@@ -102,7 +102,8 @@ public class ModeManager : IModeManager
             "get_clipboard",
             "take_screenshot",
             "draw_overlay",
-            "remove_overlay"
+            "remove_overlay",
+            "set_display_actor"
         };
 
         return composingActions.Contains(actionType);

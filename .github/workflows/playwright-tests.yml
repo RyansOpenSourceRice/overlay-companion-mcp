@@ -1,0 +1,172 @@
+name: Playwright Web Tests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'infra/server/**'
+      - 'infra/web/src/**'
+      - 'tests/playwright-csharp/**'
+      - '.github/workflows/playwright-tests.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/server/**'
+      - 'infra/web/src/**'
+      - 'tests/playwright-csharp/**'
+  workflow_dispatch:
+
+# Per Ryan's preferences §9: C# is the implementation language; Playwright
+# supersedes Appium as the web E2E framework (browser product, first-class
+# FireFox support, trace viewer for CI). This boots the web stack with local
+# auth enabled and runs the C# Playwright suite (FireFox) against it.
+permissions:
+  contents: read
+  checks: write
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '20'
+
+jobs:
+  playwright-web-tests:
+    name: C# Playwright (FireFox) web + login tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build web frontend
+        timeout-minutes: 5
+        run: |
+          cd infra/web && npm install && npm run build
+          mkdir -p ../server/public
+          cp -r dist/* ../server/public/
+
+      - name: Build management server
+        timeout-minutes: 5
+        run: |
+          cd infra/server && npm install && npm run build
+
+      - name: Build C# MCP server
+        timeout-minutes: 10
+        run: |
+          cd src && dotnet build --configuration Release
+
+      - name: Install Playwright browsers (FireFox)
+        timeout-minutes: 5
+        run: |
+          cd tests/playwright-csharp
+          dotnet build --configuration Release
+          # Install the FireFox revision matched to the pinned package (and OS
+          # deps). --with-deps uses apt; on ubuntu-latest this is supported.
+          ~/.dotnet/tools/playwright install --with-deps firefox || \
+          pwsh bin/Release/net8.0/playwright.ps1 install --with-deps firefox
+
+      - name: Start SurrealDB (test database)
+        timeout-minutes: 3
+        run: |
+          docker run -d --name oc-surrealdb-test -p 127.0.0.1:8000:8000 \
+            surrealdb/surrealdb:v2.2.1 start \
+            --user root --pass root --bind 0.0.0.0:8000 rocksdb:/data/surreal.db
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null 2>&1; then
+              echo "SurrealDB is up"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Start test stack (web server + MCP)
+        timeout-minutes: 5
+        run: |
+          cd infra/server
+          export SESSION_SECRET="ci-test-secret-only-not-for-prod" # pragma: allowlist secret
+          export SURREALDB_URL="http://localhost:8000"
+          export SURREALDB_NAMESPACE="overlay"
+          export SURREALDB_DATABASE="companion"
+          export SURREALDB_USERNAME="root"
+          export SURREALDB_PASSWORD="root" # pragma: allowlist secret (test fixture)
+          export COOKIE_SECURE=false
+          PORT=8080 \
+          NODE_ENV=production \
+          LOCAL_AUTH_ENABLED=true \
+          SIGNUP_ALLOWED=true \
+          MCP_SERVER_URL=http://127.0.0.1:3000 \
+          nohup node dist/server.js > /tmp/oc-server.log 2>&1 &
+          echo $! > /tmp/oc-server.pid
+
+          cd ../../src
+          ASPNETCORE_URLS=http://0.0.0.0:3000 nohup dotnet run --configuration Release --no-build -- --http > /tmp/oc-mcp.log 2>&1 &
+          echo $! > /tmp/oc-mcp.pid
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Web server is up"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run Playwright tests (FireFox)
+        timeout-minutes: 10
+        continue-on-error: true
+        env:
+          APP_TARGET_URL: http://localhost:8080
+          # Explicit opt-in to graceful skip on the shared GitHub runner.
+          # A self-hosted/local runner leaves this unset so the suite FAILS
+          # HARD on provisioning problems instead of silently passing.
+          PLAYWRIGHT_PROVISION_MODE: skip
+        run: |
+          cd tests/playwright-csharp
+          dotnet test --configuration Release --logger "trx;LogFileName=playwright-results.trx" --verbosity normal
+
+      # Never let a skip be silent: if the suite did not actually execute
+      # (no TRX), emit an explicit annotation so a green run can never be
+      # mistaken for a run that exercised the UI.
+      - name: Surface Playwright skip (never silent)
+        if: always()
+        run: |
+          trx=$(ls tests/playwright-csharp/TestResults/*.trx 2>/dev/null | head -n1)
+          if [ -z "$trx" ]; then
+            echo "::warning title=Playwright suite did not run::No TRX file was produced. The Playwright suite did NOT execute this run."
+            exit 0
+          fi
+          echo "::notice title=Playwright suite ran::The Playwright suite executed and produced results in TestResults/playwright-results.trx."
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: |
+            tests/playwright-csharp/TestResults/*.trx
+            tests/playwright-csharp/playwright-report/
+          retention-days: 7
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          echo "=== Server log ==="
+          cat /tmp/oc-server.log 2>/dev/null | tail -40
+          echo "=== MCP log ==="
+          cat /tmp/oc-mcp.log 2>/dev/null | tail -40
+
+      - name: Stop test stack
+        if: always()
+        run: |
+          for f in /tmp/oc-mcp.pid /tmp/oc-server.pid; do
+            if [ -f "$f" ]; then kill "$(cat $f)" 2>/dev/null || true; fi
+          done
+          docker rm -f oc-surrealdb-test 2>/dev/null || true

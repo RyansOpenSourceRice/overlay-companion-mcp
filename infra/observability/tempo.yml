@@ -1,0 +1,28 @@
+# Grafana Tempo config for the Overlay Companion observability glue (Phase D).
+# Minimal trace backend; the app's OpenRouter traces land here via Alloy.
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc: {}
+        http: {}
+
+ingester:
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+
+compactor:
+  compaction:
+    compaction_window: 1h
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/traces

@@ -1,0 +1,5 @@
+# OTel Collector for the Overlay Companion observability glue (Phase D).
+# Pinned build so the ingest behavior is reproducible.
+FROM otel/opentelemetry-collector-contrib:0.111.0
+COPY otel-collector.yml /etc/otelcol/config.yml
+EXPOSE 4317 4318 13133

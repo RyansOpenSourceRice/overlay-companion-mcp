@@ -78,6 +78,21 @@ services:
     expose:
       - "3003"
 
+  # Bidirectional clipboard (Phase E2/E3). Bridges browser ↔ VM clipboard with
+  # X-API-Key auth (fail-fast if unset) and a CORS origin pinned to the web UI.
+  clipboard-bridge:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.clipboard
+    image: overlay-companion/clipboard-bridge:latest
+    environment:
+      CLIPBOARD_BRIDGE_API_KEY: ${CLIPBOARD_BRIDGE_API_KEY:?CLIPBOARD_BRIDGE_API_KEY must be set}
+      CLIPBOARD_BRIDGE_ALLOWED_ORIGIN: ${CLIPBOARD_BRIDGE_ALLOWED_ORIGIN:-http://localhost:8082}
+      DISPLAY: ${DISPLAY:-}
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-}
+    ports:
+      - "${CLIPBOARD_BRIDGE_PORT:-8765}:8765"
+
   # SurrealDB is the only database (per Ryan's preferences §9). Decoupled as a
   # standalone service so it can move to K3S independently. Backs users,
   # sessions, connections, audit log, and app configuration for both the TS

@@ -1,0 +1,121 @@
+using Microsoft.Extensions.Logging;
+
+namespace OverlayCompanion.Services;
+
+/// <summary>
+/// Identifies which agent may currently draw overlays on the shared canvas.
+/// Prevents two agents (the in-app "interior" chat assistant and an external
+/// MCP-connected "exterior" agent) from simultaneously owning the same display.
+///
+/// The active actor is persisted in SurrealDB app_config (`general.activeActor`)
+/// so both the C# MCP server and the web layer agree on ownership. Switching
+/// actors releases overlays authored by the other actor (recoverable from the
+/// audit log) so the two never fight over the screen.
+/// </summary>
+public enum DisplayActor
+{
+    /// <summary>The built-in in-app chat assistant (interior agent).</summary>
+    Interior,
+    /// <summary>An external MCP-connected agent (exterior agent).</summary>
+    Exterior,
+}
+
+public static class DisplayActorExtensions
+{
+    public static string ToKey(this DisplayActor actor)
+        => actor == DisplayActor.Interior ? "interior" : "exterior";
+
+    public static DisplayActor ToActor(this string key)
+        => string.Equals(key, "interior", System.StringComparison.OrdinalIgnoreCase)
+            ? DisplayActor.Interior
+            : DisplayActor.Exterior;
+}
+
+public interface IDisplayActorGate
+{
+    /// <summary>The actor that currently owns overlay-write authority.</summary>
+    Task<DisplayActor> GetActiveActorAsync(System.Threading.CancellationToken ct = default);
+
+    /// <summary>Switch ownership; releases overlays authored by the losing actor.</summary>
+    Task<DisplayActor> SetActiveActorAsync(DisplayActor actor, System.Threading.CancellationToken ct = default);
+
+    /// <summary>True if the given caller is the current owner and may write overlays.</summary>
+    Task<bool> CanWriteAsync(DisplayActor caller, System.Threading.CancellationToken ct = default);
+
+    /// <summary>Raised when ownership changes, with the newly active actor.</summary>
+    event System.EventHandler<DisplayActor>? ActorChanged;
+}
+
+public class DisplayActorGate : IDisplayActorGate
+{
+    private readonly ISurrealStore _store;
+    private readonly IOverlayService _overlays;
+    private readonly Microsoft.Extensions.Logging.ILogger<DisplayActorGate> _logger;
+    public const string SettingKey = "general.activeActor";
+
+    public DisplayActorGate(
+        ISurrealStore store,
+        IOverlayService overlays,
+        Microsoft.Extensions.Logging.ILogger<DisplayActorGate> logger)
+    {
+        _store = store;
+        _overlays = overlays;
+        _logger = logger;
+    }
+
+    public event System.EventHandler<DisplayActor>? ActorChanged;
+
+    public async Task<DisplayActor> GetActiveActorAsync(System.Threading.CancellationToken ct = default)
+    {
+        var value = await _store.GetSettingAsync<string>(SettingKey, null, ct);
+        return string.IsNullOrEmpty(value) ? DisplayActor.Exterior : value.ToActor();
+    }
+
+    public async Task<DisplayActor> SetActiveActorAsync(DisplayActor actor, System.Threading.CancellationToken ct = default)
+    {
+        var previous = await GetActiveActorAsync(ct);
+        if (previous == actor) return previous;
+
+        if (!IsSettingSafe(actor.ToKey()))
+        {
+            throw new InvalidOperationException("Invalid display actor.");
+        }
+        await _store.SetSettingAsync(SettingKey, actor.ToKey(), ct);
+
+        // Release overlays not authored by the new owner so the two never share.
+        var active = await _overlays.GetActiveOverlaysAsync();
+        var toRelease = active
+            .Where(o => !IsOwnedBy(o, actor))
+            .Select(o => o.Id)
+            .ToArray();
+        foreach (var id in toRelease)
+        {
+            await _overlays.RemoveOverlayAsync(id);
+        }
+        if (toRelease.Length > 0)
+        {
+            _logger.LogInformation("Actor switch -> {Actor} released {Count} overlays of the other actor", actor.ToKey(), toRelease.Length);
+        }
+
+        ActorChanged?.Invoke(this, actor);
+        return actor;
+    }
+
+    public async Task<bool> CanWriteAsync(DisplayActor caller, System.Threading.CancellationToken ct = default)
+    {
+        var active = await GetActiveActorAsync(ct);
+        return caller == active;
+    }
+
+    private static bool IsSettingSafe(string value)
+        => value is "interior" or "exterior";
+
+    private static bool IsOwnedBy(OverlayCompanion.Models.OverlayElement o, DisplayActor actor)
+    {
+        // Overlays authored while an actor was active carry that actor; ones
+        // recorded before actor tracking existed default to the new owner to
+        // avoid clobbering. (Actor is recorded on OverlayElement.Actor.)
+        if (string.IsNullOrEmpty(o.Actor)) return true;
+        return string.Equals(o.Actor, actor.ToKey(), System.StringComparison.OrdinalIgnoreCase);
+    }
+}
