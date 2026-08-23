@@ -22,6 +22,7 @@ import { ConnectionManager } from './connection-manager.js';
 import { TlsManager, TlsSettings } from './tls-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import { toNodeHandler } from 'better-auth/node';
+import { APIError } from 'better-auth';
 import {
   AuthState,
   hashPassword,
@@ -454,15 +455,35 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// SECURITY: Shared knobs for the auth brute-force budgets. Keep the per-IP
+// limiters below and the twoFactor plugin's accountLockout (10 attempts / 15
+// min) aligned so they can't drift apart.
+const AUTH_WINDOW_MS = 60 * 1000;
+const MAX_AUTH_ATTEMPTS = 10;
+
 // SECURITY: Strict rate limit for login/register endpoints (§7). 10 attempts
 // per minute per IP is the floor; tuned to slow brute force without locking out
 // a legitimate user behind a shared NAT.
 const loginLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
+  windowMs: AUTH_WINDOW_MS,
+  max: MAX_AUTH_ATTEMPTS,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: 'rate_limited', message: 'Too many auth attempts. Slow down.' } },
+});
+
+// SECURITY: Separate per-IP limiter for the TOTP second step so a few wrong
+// codes (plus the password step) do not exhaust the shared login budget. It is
+// a complement to — not a replacement for — the twoFactor plugin's per-account
+// accountLockout (same MAX_AUTH_ATTEMPTS, fixed 15-min window), which is what
+// actually stops brute-force across rotating IPs. Do not remove accountLockout
+// believing this limiter alone is sufficient.
+const totpLimiter = rateLimit({
+  windowMs: AUTH_WINDOW_MS,
+  max: MAX_AUTH_ATTEMPTS,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: 'rate_limited', message: 'Too many verification attempts. Slow down.' } },
 });
 
 // SECURITY: Rate limiting for MCP proxy to prevent abuse
@@ -494,8 +515,12 @@ app.get('/auth/status', (async (_req: Request, res: Response) => {
     oidc: { configured: false, issuer: null },
     local: { enabled: true },
     signup: { allowed: true },
-    passkey: { enabled: true }, // §7 optional WebAuthn/hardware keys (per-account opt-in)
-    totp: { enabled: true }, // §7 optional TOTP 2FA (per-account opt-in)
+    // §7 optional passkeys (WebAuthn) + TOTP. Passkeys only function when the
+    // deployment origin matches the configured RP ID, so reflect that here
+    // instead of advertising them when the RP ID is unset (falls back to
+    // 'localhost' in better-auth.ts).
+    passkey: { enabled: Boolean(process.env.BETTER_AUTH_PASSKEY_RP_ID) },
+    totp: { enabled: true }, // TOTP has no origin requirement
   });
 }) as RequestHandler);
 
@@ -504,6 +529,138 @@ app.get('/auth/me', requireBetterAuthSession, (async (req: Request, res: Respons
   const state = (req as Request & { authState?: AuthState }).authState!;
   res.json({ user: state.user, csrfToken: '' });
 }) as RequestHandler);
+
+// Map a Better Auth user to the app's response shape (shared by the local
+// login and TOTP-verify success paths so the user contract stays consistent).
+function buildUserResponse(u: { id: string; name?: string | null; email?: string | null }): Record<string, unknown> {
+  return {
+    user: {
+      id: u.id,
+      username: (u.name && u.name.trim()) || u.email || 'user',
+      email: u.email ?? undefined,
+      roles: [],
+      provider: 'better-auth',
+    },
+    csrfToken: '',
+  };
+}
+
+// Safe error-message extraction for catch blocks (a thrown value may not be an
+// Error instance).
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// Full shape of a Better Auth sign-in/verify response with the two-factor
+// plugin's added fields and an Express-headers wrapper, as produced by
+// api.* calls with returnHeaders: true.
+interface AuthApiResponse {
+  headers?: Headers;
+  response?: {
+    user?: { id: string; name?: string | null; email?: string | null };
+    twoFactorRedirect?: boolean;
+    twoFactorMethods?: string[];
+  };
+}
+
+// Unwrap the plugin-added twoFactor fields from a returnHeaders response.
+function authResponseFields(v: AuthApiResponse | undefined): { twoFactorRedirect: boolean; twoFactorMethods: string[] } {
+  return {
+    twoFactorRedirect: Boolean(v?.response?.twoFactorRedirect),
+    twoFactorMethods: v?.response?.twoFactorMethods ?? [],
+  };
+}
+
+// Unwrap the signed-in user from a returnHeaders response (undefined if absent).
+function authResponseUser(v: AuthApiResponse | undefined): { id: string; name?: string | null; email?: string | null } | undefined {
+  return v?.response?.user;
+}
+
+// Extract the HTTP status code from a Better Auth response when it resolves to
+// an APIError (e.g. wrong password → 401, two-factor lockout → 429) rather than
+// a successful user payload. Returns undefined when the response carries a user
+// (no error) so callers can distinguish success from failure.
+function authResponseErrorStatus(v: AuthApiResponse | undefined): number | undefined {
+  const body = v?.response;
+  if (!body) return undefined;
+  if ('user' in body) return undefined;
+  const maybe = body as unknown as { statusCode?: number };
+  return typeof maybe.statusCode === 'number' ? maybe.statusCode : undefined;
+}
+
+// Respond for the "no signed-in user" branch of the auth adapters, distinguishing
+// a lockout/rate limit (429) from a bad credential or code (401).
+function respondAuthNoUser(res: Response, v: AuthApiResponse | undefined, badMessage: string): void {
+  const errStatus = authResponseErrorStatus(v);
+  if (errStatus != null && errStatus < 500) {
+    const locked = errStatus === 429;
+    res.status(errStatus).json({
+      error: {
+        code: locked ? 'too_many_attempts' : 'auth_failed',
+        message: locked ? 'Too many attempts. Try again shortly.' : badMessage,
+      },
+    });
+    return;
+  }
+  res.status(401).json({ error: { code: 'auth_failed', message: badMessage } });
+}
+
+// Sentinel for a runtime that lacks Headers.getSetCookie (engines require
+// Node >= 18.14). handleAuthError matches on this type, not on an error-message
+// string, so a reworded message can't silently change the response code.
+class MissingGetSetCookieError extends Error {
+  constructor() {
+    super('Headers.getSetCookie is unavailable; Node >= 18.14 is required.');
+    this.name = 'MissingGetSetCookieError';
+  }
+}
+
+// Shared catch for the auth adapters. A thrown BetterAuth APIError carries a
+// statusCode; map a 4xx (bad/expired code, rate limit) to a client error and a
+// 5xx (or anything else like a DB outage or a bug) to a server error. Expected
+// auth failures (wrong password) are typically handled by the 401 early-return
+// branch, so this catch is the safety net for thrown errors.
+function handleAuthError(res: Response, err: unknown, userMessage = 'Sign-in failed.'): void {
+  if (err instanceof MissingGetSetCookieError) {
+    log.error('Headers.getSetCookie unavailable:', errMsg(err));
+    res.status(500).json({ error: { code: 'server_error', message: 'Internal server error.' } });
+    return;
+  }
+  if (err instanceof APIError) {
+    const sc = (err as APIError & { statusCode?: number }).statusCode ?? 400;
+    log.warn('Auth flow error:', errMsg(err));
+    if (sc >= 400 && sc < 500) {
+      // Preserve the real status code (e.g. 429 on rate-limit/lockout) so the
+      // client can distinguish a lockout from a bad code, without leaking
+      // internal error details in the message.
+      const locked = sc === 429;
+      res.status(sc).json({
+        error: {
+          code: locked ? 'too_many_attempts' : 'auth_failed',
+          message: locked ? 'Too many attempts. Try again shortly.' : userMessage,
+        },
+      });
+      return;
+    }
+  }
+  log.error('Unexpected auth failure:', errMsg(err));
+  res.status(500).json({ error: { code: 'server_error', message: 'Internal server error.' } });
+}
+
+// Forward Better Auth's response headers (notably Set-Cookie for the session
+// and two_factor cookies) from an api.* call to the Express response. Better
+// Auth only returns headers when the call opts into returnHeaders: true.
+function applyBetterAuthHeaders(res: Response, headers: Headers | undefined): void {
+  if (!headers) return;
+  // getSetCookie (Node >= 18.14, matching the engines requirement) returns
+  // every Set-Cookie value. Fail loudly (typed error) rather than silently
+  // forwarding only the first cookie, which would break the session +
+  // two_factor cookie flow on a misconfigured runtime.
+  if (typeof headers.getSetCookie !== 'function') {
+    throw new MissingGetSetCookieError();
+  }
+  for (const c of headers.getSetCookie()) res.append('Set-Cookie', c);
+}
 
 // POST /auth/local/login — legacy adapter: proxy to Better Auth sign-in with
 // the submitted username/email + password. Returns the session user.
@@ -514,24 +671,56 @@ app.post('/auth/local/login', loginLimiter, (async (req: Request, res: Response)
     return;
   }
   try {
-    const result = await betterAuth.api.signInEmail({ body: { email: username, password }, headers: req.headers });
-    const u = result?.user;
-    if (!u) {
-      res.status(401).json({ error: { code: 'auth_failed', message: 'Invalid credentials.' } });
+    await ensureBetterAuthDb();
+    const raw = await betterAuth.api.signInEmail({ body: { email: username, password }, headers: req.headers, returnHeaders: true });
+    // TOTP-enabled account: Better Auth (via the two-factor plugin) returns a
+    // challenge instead of a user. The static return type doesn't include the
+    // plugin-added twoFactorRedirect, so widen it here.
+    const result = raw as (typeof raw & AuthApiResponse) | undefined;
+    const { twoFactorRedirect, twoFactorMethods } = authResponseFields(result);
+    if (twoFactorRedirect) {
+      applyBetterAuthHeaders(res, result?.headers);
+      res.json({
+        twoFactor: { required: true, methods: twoFactorMethods.length ? twoFactorMethods : ['totp'] },
+        csrfToken: '',
+      });
       return;
     }
-    res.json({
-      user: {
-        id: u.id,
-        username: u.name ?? u.email,
-        email: u.email,
-        roles: [],
-        provider: 'better-auth',
-      },
-      csrfToken: '',
-    });
+    const u = authResponseUser(result);
+    if (!u) {
+      respondAuthNoUser(res, result, 'Invalid credentials.');
+      return;
+    }
+    applyBetterAuthHeaders(res, result?.headers);
+    res.json(buildUserResponse(u));
   } catch (err) {
-    res.status(400).json({ error: { code: 'auth_failed', message: (err as Error).message } });
+    handleAuthError(res, err);
+  }
+}) as RequestHandler);
+
+// POST /auth/local/verify-totp — second step for a TOTP-enabled account after
+// /auth/local/login returned twoFactor.required. Proxies Better Auth's
+// verify-totp endpoint. The sign-in step already set Better Auth's signed
+// `two_factor` cookie on this browser session, so only the 6-digit code is
+// needed here; the cookie (forwarded in headers) authorizes the verify.
+app.post('/auth/local/verify-totp', totpLimiter, (async (req: Request, res: Response) => {
+  const { code } = (req.body || {}) as { code?: string };
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'A 6-digit code is required.' } });
+    return;
+  }
+  try {
+    await ensureBetterAuthDb();
+    const result = (await betterAuth.api.verifyTOTP({ body: { code, trustDevice: false }, headers: req.headers, returnHeaders: true })) as AuthApiResponse | undefined;
+    const u = authResponseUser(result);
+    if (!u) {
+      respondAuthNoUser(res, result, 'Invalid or expired code.');
+      return;
+    }
+    applyBetterAuthHeaders(res, result?.headers);
+    res.json(buildUserResponse(u));
+  } catch (err) {
+    handleAuthError(res, err, 'Verification failed.');
   }
 }) as RequestHandler);
 

@@ -15,6 +15,7 @@ import {
   loginLocal,
   loginWithOidc,
   registerLocal,
+  verifyLocalTotp,
   putSetting,
   logout,
   deleteAccount,
@@ -66,11 +67,27 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errBox.textContent = '';
+      submit.disabled = true;
       try {
-        const user = await loginLocal(username.input.value, password.input.value);
-        onLoggedIn(user);
+        const result = await loginLocal(username.input.value, password.input.value);
+        if (result.twoFactor?.required) {
+          // Only TOTP is wired as a second factor (§7); if the account's
+          // required method isn't TOTP, surface that instead of a dead step.
+          const needsTotp = !result.twoFactor.methods || result.twoFactor.methods.includes('totp');
+          if (!needsTotp) {
+            errBox.textContent = 'This account uses another 2FA method that is not supported yet.';
+            return;
+          }
+          // TOTP-enabled account: prompt for the authenticator code (§7).
+          errBox.textContent = '';
+          showTotpStep(form, onLoggedIn);
+          return;
+        }
+        onLoggedIn(result.user!);
       } catch (err) {
         errBox.textContent = (err as Error).message;
+      } finally {
+        submit.disabled = false;
       }
     });
     form.appendChild(errBox);
@@ -109,6 +126,45 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
 }
 
 // ---- Settings forms (GUI-first config, §9) -----------------------------
+
+// Second step of local sign-in for a TOTP-enabled account (§7). The password
+// step already set Better Auth's signed `two_factor` cookie on this session;
+// this prompts for the authenticator code and completes the login.
+function showTotpStep(form: HTMLFormElement, onLoggedIn: (u: CurrentUser) => void): void {
+  // Build the TOTP step as a fresh <form> and replace the password form, so the
+  // password handler is discarded rather than firing alongside the verify one.
+  const step = el('form', 'login-local-form') as HTMLFormElement;
+  step.appendChild(el('h3', '', 'Two-factor authentication'));
+  step.appendChild(el('p', 'login-hint', 'Enter the 6-digit code from your authenticator app.'));
+  const code = inputField('otp-code', 'Authenticator code');
+  const submit = el('button', 'btn btn-secondary', 'Verify') as HTMLButtonElement;
+  submit.type = 'submit';
+  const errBox = el('div', 'login-error');
+  step.append(code.wrap, submit, errBox);
+  step.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.textContent = '';
+    const value = code.input.value.trim();
+    // Fail fast on a malformed code so the rate-limited verify endpoint's
+    // budget is reserved for genuine brute-force attempts.
+    if (!/^\d{6}$/.test(value)) {
+      errBox.textContent = 'Enter the 6-digit code from your authenticator app.';
+      return;
+    }
+    // Guard against concurrent submits (double-click) while verification is
+    // in flight; re-enable on error so the user can correct and retry.
+    submit.disabled = true;
+    try {
+      const user = await verifyLocalTotp(value);
+      onLoggedIn(user);
+    } catch (err) {
+      errBox.textContent = (err as Error).message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  form.replaceWith(step);
+}
 
 export async function renderSettingsForms(container: HTMLElement, user: CurrentUser): Promise<void> {
   const isAdmin = user.roles.includes('admin');
@@ -149,7 +205,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
     ], () => saveAuthSection(container, 'signup', isAdmin)),
   );
 
-const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? {};
+  const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? {};
   container.appendChild(
     settingsCard('Session', 'How long a login stays valid.', [
       numberRow('ttlMinutes', 'Session TTL (minutes)', Number(session.ttlMinutes ?? 480), isAdmin),
@@ -178,7 +234,6 @@ const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? 
         el('p', 'settings-hint', passkeyEnabled ? 'Passkeys: enabled (optional).' : 'Passkeys: available.'),
         el('p', 'settings-hint', totpEnabled ? 'TOTP 2FA: enabled (optional).' : 'TOTP 2FA: available.'),
       ],
-      () => {},
     ),
   );
 
@@ -463,16 +518,18 @@ function inputField(id: string, label: string, type = 'text'): { wrap: HTMLEleme
   return { wrap, input };
 }
 
-function settingsCard(title: string, description: string, rows: HTMLElement[], onSave: () => void): HTMLElement {
+function settingsCard(title: string, description: string, rows: HTMLElement[], onSave?: () => void): HTMLElement {
   const card = el('div', 'settings-card');
   card.appendChild(el('h4', '', title));
   card.appendChild(el('p', 'settings-card-desc', description));
   const body = el('div', 'settings-card-body');
   rows.forEach((r) => body.appendChild(r));
   card.appendChild(body);
-  const saveBtn = el('button', 'btn btn-primary', 'Save');
-  saveBtn.addEventListener('click', onSave);
-  card.appendChild(saveBtn);
+  if (onSave) {
+    const saveBtn = el('button', 'btn btn-primary', 'Save');
+    saveBtn.addEventListener('click', onSave);
+    card.appendChild(saveBtn);
+  }
   return card;
 }
 

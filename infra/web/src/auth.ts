@@ -60,14 +60,49 @@ export async function loginWithOidc(redirect = '/'): Promise<void> {
   window.location.href = `/auth/login?redirect=${encodeURIComponent(redirect)}`;
 }
 
-export async function loginLocal(email: string, password: string): Promise<CurrentUser> {
-  const res = await fetch('/api/auth/sign-in/email', {
+export interface LoginResult {
+  user?: CurrentUser;
+  twoFactor?: { required: boolean; methods: string[] };
+}
+
+interface LoginResponse extends LoginResult {
+  error?: { message?: string };
+}
+
+// Shared POST + defensive-parse helper for the two-step local auth flow. The
+// endpoints sit behind rate limiters that may return non-JSON bodies, so the
+// parse is guarded.
+async function postAuth<T>(url: string, body: Record<string, unknown>): Promise<{ res: Response; data: T }> {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!res.ok || !data?.user) throw new Error(data?.message ?? 'Login failed');
+  const data = (await res.json().catch(() => ({}))) as T;
+  return { res, data };
+}
+
+export async function loginLocal(email: string, password: string): Promise<LoginResult> {
+  // Go through the rate-limited /auth/local/login adapter so the two-factor
+  // contract ({ twoFactor: { required, methods } }) is consistent and the
+  // password step is not bypassing the limiter.
+  const { res, data } = await postAuth<LoginResponse>('/auth/local/login', { username: email, password });
+  if (data?.twoFactor?.required) {
+    if (!res.ok) throw new Error(data?.error?.message ?? 'Login failed');
+    return { twoFactor: { required: true, methods: data.twoFactor.methods ?? ['totp'] } };
+  }
+  return { user: requireAuthUser(res, data, 'Login failed') };
+}
+
+export async function verifyLocalTotp(code: string): Promise<CurrentUser> {
+  const { res, data } = await postAuth<LoginResponse>('/auth/local/verify-totp', { code });
+  return requireAuthUser(res, data, 'Verification failed');
+}
+
+// Shared success-check for the auth endpoints: throws if the request was not
+// OK or the response lacks a user, preferring the server's (sanitized) message.
+function requireAuthUser(res: Response, data: LoginResponse, fallback: string): CurrentUser {
+  if (!res.ok || !data?.user) throw new Error(data?.error?.message ?? fallback);
   return data.user;
 }
 

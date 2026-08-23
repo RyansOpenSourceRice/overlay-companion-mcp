@@ -89,14 +89,28 @@ export const auth = betterAuth({
     // Both are opt-in per account: a user adds a passkey or enables TOTP from
     // the Settings > Security UI; neither is forced at sign-up. Password +
     // passkey + TOTP can be combined (defense in depth for a self-hosted app).
-    passkey({
-      rpID: process.env.BETTER_AUTH_PASSKEY_RP_ID || 'localhost',
-      rpName: 'Overlay Companion MCP',
-      origin: process.env.BETTER_AUTH_URL || 'http://localhost:8080',
-    }),
+    //
+    // The passkey plugin is registered only when BETTER_AUTH_PASSKEY_RP_ID is
+    // set: WebAuthn only functions when the deployment origin matches the RP
+    // ID, so without it the plugin would advertise passkeys that fail in the
+    // browser. /auth/status mirrors this (passkey.enabled = !!RP_ID).
+    ...(process.env.BETTER_AUTH_PASSKEY_RP_ID
+      ? [
+          passkey({
+            rpID: process.env.BETTER_AUTH_PASSKEY_RP_ID,
+            rpName: 'Overlay Companion MCP',
+            origin: process.env.BETTER_AUTH_URL || 'http://localhost:8080',
+          }),
+        ]
+      : []),
     twoFactor({
       issuer: 'Overlay Companion MCP',
       otpOptions: { digits: 6, period: 30 },
+      // Per-account lockout on failed second-factor verifications: 10
+      // consecutive failures locks the account for 15 minutes (plugin
+      // defaults). This caps TOTP brute-force even across rotated IPs, which
+      // the per-IP totpLimiter alone cannot do.
+      accountLockout: { enabled: true, maxFailedAttempts: 10, durationSeconds: 900 },
     }),
   ],
 });
