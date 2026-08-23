@@ -29,6 +29,23 @@ public class LoginFlowTests : PlaywrightWebTestBase
     }
 
     [TestMethod]
+    public async Task AuthStatusReportsPasskeyAndTotp()
+    {
+        // §7: the status contract now advertises the optional second factors.
+        // TOTP has no origin requirement so is always enabled; passkey is only
+        // reported enabled when BETTER_AUTH_PASSKEY_RP_ID is set (matches
+        // better-auth.ts, which registers the passkey plugin conditionally).
+        await GoToAsync("/auth/status");
+        var body = await BodyTextAsync();
+        Assert.IsTrue(body.Contains("\"passkey\""),
+            "/auth/status should advertise the passkey field.");
+        Assert.IsTrue(body.Contains("\"totp\""),
+            "/auth/status should advertise the totp field.");
+        Assert.IsTrue(body.Contains("\"enabled\"") && body.Contains("true"),
+            "The second-factor fields should expose an enabled flag.");
+    }
+
+    [TestMethod]
     public async Task LocalLoginFlow_SignsInAndExposesSession()
     {
         await RegisterOrLoginAsync(TestUsername, TestPassword);

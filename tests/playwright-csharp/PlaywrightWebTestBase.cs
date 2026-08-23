@@ -95,6 +95,28 @@ public abstract class PlaywrightWebTestBase : IDisposable
         return ret ?? -1;
     }
 
+    /// <summary>
+    /// In-page fetch that returns both the HTTP status and the raw response
+    /// body (as a JSON string), so tests can inspect response payloads (e.g.
+    /// the TOTP challenge / user shape) rather than only the status code.
+    /// </summary>
+    protected async Task<(int Status, string Body)> FetchJsonAsync(string path, string method, string body, string? csrf = null)
+    {
+        var scriptBody = JsonBody(body);
+        var headers = csrf is null
+            ? "'Content-Type': 'application/json'"
+            : $"'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf}'";
+        var raw = await Page!.EvaluateAsync<string>(
+            $"fetch('{path}', {{ method: '{method}', headers: {{ {headers} }}, body: {scriptBody}, credentials: 'include' }}).then(async r => r.status + '\\n' + await r.text())");
+        int nl = raw.IndexOf('\n');
+        int status = int.TryParse(raw[..nl], out var s) ? s : -1;
+        return (status, raw[(nl + 1)..]);
+    }
+
+    /// <summary>JSON-encode a C# string for safe embedding in an in-page fetch body.</summary>
+    private static string JsonBody(string value)
+        => "'" + value.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "\\r") + "'";
+
     /// <summary>Capture a Playwright trace on failure for CI debugging.</summary>
     protected async Task SaveTraceIfAvailableAsync(string name)
     {
