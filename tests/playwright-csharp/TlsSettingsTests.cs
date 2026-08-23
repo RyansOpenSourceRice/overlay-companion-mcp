@@ -13,7 +13,7 @@ namespace OverlayCompanion.Tests.Playwright;
 [TestClass]
 public class TlsSettingsTests : PlaywrightWebTestBase
 {
-    private const string TestUsername = AssemblyInit.AdminUsername;
+    private const string TestEmail = AssemblyInit.AdminEmail;
     private const string TestPassword = AssemblyInit.AdminPassword;
 
     [TestInitialize]
@@ -61,7 +61,7 @@ public class TlsSettingsTests : PlaywrightWebTestBase
         {
             await Context!.AddCookiesAsync(new[]
             {
-                new Cookie { Name = "oc_session", Value = AssemblyInit.SessionCookieValue, Url = TargetUrl.TrimEnd('/') + "/", Path = "/" }
+                new Cookie { Name = "better-auth.session_token", Value = AssemblyInit.SessionCookieValue, Url = TargetUrl.TrimEnd('/') + "/", Path = "/" }
             });
             await GoToAsync("/");
         }
@@ -70,7 +70,7 @@ public class TlsSettingsTests : PlaywrightWebTestBase
             for (int attempt = 0; attempt < 3; attempt++)
             {
                 await GoToAsync("/");
-                await LoginAsAdminAsync(TestUsername, TestPassword);
+                await LoginAsAdminAsync(TestEmail, TestPassword);
                 await GoToAsync("/");
                 if (await WaitForNavAsync(10)) break;
             }

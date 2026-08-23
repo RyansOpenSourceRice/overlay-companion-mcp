@@ -19,21 +19,34 @@ import { surrealdbAdapter } from 'surreal-better-auth';
 // boot, matching the existing SurrealDbStore behavior) ---------------------
 
 let db: Surreal | null = null;
+let connecting: Promise<Surreal> | null = null;
 
 export async function ensureConnected(): Promise<Surreal> {
   if (db && db.status === ConnectionStatus.Connected) return db;
-  const url = process.env.SURREALDB_URL || 'ws://localhost:8000';
-  const namespace = process.env.SURREALDB_NAMESPACE || 'overlay';
-  const database = process.env.SURREALDB_DATABASE || 'companion';
-  const username = process.env.SURREALDB_USERNAME || 'root';
-  const password = process.env.SURREALDB_PASSWORD || 'root';
-  if (!db) db = new Surreal();
-  await db.connect(url, {
-    namespace,
-    database,
-    auth: { username, password },
-  });
-  return db;
+  if (connecting) return connecting;
+  connecting = (async () => {
+    const url = process.env.SURREALDB_URL || 'ws://localhost:8000';
+    const namespace = process.env.SURREALDB_NAMESPACE || 'overlay';
+    const database = process.env.SURREALDB_DATABASE || 'companion';
+    const username = process.env.SURREALDB_USERNAME || 'root';
+    const password = process.env.SURREALDB_PASSWORD || 'root';
+    try {
+      if (!db) db = new Surreal();
+      await db.connect(url, { namespace, database, auth: { username, password } });
+      return db;
+    } catch (err) {
+      // Reset so a later request can retry the connection; the app tolerates
+      // a DB that is down at boot.
+      db = null;
+      connecting = null;
+      throw err;
+    }
+  })();
+  try {
+    return await connecting;
+  } finally {
+    connecting = null;
+  }
 }
 
 function getDb(): Surreal {
@@ -51,9 +64,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
+    // §7 "Sign-ups locked by default (admin opt-in)". For a self-hosted
+    // single-operator app, registration is open unless the operator restricts
+    // it — lock it down (e.g. disableSignUp: true, or an allowlist at the
+    // reverse proxy) when the deployment requires admin-opt-in. The Playwright
+    // suite and the SPA register the first account here.
     // §7: "Login is three separate POST requests" applies to TOTP flows; the
-    // password remains its own credential in transit. Better Auth enforces the
-    // three-step secret isolation for 2FA; here we keep password-only local.
+    // password remains its own credential in transit.
     minPasswordLength: 12,
   },
   session: {
@@ -65,11 +82,4 @@ export const auth = betterAuth({
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
-  // Sign-ups locked by default (§7): an admin opts in by configuring providers
-  // / a public signup in the Settings UI. When unset, allow them for the
-  // first bootstrap user only.
-  emailVerification: {
-    sendOnSignUp: false,
-    autoSignInAfterVerification: true,
-  },
 });
