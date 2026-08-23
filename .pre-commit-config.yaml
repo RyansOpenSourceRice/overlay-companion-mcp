@@ -116,6 +116,15 @@ repos:
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
 
+      # Ontology validation + deterministic sorting (rdflib, pure Python).
+      # No Jena container, no OpenJDK — runs on any machine with python3.
+      # Auto-installs rdflib into a project-local venv on first run.
+      - id: ontology-validate-sort
+        name: ontology (rdflib validate + sort)
+        entry: bash -c 'command -v python3 >/dev/null 2>&1 || { echo "python3 required for ontology hook"; exit 1; }; ./scripts/ontology-validate-sort.sh "$@"' --
+        language: system
+        files: ^docs/ontology/.*\.ttl$
+
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.38.0

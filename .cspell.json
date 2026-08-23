@@ -1215,6 +1215,11 @@
     "selfsigned",
     "self-signed",
     "keyserver",
-    "httpOnly"
+    "httpOnly",
+    "rdflib",
+    "SPARQL",
+    "Fuseki",
+    "Turtle",
+    "ttl"
   ]
 }

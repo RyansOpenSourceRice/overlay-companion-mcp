@@ -79,3 +79,24 @@ Wazuh is an external compose the admin runs. This app ships log shipping
 
 *Authored by an AI agent on behalf of Ryan. This is a validated subset of
 Ryan's preferences; the binding decisions are Ryan's.*
+
+## Project ontology (§36)
+
+The project's machine-readable knowledge graph lives at
+`docs/ontology/project.ontology.ttl`. It archives decisions, quality rules,
+open problems, components, MCP tools, protocols, milestones, risks, and
+agent-session handoff notes so agents can communicate across sessions that
+lack memory.
+
+- **Read it** at the start of any session on this repo. It is the single
+  source of truth for decisions and open problems.
+- **Update it** whenever you make a decision, close or open a problem, add a
+  component/tool, or finish a session worth handing off. Add a `Session`
+  entry with a summary and open questions.
+- **Format**: Turtle, sorted deterministically. The pre-commit hook
+  (`ontology-validate-sort`) re-serializes it with rdflib and fails if the
+  committed form differs. Regenerate from `docs/ontology/generate.py` when
+  adding schema, or hand-edit instance triples in sorted order.
+- **SPARQL**: when a Fuseki dataset is configured for this project, query it
+  via the Jena MCP server; the file remains the canonical committed form.
+
