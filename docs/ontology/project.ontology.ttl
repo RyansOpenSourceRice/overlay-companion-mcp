@@ -302,6 +302,7 @@
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasRisk> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Risk-R-004-rate-limiting> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasRisk> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Risk-R-005-dual-canvas-ownership> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSession> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Session-001-ontology-setup> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSkill> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult-T-001-playwright-web-suite> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult-T-002-mcp-raw-json-functional> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Project> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult-T-003-ci-cd-pipeline> .
@@ -500,6 +501,14 @@
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Session-001-ontology-setup> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#summary> "Created the project ontology, AGENTS.md pointer, and rdflib pre-commit hook for Overlay Companion MCP." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Session-001-ontology-setup> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#timestamp> "2026-08-22T00:00:00Z" .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Session-001-ontology-setup> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#title> "Ontology setup session" .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2000/01/rdf-schema#Class> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill> <http://www.w3.org/2000/01/rdf-schema#comment> "An external agent skill this project references (registered in the skill conglomerate ontology)." .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill> <http://www.w3.org/2000/01/rdf-schema#label> "Skill" .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#note> "TypeScript auth framework (email/password, OAuth, passkeys/WebAuthn, TOTP, RBAC). Per §7 default for in-app auth." .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#referencesExternalSkill> <https://gitlab.com/RyansOpenSourceRice/ryans_agent_skill_ontology_535/onto#Skill-better-auth> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#skillId> "SK1" .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#Skill-SK1-better-auth> <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#title> "better-auth-create-auth" .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2000/01/rdf-schema#Class> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult> <http://www.w3.org/2000/01/rdf-schema#comment> "A recorded test or validation outcome." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#TestResult> <http://www.w3.org/2000/01/rdf-schema#label> "TestResult" .
@@ -673,6 +682,9 @@
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSession> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSession> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a Project to a Session." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSession> <http://www.w3.org/2000/01/rdf-schema#label> "hasSession" .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSkill> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSkill> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a Project to an external agent Skill (from the skill conglomerate)." .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasSkill> <http://www.w3.org/2000/01/rdf-schema#label> "hasSkill" .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a Project to a TestResult." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#hasTestResult> <http://www.w3.org/2000/01/rdf-schema#label> "hasTestResult" .
@@ -715,6 +727,9 @@
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#references> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#references> <http://www.w3.org/2000/01/rdf-schema#comment> "Resources the session produced or consumed." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#references> <http://www.w3.org/2000/01/rdf-schema#label> "references" .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#referencesExternalSkill> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#referencesExternalSkill> <http://www.w3.org/2000/01/rdf-schema#comment> "Links a Skill node to its external agent skill in the skill conglomerate ontology." .
+<https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#referencesExternalSkill> <http://www.w3.org/2000/01/rdf-schema#label> "referencesExternalSkill" .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#relatesTo> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/1999/02/22-rdf-syntax-ns#Property> .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#relatesTo> <http://www.w3.org/2000/01/rdf-schema#comment> "Generic relationship to another resource." .
 <https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#relatesTo> <http://www.w3.org/2000/01/rdf-schema#label> "relatesTo" .

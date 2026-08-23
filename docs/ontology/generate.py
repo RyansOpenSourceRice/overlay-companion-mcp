@@ -49,6 +49,7 @@ classes = {
     "Session": "A record of an agent work session for cross-session handoff.",
     "Agent": "An AI agent or tool that produced work on the project.",
     "Risk": "A security or quality risk with its mitigations.",
+    "Skill": "An external agent skill this project references (registered in the skill conglomerate ontology).",
     "Milestone": "A roadmap milestone or development phase.",
     "Tool": "An MCP tool exposed by the project.",
     "Protocol": "A remote-desktop protocol supported by the project.",
@@ -85,6 +86,7 @@ props = {
     "hasMilestone": "Links a Project to a Milestone.",
     "hasTool": "Links a Project to a Tool.",
     "hasProtocol": "Links a Project to a Protocol.",
+    "hasSkill": "Links a Project to an external agent Skill (from the skill conglomerate).",
     "hasPerson": "Links a Project to a Person.",
     "hasTestResult": "Links a Project to a TestResult.",
     # Decision
@@ -107,6 +109,7 @@ props = {
     "summary": "What the session accomplished.",
     "openQuestions": "Questions left open at session end.",
     "references": "Resources the session produced or consumed.",
+    "referencesExternalSkill": "Links a Skill node to its external agent skill in the skill conglomerate ontology.",
     # Agent
     "agentType": "opencode | openhands | other.",
     # Component
@@ -750,6 +753,27 @@ for aid, slug, name, desc in agents:
     add_uri("Project", "hasAgent", sub)
 
 # --------------------------------------------------------------------------
+# Skills (external, registered in the skill conglomerate ontology)
+# --------------------------------------------------------------------------
+# Better Auth is the project's in-app authentication default (§7). It is a
+# global skill, so this per-project ontology references it rather than
+# redefining it.
+external_skills = [
+    (
+        "SK1",
+        "better-auth",
+        "better-auth-create-auth",
+        "https://gitlab.com/RyansOpenSourceRice/ryans_agent_skill_ontology_535/onto#Skill-better-auth",
+        "TypeScript auth framework (email/password, OAuth, passkeys/WebAuthn, TOTP, RBAC). Per §7 default for in-app auth.",
+    ),
+]
+for skillId, slug, skillName, externalUri, note in external_skills:
+    sub = f"Skill-{skillId}-{slug}"
+    typed(sub, "Skill", skillName, skillId=skillId, note=note)
+    g.add((ONTO[sub], ONTO["referencesExternalSkill"], URIRef(externalUri)))
+    add_uri("Project", "hasSkill", sub)
+
+# --------------------------------------------------------------------------
 # TestResults
 # --------------------------------------------------------------------------
 tests = [
@@ -823,9 +847,7 @@ for s, p, o in sorted_triples(g):
 out.append("")
 text = "\n".join(out)
 
-with open(
-    "/home/user/opt/repos/overlay-companion-mcp/docs/ontology/project.ontology.ttl", "w"
-) as f:
+with open("docs/ontology/project.ontology.ttl", "w") as f:
     f.write(text)
 
 print(f"Wrote {len(out)-1} triples")
