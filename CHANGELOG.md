@@ -56,6 +56,14 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   CORS to `CLIPBOARD_BRIDGE_ALLOWED_ORIGIN` (never `*`).
 
 ### Changed
+- **Theme system: auto light/dark + manual toggle (D-018).** New design-token
+  theme system (`infra/web/src/styles/theme.css`) with light and dark palettes
+  that auto-follow the OS/browser `prefers-color-scheme` by default. A header
+  toggle cycles auto → light → dark and persists the choice in localStorage
+  (`oc-theme`), applied before first paint to avoid a flash. The login view is
+  a modern split layout (brand/artwork panel + sign-in/register tabs) with
+  themed SVG backgrounds (`bg-light.svg` / `bg-dark.svg`) showing miniature
+  screens with circles, dots, and arrows. Matches Ryan's preferences §4 Themes.
 - **OpenFGA fine-grained authorization (D-017).** New `openfga-store.ts` is the
   authorization boundary for saved connections. OpenFGA runs as a separate
   service (compose `openfga`, `openfga/openfga:v1.6.2`); the server talks to it

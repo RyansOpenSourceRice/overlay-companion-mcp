@@ -12,5 +12,11 @@
 
 import './app';
 
+// Styles: webpack bundles these via style-loader/css-loader (they are injected
+// at runtime). The theme.css sets the light/dark design tokens and follows the
+// OS/browser preference; main.css is the app layout + components.
+import './styles/theme.css';
+import './styles/main.css';
+
 // The main application is initialized in app.ts
 // This file serves as the entry point for the module system

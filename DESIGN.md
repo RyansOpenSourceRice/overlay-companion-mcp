@@ -79,6 +79,18 @@ Better Auth remains the identity + RBAC layer (who you are, admin vs user);
 OpenFGA adds relationship-based, per-object authorization on top. They are
 complementary, not competing.
 
+## Decision: Theme system — auto light/dark + manual toggle (D-018)
+
+The web UI uses a design-token theme system (`infra/web/src/styles/theme.css`)
+with light and dark palettes. **Default is auto-follow**: the app follows the
+OS/browser `prefers-color-scheme` with no manual action (Ryan's preferences §4
+Themes). A header toggle cycles auto → light → dark and persists the choice in
+localStorage (`oc-theme`), applied before first paint to avoid a flash. The
+login view is a modern split layout — a brand/artwork panel (with themed SVG
+backgrounds `bg-light.svg` / `bg-dark.svg` showing miniature screens with
+circles, dots, and arrows) plus a sign-in/register panel — replacing the old
+single-column, unstyled login.
+
 ## Decision: OIDC via Keycloak + local fallback (§7, §8)
 
 Never roll our own identity. Keycloak is self-hostable and admin-configurable;

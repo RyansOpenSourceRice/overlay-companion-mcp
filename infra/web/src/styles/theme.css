@@ -1,0 +1,134 @@
+/* ==========================================================================
+   Overlay Companion MCP — Theme system
+   --------------------------------------------------------------------------
+   Design tokens (W3C design-tokens-friendly) for light and dark mode.
+
+   Default (no attribute): follows the OS/browser `prefers-color-scheme`.
+   - <html data-theme="light">  forces light
+   - <html data-theme="dark">   forces dark
+   - <html data-theme="auto">   (or absent) follows the system
+
+   The manual toggle writes `data-theme` and persists the user's choice in
+   localStorage (`oc-theme`). See src/theme.ts.
+   ========================================================================== */
+
+:root {
+  /* Semantic surface + text tokens (light defaults) */
+  --oc-bg: #f8fafc;
+  --oc-bg-elevated: #ffffff;
+  --oc-bg-subtle: #f1f5f9;
+  --oc-surface: #ffffff;
+  --oc-surface-2: #f8fafc;
+  --oc-border: #e2e8f0;
+  --oc-border-strong: #cbd5e1;
+  --oc-text: #0f172a;
+  --oc-text-secondary: #475569;
+  --oc-text-muted: #64748b;
+  --oc-text-inverse: #ffffff;
+
+  /* Brand */
+  --oc-brand: #2563eb;
+  --oc-brand-strong: #1d4ed8;
+  --oc-brand-soft: #eff6ff;
+  --oc-accent: #f59e0b;
+  --oc-accent-strong: #d97706;
+
+  /* Status */
+  --oc-success: #10b981;
+  --oc-warning: #f59e0b;
+  --oc-error: #ef4444;
+  --oc-info: #2563eb;
+
+  /* Shadows */
+  --oc-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --oc-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --oc-shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.14);
+
+  /* Overlay background image — set at runtime in theme.ts to the built asset
+     URL so webpack resolves the SVG (which is copied to dist/assets). */
+  --oc-bg-image: none;
+}
+
+:root[data-theme='dark'] {
+  --oc-bg: #0b1120;
+  --oc-bg-elevated: #111827;
+  --oc-bg-subtle: #1e293b;
+  --oc-surface: #111827;
+  --oc-surface-2: #1f2937;
+  --oc-border: #334155;
+  --oc-border-strong: #475569;
+  --oc-text: #f1f5f9;
+  --oc-text-secondary: #cbd5e1;
+  --oc-text-muted: #94a3b8;
+  --oc-text-inverse: #0f172a;
+
+  --oc-brand: #3b82f6;
+  --oc-brand-strong: #60a5fa;
+  --oc-brand-soft: #1e3a5f;
+  --oc-accent: #fbbf24;
+  --oc-accent-strong: #f59e0b;
+
+  --oc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --oc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --oc-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --oc-bg-image: none;
+}
+
+/* Auto-follow the system preference when no explicit override is set. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    --oc-bg: #0b1120;
+    --oc-bg-elevated: #111827;
+    --oc-bg-subtle: #1e293b;
+    --oc-surface: #111827;
+    --oc-surface-2: #1f2937;
+    --oc-border: #334155;
+    --oc-border-strong: #475569;
+    --oc-text: #f1f5f9;
+    --oc-text-secondary: #cbd5e1;
+    --oc-text-muted: #94a3b8;
+    --oc-text-inverse: #0f172a;
+
+    --oc-brand: #3b82f6;
+    --oc-brand-strong: #60a5fa;
+    --oc-brand-soft: #1e3a5f;
+    --oc-accent: #fbbf24;
+    --oc-accent-strong: #f59e0b;
+
+    --oc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --oc-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --oc-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Map the legacy --* variables onto the new tokens so the rest of main.css
+   keeps working while the app is migrated to the new system incrementally. */
+:root {
+  --primary-color: var(--oc-brand);
+  --primary-dark: var(--oc-brand-strong);
+  --primary-light: var(--oc-brand);
+  --secondary-color: var(--oc-accent);
+  --accent-color: var(--oc-accent);
+  --bg-primary: var(--oc-bg);
+  --bg-secondary: var(--oc-bg);
+  --bg-tertiary: var(--oc-bg-subtle);
+  --bg-dark: var(--oc-surface-2);
+  --text-primary: var(--oc-text);
+  --text-secondary: var(--oc-text-secondary);
+  --text-muted: var(--oc-text-muted);
+  --text-light: var(--oc-text-muted);
+  --text-muted2: var(--oc-text-muted);
+  --border-color: var(--oc-border);
+  --border-dark: var(--oc-border-strong);
+  --bg-surface: var(--oc-surface);
+  --surface: var(--oc-surface);
+  --muted: var(--oc-text-muted);
+  --muted-bg: var(--oc-bg-subtle);
+  --border: var(--oc-border);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--oc-brand) 25%, transparent);
+  --focus-ring-yellow: 0 0 0 3px color-mix(in srgb, var(--oc-accent) 25%, transparent);
+  --shadow-md: var(--oc-shadow-md);
+  --shadow-lg: var(--oc-shadow-lg);
+  --shadow-xl: var(--oc-shadow-lg);
+}

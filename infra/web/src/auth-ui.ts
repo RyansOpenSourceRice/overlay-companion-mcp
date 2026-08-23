@@ -27,39 +27,101 @@ import {
 export function showLoginView(container: HTMLElement, onLoggedIn: (u: CurrentUser) => void): void {
   container.innerHTML = '';
   const wrap = el('div', 'login-view');
-  wrap.appendChild(el('h2', '', 'Sign in'));
-  wrap.appendChild(el('p', 'login-hint', 'Overlay Companion MCP requires authentication.'));
 
-  const statusBox = el('div', 'login-status');
-  wrap.appendChild(statusBox);
+  // Left panel: product explanation + themed background. Right panel: auth.
+  const left = el('aside', 'login-brand');
+  left.appendChild(el('div', 'login-brand-logo', ''));
+  const logoIcon = el('i', 'fas fa-layer-group');
+  left.querySelector('.login-brand-logo')?.appendChild(logoIcon);
+  const title = el('h1', 'login-brand-title', 'Overlay Companion MCP');
+  left.appendChild(title);
+  left.appendChild(el('p', 'login-brand-tagline', 'Let AI annotate, control, and understand your remote desktop.'));
+  const bullets = el('ul', 'login-brand-list');
+  [
+    ['fas fa-tv', 'Multi-monitor overlays — draw circles, boxes, arrows, and text on any screen.'],
+    ['fas fa-robot', 'AI-assisted screen interaction — an agent can screenshot, annotate, and guide you.'],
+    ['fas fa-plug', 'MCP-native — connect Cherry AI, Claude Desktop, and other assistants.'],
+    ['fas fa-shield-alt', 'Secure by design — browser-based credential management, rate-limited auth.'],
+  ].forEach(([ic, txt]) => {
+    const li = el('li', '');
+    const i = el('i', ic);
+    li.appendChild(i);
+    li.appendChild(document.createTextNode(txt as string));
+    bullets.appendChild(li);
+  });
+  left.appendChild(bullets);
+  left.appendChild(el('p', 'login-brand-footnote', 'Self-hosted. Runs in your browser against KasmVNC / VNC / RDP targets.'));
 
+  const right = el('div', 'login-panel');
+  right.appendChild(el('h2', 'login-panel-title', 'Welcome back'));
+  right.appendChild(el('p', 'login-panel-subtitle', 'Sign in to manage your connections and remote desktops.'));
+  right.appendChild(el('div', 'login-status'));
   const formWrap = el('div', 'login-forms');
-  wrap.appendChild(formWrap);
+  right.appendChild(formWrap);
 
   getAuthStatus()
-    .then((status) => renderLoginForms(status, formWrap, onLoggedIn))
+    .then((status) => renderLoginForms(status, formWrap, onLoggedIn, right))
     .catch(() => {
-      statusBox.textContent = 'Could not reach the server. Is it running?';
+      const statusBox = right.querySelector('.login-status');
+      if (statusBox) statusBox.textContent = 'Could not reach the server. Is it running?';
     });
 
+  wrap.appendChild(left);
+  wrap.appendChild(right);
   container.appendChild(wrap);
 }
 
-function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn: (u: CurrentUser) => void): void {
+function renderLoginForms(
+  status: AuthStatus,
+  container: HTMLElement,
+  onLoggedIn: (u: CurrentUser) => void,
+  scope: HTMLElement,
+): void {
   container.innerHTML = '';
 
+  // Tab switcher: Sign in / Create account as separate, distinct sections.
+  const tabs = el('div', 'login-tabs');
+  const tabSignin = el('button', 'login-tab active', 'Sign in') as HTMLButtonElement;
+  const tabRegister = el('button', 'login-tab', 'Create account') as HTMLButtonElement;
+  tabSignin.type = 'button';
+  tabRegister.type = 'button';
+  tabs.appendChild(tabSignin);
+  tabs.appendChild(tabRegister);
+
+  const panel = el('div', 'login-tab-panel');
+
+  const showTab = (which: 'signin' | 'register'): void => {
+    tabSignin.classList.toggle('active', which === 'signin');
+    tabRegister.classList.toggle('active', which === 'register');
+    panel.innerHTML = '';
+    if (which === 'signin') {
+      renderSignin(status, panel, onLoggedIn);
+    } else {
+      renderRegister(status, panel, onLoggedIn, scope);
+    }
+  };
+
+  tabSignin.addEventListener('click', () => showTab('signin'));
+  tabRegister.addEventListener('click', () => showTab('register'));
+
+  container.appendChild(tabs);
+  container.appendChild(panel);
+  showTab('signin');
+}
+
+function renderSignin(status: AuthStatus, panel: HTMLElement, onLoggedIn: (u: CurrentUser) => void): void {
   if (status.oidc.configured) {
-    const oidcBtn = el('button', 'btn btn-primary', 'Continue with single sign-on (OIDC)');
+    const oidcBtn = el('button', 'btn btn-primary btn-block', 'Continue with single sign-on (OIDC)');
     oidcBtn.addEventListener('click', () => loginWithOidc('/'));
-    container.appendChild(oidcBtn);
-    container.appendChild(el('p', 'login-divider', '— or —'));
+    panel.appendChild(oidcBtn);
+    panel.appendChild(el('p', 'login-divider', '— or —'));
   }
 
   if (status.local.enabled) {
     const form = el('form', 'login-local-form') as HTMLFormElement;
     const username = inputField('username', 'Email');
     const password = inputField('password', 'Password', 'password');
-    const submit = el('button', 'btn btn-secondary', 'Sign in') as HTMLButtonElement;
+    const submit = el('button', 'btn btn-primary btn-block', 'Sign in') as HTMLButtonElement;
     submit.type = 'submit';
     form.append(username.wrap, password.wrap, submit);
 
@@ -71,14 +133,11 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
       try {
         const result = await loginLocal(username.input.value, password.input.value);
         if (result.twoFactor?.required) {
-          // Only TOTP is wired as a second factor (§7); if the account's
-          // required method isn't TOTP, surface that instead of a dead step.
           const needsTotp = !result.twoFactor.methods || result.twoFactor.methods.includes('totp');
           if (!needsTotp) {
             errBox.textContent = 'This account uses another 2FA method that is not supported yet.';
             return;
           }
-          // TOTP-enabled account: prompt for the authenticator code (§7).
           errBox.textContent = '';
           showTotpStep(form, onLoggedIn);
           return;
@@ -91,38 +150,43 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
       }
     });
     form.appendChild(errBox);
-    container.appendChild(form);
-
-    if (status.signup.allowed) {
-      const regWrap = el('div', 'login-register');
-      regWrap.appendChild(el('h3', '', 'Create an account'));
-      const regForm = el('form', 'login-local-form') as HTMLFormElement;
-      const ru = inputField('reg-username', 'Name');
-      const rp = inputField('reg-password', 'Password (min 12 chars)', 'password');
-      const re = inputField('reg-email', 'Email');
-      const rs = el('button', 'btn btn-secondary', 'Register') as HTMLButtonElement;
-      rs.type = 'submit';
-      regForm.append(ru.wrap, rp.wrap, re.wrap, rs);
-      const regErr = el('div', 'login-error');
-      regForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        regErr.textContent = '';
-        try {
-          const user = await registerLocal(ru.input.value, re.input.value, rp.input.value);
-          onLoggedIn(user);
-        } catch (err) {
-          regErr.textContent = (err as Error).message;
-        }
-      });
-      regForm.appendChild(regErr);
-      regWrap.appendChild(regForm);
-      container.appendChild(regWrap);
-    } else {
-      container.appendChild(el('p', 'login-hint', 'Sign-ups are locked. Ask an admin to enable them in Settings.'));
-    }
+    panel.appendChild(form);
   } else if (!status.oidc.configured) {
-    container.appendChild(el('p', 'login-error', 'No auth method is configured. An admin must enable OIDC or local auth in Settings.'));
+    panel.appendChild(el('p', 'login-error', 'No auth method is configured. An admin must enable OIDC or local auth in Settings.'));
   }
+}
+
+function renderRegister(
+  status: AuthStatus,
+  panel: HTMLElement,
+  onLoggedIn: (u: CurrentUser) => void,
+  scope: HTMLElement,
+): void {
+  if (!status.signup.allowed) {
+    panel.appendChild(el('p', 'login-hint', 'Sign-ups are locked. Ask an admin to enable them in Settings.'));
+    return;
+  }
+  panel.appendChild(el('p', 'login-hint', 'Create an account to get started.'));
+  const regForm = el('form', 'login-local-form') as HTMLFormElement;
+  const ru = inputField('reg-username', 'Name');
+  const re = inputField('reg-email', 'Email');
+  const rp = inputField('reg-password', 'Password (min 12 chars)', 'password');
+  const rs = el('button', 'btn btn-primary btn-block', 'Create account') as HTMLButtonElement;
+  rs.type = 'submit';
+  regForm.append(ru.wrap, re.wrap, rp.wrap, rs);
+  const regErr = el('div', 'login-error');
+  regForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    regErr.textContent = '';
+    try {
+      const user = await registerLocal(ru.input.value, re.input.value, rp.input.value);
+      onLoggedIn(user);
+    } catch (err) {
+      regErr.textContent = (err as Error).message;
+    }
+  });
+  regForm.appendChild(regErr);
+  panel.appendChild(regForm);
 }
 
 // ---- Settings forms (GUI-first config, §9) -----------------------------

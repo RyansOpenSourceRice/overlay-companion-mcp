@@ -266,6 +266,24 @@ decisions = [
         "self-authored authz logic; complements (does not replace) Better Auth.",
     ),
     (
+        "D-018",
+        "theme-system-light-dark",
+        "Theme system: auto light/dark + manual toggle",
+        "The web UI uses a design-token theme system (theme.css) with light and "
+        "dark palettes. Default is auto-follow: the app follows the OS/browser "
+        "prefers-color-scheme with no manual action. A header toggle cycles "
+        "auto -> light -> dark and persists the choice in localStorage "
+        "(oc-theme), applied before first paint to avoid a flash. The login "
+        "view is a split layout (brand/artwork panel + sign-in/register panel) "
+        "with themed SVG backgrounds (bg-light.svg / bg-dark.svg) showing "
+        "miniature screens with circles, dots, and arrows. Matches Ryan's "
+        "preferences §4 Themes (auto-follow + secondary manual toggle).",
+        "Single fixed color scheme; no theme system",
+        "Accessible and on-brand in both OS modes; auto-follow reduces user "
+        "effort while the manual toggle preserves control; token-based so "
+        "custom/high-contrast themes are a documented extension.",
+    ),
+    (
         "D-005",
         "server-persisted-connections",
         "Saved connections are server-persisted",

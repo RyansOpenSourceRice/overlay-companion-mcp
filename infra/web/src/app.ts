@@ -11,6 +11,7 @@
 
 import type { CurrentUser } from './auth';
 import { ChatPanel } from './components/ChatPanel';
+import { initTheme, setTheme, resolveTheme, getStoredTheme, type ThemeChoice } from './theme';
 import {
   listConnections,
   createConnection,
@@ -58,8 +59,36 @@ class OverlayCompanionApp {
   private chatPanel: ChatPanel | null = null;
 
   constructor() {
+    // Apply the persisted theme (auto/light/dark) and wire the toggle.
+    initTheme();
+    this.setupThemeToggle();
     // Initialize the application
     this.init();
+  }
+
+  // Theme: auto-follow the OS/browser by default, with a manual light/dark
+  // toggle. The user's choice persists (localStorage); the button cycles
+  // auto -> light -> dark (Ryan's preferences §4 Themes).
+  private setupThemeToggle(): void {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (!btn) return;
+    const icon = btn.querySelector('i');
+    const refreshIcon = (): void => {
+      const choice = getStoredTheme();
+      const effective = resolveTheme(choice);
+      if (!icon) return;
+      icon.className = effective === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+      btn.setAttribute('aria-label', `Theme: ${choice} (${effective}). Toggle light / dark.`);
+      btn.title = `Theme: ${choice}. Click to change.`;
+    };
+    btn.addEventListener('click', () => {
+      const cycle: Record<ThemeChoice, ThemeChoice> = { auto: 'light', light: 'dark', dark: 'auto' };
+      setTheme(cycle[getStoredTheme()]);
+      refreshIcon();
+    });
+    // Keep the icon in sync if the OS theme changes while on "auto".
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshIcon);
+    refreshIcon();
   }
 
   async init(): Promise<void> {
