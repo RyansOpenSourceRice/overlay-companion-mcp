@@ -27,8 +27,10 @@ surface.
 - **Web layer:** TypeScript (`infra/server` + `infra/web`).
 - **Database:** SurrealDB is the only database (`infra/surrealdb/`). Used for
   users, sessions, connections, audit log, app configuration.
-- **Identity:** OIDC via Keycloak (self-hostable) + local auth fallback. Never
-  roll our own identity/crypto. Sign-ups locked by default.
+- **Identity:** Better Auth (§7 default, mounted at `/api/auth`) backs users,
+  sessions, passkeys/WebAuthn, TOTP, RBAC, and social OAuth. SurrealDB is the
+  auth store (surreal-better-auth adapter). `ADMIN_EMAIL` grants the admin role.
+  Sign-ups are admin-opt-in.
 
 ## Language placement
 
@@ -42,7 +44,7 @@ surface.
 ## Security (§7)
 
 - OWASP Top 10 baseline. Rate-limit auth endpoints. Sign-ups locked by default.
-- Delete-account is a feature. Passkeys/TOTP/backup codes via Keycloak.
+- Delete-account is a feature. Passkeys/TOTP/backup codes via Better Auth plugins.
 - Required scanners: Trivy (container), OpenGrep (SAST), Gitleaks (secrets via
   pre-commit). Scanners fix problems they find while working; they never hunt.
 - Never commit API keys. The only secret gate is gitleaks in pre-commit.

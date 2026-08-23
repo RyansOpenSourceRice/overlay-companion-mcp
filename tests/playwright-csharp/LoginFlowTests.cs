@@ -10,7 +10,7 @@ namespace OverlayCompanion.Tests.Playwright;
 [TestClass]
 public class LoginFlowTests : PlaywrightWebTestBase
 {
-    private const string TestUsername = "pw-test-admin";
+    private const string TestUsername = "pw-test-admin@overlay.test";
     private const string TestPassword = "TestPassphrase!2026"; // pragma: allowlist secret (test fixture, not a real credential)
 
     [TestInitialize]

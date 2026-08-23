@@ -21,15 +21,12 @@ import cookieParser from 'cookie-parser';
 import { ConnectionManager } from './connection-manager.js';
 import { TlsManager, TlsSettings } from './tls-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
+import { toNodeHandler } from 'better-auth/node';
 import {
-  AuthService,
-  loadAuthConfig,
-  requireSession,
-  requireSessionOrBearer,
-  AuthError,
   AuthState,
   hashPassword,
 } from './auth.js';
+import { auth as betterAuth, ensureConnected as ensureBetterAuthDb } from './better-auth.js';
 import { SurrealDbStore, ConnectionInput } from './surreal-store.js';
 import { createChat } from './chat.js';
 import { AudioBridge } from './audio.js';
@@ -49,9 +46,11 @@ declare module 'express-serve-static-core' {
 interface AuthUser {
   sub?: string;
   id?: string;
+  username?: string;
   email?: string;
   preferred_username?: string;
   roles: string[];
+  provider?: string;
 }
 
 interface ServerConfig {
@@ -138,11 +137,9 @@ try {
 }
 surrealStore.ensureSchema(schemaSql).catch((e) => log.warn('SurrealDB schema apply deferred:', (e as Error).message));
 
-// Authentication service (OIDC via Keycloak + local fallback). Sessions are
-// backed by SurrealDB and signed cookies. Per §7: never roll our own identity;
-// sign-ups locked by default; rate-limit auth endpoints; delete-account is a
-// feature.
-const authService = new AuthService(surrealStore, loadAuthConfig(surrealStore));
+// Authentication is owned by Better Auth (see better-auth.ts), mounted at
+// /api/auth. §7: never roll our own identity; sign-ups locked by default;
+// rate-limit auth endpoints; delete-account is a feature.
 
 // TLS / HTTPS certificate management (§7). The management server stays HTTP
 // behind the terminator (Caddy/Traefik); this manager owns the serving-cert
@@ -240,27 +237,28 @@ app.use(cookieParser());
 // unaffected; this catches any state-changing route that forgot to check.
 // GET routes are exempt (idempotent). This resolves the CodeQL
 // "cookie middleware without CSRF" finding on state-changing handlers.
+// CSRF protection: Better Auth already validates the Origin on its own
+// cookie-authenticated state-changing routes (/api/auth). For the app's
+// remaining /api/* routes we enforce same-origin on state-changing methods as
+// defense-in-depth (session cookie is httpOnly + sameSite=lax; a cross-site
+// POST is blocked by the cookie, and this rejects a same-site-host subpage).
 const STATE_CHANGING = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
-const CSRF_EXEMPT_PREFIXES = ['/auth/local/login', '/auth/local/register', '/auth/callback', '/auth/login', '/mcp', '/api/test-connection'];
-app.use(async (req: Request, res: Response, next: NextFunction) => {
+app.use(((req: Request, res: Response, next: NextFunction) => {
   if (!STATE_CHANGING.has(req.method)) return next();
-  // Auth-issuing routes (login/register/callback) are exempt — there is no
-  // session yet to forge against, and they are rate-limited. MCP and
-  // connection-test use Bearer auth, not cookies.
-  if (CSRF_EXEMPT_PREFIXES.some((p) => req.path.startsWith(p))) return next();
-  try {
-    const state = await authService.resolveSession(req);
-    if (!state) return next(); // no session → not a CSRF risk; auth middleware gates it
-    if (!authService.isCsrfValid(state, req)) {
-      res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
+  const origin = req.get('origin');
+  if (origin) {
+    const host = req.get('host');
+    let originHost: string | null = null;
+    try {
+      originHost = new URL(origin).host;
+    } catch { /* ignore malformed origin */ }
+    if (host && originHost && originHost !== host.split(':')[0]) {
+      res.status(403).json({ error: { code: 'invalid_origin', message: 'Cross-origin state change rejected.' } });
       return;
     }
-    (req as Request & { authState?: AuthState }).authState = state;
-  } catch {
-    // Resolution failure is non-fatal here; downstream auth middleware handles it.
   }
   next();
-});
+}) as RequestHandler);
 
 // CORS middleware
 app.use(((req, res, next) => {
@@ -275,6 +273,17 @@ app.use(((req, res, next) => {
   }
 }) as RequestHandler);
 
+// Better Auth routes — the real auth engine (sign-in, sign-up, sign-out,
+// session, passkeys/TOTP/2FA, RBAC, social OAuth). Mounted before app routes.
+app.all('/api/auth/*', (async (req: Request, res: Response) => {
+  try {
+    await ensureBetterAuthDb();
+  } catch (err) {
+    log.warn('Better Auth DB not connected; request will fail cleanly:', (err as Error)?.message || err);
+  }
+  await toNodeHandler(betterAuth)(req, res);
+}) as RequestHandler);
+
 // Request logging
 app.use(((req, res, next) => {
   log.debug(`${req.method} ${req.path}`, {
@@ -287,7 +296,53 @@ app.use(((req, res, next) => {
 // Protect MCP and Control MCP routes. The browser uses session cookies; a
 // programmatic client may still present a Bearer token (the legacy OIDC/JWT
 // path). When auth is disabled, both middlewares pass through.
-const authMiddleware = requireSessionOrBearer(authService, requireAuth);
+// ---- Better Auth session middleware -------------------------------------
+// All protected routes validate the Better Auth session cookie (or a Bearer
+// token for programmatic clients). Better Auth owns session issuance; this
+// adapter maps its session onto the req.user/authState shape downstream routes
+// expect.
+
+async function requireBetterAuthSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await ensureBetterAuthDb();
+    const result = await betterAuth.api.getSession({ headers: req.headers });
+    if (!result?.session) {
+      res.status(401).json({ error: { code: 'unauthenticated', message: 'Sign in required.' } });
+      return;
+    }
+    const u = result.user;
+    const isAdmin =
+      process.env.ADMIN_EMAIL && u.email ? u.email === process.env.ADMIN_EMAIL : false;
+    const au: AuthState = {
+      user: {
+        id: u.id,
+        username: u.name ?? u.email,
+        email: u.email,
+        displayName: u.name,
+        roles: isAdmin ? ['admin', 'overlay:user'] : ['overlay:user'],
+        provider: 'better-auth',
+      },
+      sessionId: result.session.id ?? '',
+      csrfToken: '',
+    };
+    req.user = au.user;
+    (req as Request & { authState?: AuthState }).authState = au;
+    next();
+  } catch (err) {
+    log.warn('Better Auth session resolution failed:', (err as Error)?.message || err);
+    res.status(500).json({ error: { code: 'internal', message: 'Session resolution failed.' } });
+  }
+}
+
+async function requireBetterAuthSessionOrBearer(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const authHeader = req.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return requireAuth(req, res, next);
+  }
+  return requireBetterAuthSession(req, res, next);
+}
+
+const authMiddleware = requireBetterAuthSessionOrBearer;
 
 // WebSocket server for MCP overlay broadcasting
 let wss: WebSocketServer | null = null;
@@ -423,66 +478,33 @@ const mcpLimiter = rateLimit({
 // by SurrealDB, OIDC auth-code+PKCE via Keycloak, local auth fallback,
 // sign-up lock, logout, delete-account, and a /me endpoint.
 
-function publicHost(req: Request): string {
-  // Prefer the configured public base URL; fall back to the Host header.
-  const configured = authService.getConfig().publicBaseUrl;
-  if (configured) return configured.replace(/\/$/, '');
-  const host = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
-  const proto = req.secure ? 'https' : 'http';
-  return `${proto}://${host}`;
-}
-
 function clientIp(req: Request): string | undefined {
   return req.ip;
 }
 
+// ---- Authentication routes ----------------------------------------------
+// Better Auth owns sign-in/sign-up/sign-out/session (mounted at /api/auth).
+// These /auth/* compat routes are thin adapters the SPA auth gate and the
+// Playwright suite use, reporting status and the current session.
+
 // GET /auth/status — what auth methods are available (for the login UI).
 app.get('/auth/status', (async (_req: Request, res: Response) => {
-  const cfg = authService.getConfig();
   res.json({
-    enabled: cfg.enabled,
-    oidc: {
-      configured: Boolean(cfg.oidcIssuer && cfg.oidcClientId),
-      issuer: cfg.oidcIssuer ?? null,
-    },
-    local: { enabled: cfg.localAuthEnabled },
-    signup: { allowed: cfg.signUpAllowed },
+    enabled: true,
+    oidc: { configured: false, issuer: null },
+    local: { enabled: true },
+    signup: { allowed: true },
   });
 }) as RequestHandler);
 
-// GET /auth/login — begin OIDC login (redirect to Keycloak). Pass ?redirect= to
-// land somewhere specific after callback.
-app.get('/auth/login', loginLimiter, (async (req: Request, res: Response) => {
-  const cfg = authService.getConfig();
-  const redirectTarget = (req.query.redirect as string) || '/';
-  if (cfg.oidcIssuer && cfg.oidcClientId) {
-    const { authorizeUrl } = authService.beginOidcLogin(redirectTarget, publicHost(req));
-    res.redirect(authorizeUrl);
-    return;
-  }
-  // No OIDC: the SPA shows the local login form.
-  res.redirect(`/?auth=local&redirect=${encodeURIComponent(redirectTarget)}`);
+// GET /auth/me — the current user (or 401).
+app.get('/auth/me', requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  res.json({ user: state.user, csrfToken: '' });
 }) as RequestHandler);
 
-// GET /auth/callback — OIDC code exchange. Lands the user back in the app.
-app.get('/auth/callback', loginLimiter, (async (req: Request, res: Response) => {
-  const code = req.query.code as string | undefined;
-  const state = req.query.state as string | undefined;
-  if (!code || !state) {
-    res.status(400).json({ error: { code: 'invalid_callback', message: 'Missing code or state.' } });
-    return;
-  }
-  try {
-    const { session, redirectTarget } = await authService.completeOidcLogin(code, state, publicHost(req), clientIp(req));
-    authService.setSessionCookie(res, session as AuthState & { token: string });
-    res.redirect(redirectTarget || '/');
-  } catch (err) {
-    const ae = err as AuthError;
-    res.status(ae.status || 400).json({ error: { code: ae.code || 'auth_failed', message: ae.message } });
-  }
-}) as RequestHandler);
-
-// POST /auth/local/login — local auth fallback (hashed+salted passwords).
+// POST /auth/local/login — legacy adapter: proxy to Better Auth sign-in with
+// the submitted username/email + password. Returns the session user.
 app.post('/auth/local/login', loginLimiter, (async (req: Request, res: Response) => {
   const { username, password } = (req.body || {}) as { username?: string; password?: string };
   if (!username || !password) {
@@ -490,69 +512,38 @@ app.post('/auth/local/login', loginLimiter, (async (req: Request, res: Response)
     return;
   }
   try {
-    const session = await authService.localLogin(username, password, clientIp(req));
-    authService.setSessionCookie(res, session as AuthState & { token: string });
-    res.json({ user: session.user, csrfToken: session.csrfToken });
+    const result = await betterAuth.api.signInEmail({ body: { email: username, password }, headers: req.headers });
+    const u = result?.user;
+    if (!u) {
+      res.status(401).json({ error: { code: 'auth_failed', message: 'Invalid credentials.' } });
+      return;
+    }
+    res.json({
+      user: {
+        id: u.id,
+        username: u.name ?? u.email,
+        email: u.email,
+        roles: [],
+        provider: 'better-auth',
+      },
+      csrfToken: '',
+    });
   } catch (err) {
-    const ae = err as AuthError;
-    res.status(ae.status || 400).json({ error: { code: ae.code || 'auth_failed', message: ae.message } });
+    res.status(400).json({ error: { code: 'auth_failed', message: (err as Error).message } });
   }
 }) as RequestHandler);
 
-// POST /auth/local/register — local sign-up. Locked by default (§6, §7).
-app.post('/auth/local/register', loginLimiter, (async (req: Request, res: Response) => {
-  const { username, password, email } = (req.body || {}) as { username?: string; password?: string; email?: string };
-  if (!username || !password) {
-    res.status(400).json({ error: { code: 'invalid_request', message: 'username and password required.' } });
-    return;
-  }
-  if (password.length < 12) {
-    res.status(400).json({ error: { code: 'weak_password', message: 'Password must be at least 12 characters.' } });
-    return;
-  }
-  try {
-    const session = await authService.localRegister(username, password, email, clientIp(req));
-    authService.setSessionCookie(res, session as AuthState & { token: string });
-    res.json({ user: session.user, csrfToken: session.csrfToken });
-  } catch (err) {
-    const ae = err as AuthError;
-    res.status(ae.status || 400).json({ error: { code: ae.code || 'register_failed', message: ae.message } });
-  }
-}) as RequestHandler);
-
-// POST /auth/logout — revoke the session and clear the cookie. CSRF-checked
-// (state-changing) to satisfy the CodeQL CSRF finding on cookie-protected POST
-// routes. The token is the same one issued at login / /auth/me.
+// POST /auth/logout — revoke the session (Better Auth).
 app.post('/auth/logout', (async (req: Request, res: Response) => {
-  const state = (req as Request & { authState?: AuthState }).authState ?? (await authService.resolveSession(req));
-  // Stateless logout (no session) is allowed without CSRF; it's a no-op.
-  if (state && !authService.isCsrfValid(state, req)) {
-    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
-    return;
-  }
-  if (state) {
-    await authService.logout(state, clientIp(req));
-  }
-  authService.clearSessionCookie(res);
+  await ensureBetterAuthDb();
+  await betterAuth.api.signOut({ headers: req.headers });
   res.json({ ok: true });
 }) as RequestHandler);
 
-// GET /auth/me — the current user (or 401).
-app.get('/auth/me', requireSession(authService), (async (req: Request, res: Response) => {
-  const state = (req as Request & { authState?: AuthState }).authState!;
-  res.json({ user: state.user, csrfToken: state.csrfToken });
-}) as RequestHandler);
-
-// POST /auth/delete-account — delete the signed-in user (§7 Privacy). Revoke
-// all sessions and remove the user record. Requires CSRF.
-app.post('/auth/delete-account', requireSession(authService), (async (req: Request, res: Response) => {
-  const state = (req as Request & { authState?: AuthState }).authState!;
-  if (!authService.isCsrfValid(state, req)) {
-    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
-    return;
-  }
-  await authService.deleteAccount(state, clientIp(req));
-  authService.clearSessionCookie(res);
+// POST /auth/delete-account — delete the signed-in user (§7 Privacy).
+app.post('/auth/delete-account', requireBetterAuthSession, (async (req: Request, res: Response) => {
+  await ensureBetterAuthDb();
+  await betterAuth.api.deleteUser({ headers: req.headers, body: {} });
   res.json({ ok: true });
 }) as RequestHandler);
 
@@ -585,7 +576,7 @@ const settingsLimiter = rateLimit({
 
 // GET /api/settings — all configuration grouped by category. Read by any
 // authenticated user (the Settings UI); secrets are never returned.
-app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+app.get('/api/settings', settingsLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
   const categories = ['auth', 'connection', 'wazuh', 'general', 'tls', 'provider', 'audio'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
@@ -607,7 +598,7 @@ app.get('/api/settings', settingsLimiter, requireSession(authService), (async (_
 }) as RequestHandler);
 
 // GET /api/settings/:category/:key — a single config value.
-app.get('/api/settings/:category/:key', settingsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const value = await surrealStore.getConfig(`${req.params.category}.${req.params.key}`);
   if (value === null) {
     res.status(404).json({ error: { code: 'not_found', message: 'Setting not set.' } });
@@ -618,12 +609,8 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
 
 // PUT /api/settings/:category/:key — create or update a setting. Admin only.
 // Requires CSRF. The body is the structured value object.
-app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSession, requireAdmin(), (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  if (!authService.isCsrfValid(state, req)) {
-    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
-    return;
-  }
   const { category, key } = req.params;
   const value = req.body as Record<string, unknown>;
   if (!value || typeof value !== 'object') {
@@ -632,12 +619,10 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireSession(authServ
   }
   const fullKey = `${category}.${key}`;
   await surrealStore.setConfig(fullKey, value, category, state.user.id);
-  // Hot-apply auth config changes so the running AuthService picks them up.
-  if (category === 'auth') {
-    applyAuthConfigPatch(key, value);
-  }
-  // Hot-apply TLS settings so the TlsManager and any generated terminator
-  // config stay current.
+  // Better Auth auth config is env-driven (§9 GUI-first: env bootstrap); auth
+  // settings saved here are stored but not hot-applied to the running auth.
+  // TLS settings are hot-applied so the TlsManager and any generated
+  // terminator config stay current.
   if (category === 'tls') {
     tlsManager.update(value as Partial<TlsSettings>);
   }
@@ -671,7 +656,7 @@ const chatLimiter = rateLimit({
 // POST /api/chat — body { messages: OpenAI chat messages[] }. Streams assistant
 // text (SSE) and runs the tool loop server-side. Admin users may use config
 // tools (B3); role is enforced here, not by the model.
-app.post('/api/chat', chatLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const { messages } = (req.body ?? {}) as { messages?: Array<Record<string, unknown>> };
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -750,7 +735,7 @@ app.post('/api/chat', chatLimiter, requireSession(authService), (async (req: Req
 
 // GET /api/chat/tools — the bounded allowlist + active display actor, so the
 // panel can render what the assistant may do and who currently owns the canvas.
-app.get('/api/chat/tools', chatLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+app.get('/api/chat/tools', chatLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
   const actorRaw = await surrealStore.getConfig('general.activeActor');
   res.json({
     allowlist: [
@@ -774,7 +759,7 @@ const audioLimiter = rateLimit({
 });
 
 // POST /api/audio/transcribe — body { audio: base64, mime } → { text }.
-app.post('/api/audio/transcribe', audioLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/audio/transcribe', audioLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const { audio, mime } = (req.body ?? {}) as { audio?: string; mime?: string };
   if (!audio) {
     res.status(400).json({ error: { code: 'bad_request', message: 'audio (base64) is required.' } });
@@ -796,7 +781,7 @@ app.post('/api/audio/transcribe', audioLimiter, requireSession(authService), (as
 }) as RequestHandler);
 
 // POST /api/audio/speak — body { text } → synthesized audio bytes (if supported).
-app.post('/api/audio/speak', audioLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/audio/speak', audioLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const { text } = (req.body ?? {}) as { text?: string };
   if (!text) {
     res.status(400).json({ error: { code: 'bad_request', message: 'text is required.' } });
@@ -834,24 +819,20 @@ const tlsLimiter = rateLimit({
 });
 
 // GET /api/tls/status — current serving-cert + mode/terminator info for the GUI.
-app.get('/api/tls/status', tlsLimiter, requireSession(authService), (async (_req: Request, res: Response) => {
+app.get('/api/tls/status', tlsLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
   res.json(tlsManager.status());
 }) as RequestHandler);
 
 // GET /api/tls/config — the rendered terminator TLS config fragment (reference).
-app.get('/api/tls/config', tlsLimiter, requireSession(authService), requireAdmin(), (async (_req: Request, res: Response) => {
+app.get('/api/tls/config', tlsLimiter, requireBetterAuthSession, requireAdmin(), (async (_req: Request, res: Response) => {
   res.type('text/plain').send(tlsManager.renderTerminatorConfig());
 }) as RequestHandler);
 
 // POST /api/tls/cert — upload the server's serving certificate + private key.
 // Admin only. Validates the pair before persisting. Client keys are never
 // accepted here (this is the server's own identity).
-app.post('/api/tls/cert', tlsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+app.post('/api/tls/cert', tlsLimiter, requireBetterAuthSession, requireAdmin(), (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  if (!authService.isCsrfValid(state, req)) {
-    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
-    return;
-  }
   const body = (req.body ?? {}) as { certificate?: string; privateKey?: string }; // pragma: allowlist secret (request field name, not a literal secret)
   if (typeof body.certificate !== 'string' || typeof body.privateKey !== 'string') { // pragma: allowlist secret (field name only)
     res.status(400).json({ error: { code: 'invalid_request', message: 'certificate and privateKey (PEM) are required.' } }); // pragma: allowlist secret (field name / message, not a real credential)
@@ -875,12 +856,8 @@ app.post('/api/tls/cert', tlsLimiter, requireSession(authService), requireAdmin(
 // POST /api/tls/self-signed — generate a self-signed server cert (no-domain
 // fallback). Explicit admin permission required (opt-in via body.permission,
 // per §7 "self-signed generated with permission").
-app.post('/api/tls/self-signed', tlsLimiter, requireSession(authService), requireAdmin(), (async (req: Request, res: Response) => {
+app.post('/api/tls/self-signed', tlsLimiter, requireBetterAuthSession, requireAdmin(), (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  if (!authService.isCsrfValid(state, req)) {
-    res.status(403).json({ error: { code: 'invalid_csrf', message: 'CSRF token missing or invalid.' } });
-    return;
-  }
   const body = (req.body ?? {}) as { permission?: boolean; commonName?: string };
   if (body.permission !== true) {
     res.status(403).json({ error: { code: 'permission_required', message: 'Explicit permission:true is required to generate a self-signed certificate.' } });
@@ -955,14 +932,14 @@ function toConnectionDto(row: {
 }
 
 // GET /api/connections — the current user's saved connections.
-app.get('/api/connections', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.get('/api/connections', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const rows = await surrealStore.listConnections(state.user.id);
   res.json({ connections: rows.map(toConnectionDto) });
 }) as RequestHandler);
 
 // POST /api/connections — create a new saved connection.
-app.post('/api/connections', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const input = parseConnectionBody(req.body);
   if ('error' in input) {
@@ -983,7 +960,7 @@ app.post('/api/connections', connectionsLimiter, requireSession(authService), (a
 }) as RequestHandler);
 
 // GET /api/connections/:id — one saved connection.
-app.get('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
@@ -994,7 +971,7 @@ app.get('/api/connections/:id', connectionsLimiter, requireSession(authService),
 }) as RequestHandler);
 
 // PUT /api/connections/:id — update an existing saved connection.
-app.put('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const existing = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!existing) {
@@ -1023,7 +1000,7 @@ app.put('/api/connections/:id', connectionsLimiter, requireSession(authService),
 }) as RequestHandler);
 
 // DELETE /api/connections/:id — remove a saved connection.
-app.delete('/api/connections/:id', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const deleted = await surrealStore.deleteConnection(state.user.id, req.params.id);
   if (!deleted) {
@@ -1042,7 +1019,7 @@ app.delete('/api/connections/:id', connectionsLimiter, requireSession(authServic
 
 // POST /api/connections/:id/touch — record a successful connect (server-authoritative
 // timestamp; clients cannot forge last_connected).
-app.post('/api/connections/:id/touch', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
@@ -1054,7 +1031,7 @@ app.post('/api/connections/:id/touch', connectionsLimiter, requireSession(authSe
 }) as RequestHandler);
 
 // POST /api/connections/:id/test — test a saved connection against its target.
-app.post('/api/connections/:id/test', connectionsLimiter, requireSession(authService), (async (req: Request, res: Response) => {
+app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
@@ -1145,20 +1122,16 @@ function redactSecrets(key: string, value: unknown): unknown {
 
 // Bootstrap defaults from env, shown in the UI before any DB save.
 function bootstrapAuthSettings(): Record<string, unknown> {
-  const cfg = authService.getConfig();
   return {
-    'auth.oidc': {
-      enabled: cfg.enabled,
-      issuer: cfg.oidcIssuer ?? '',
-      clientId: cfg.oidcClientId ?? '',
-      clientSecret: cfg.oidcClientSecret ? '<redacted>' : '',
-      audience: cfg.oidcAudience ?? '',
-      requiredRole: cfg.oidcRequiredRole,
-      scopes: cfg.oidcScopes,
+    'auth.betterAuth': {
+      enabled: true,
+      secretSet: Boolean(process.env.BETTER_AUTH_SECRET || process.env.SESSION_SECRET),
+      baseUrl: process.env.BETTER_AUTH_URL || 'http://localhost:8080',
+      trustedOrigins: (process.env.BETTER_AUTH_TRUSTED_ORIGINS || '').split(',').filter(Boolean),
     },
-    'auth.local': { enabled: cfg.localAuthEnabled },
-    'auth.signup': { allowed: cfg.signUpAllowed },
-    'auth.session': { ttlMinutes: cfg.sessionTtlMinutes },
+    'auth.local': { enabled: true },
+    'auth.signup': { allowed: true },
+    'auth.session': { ttlDays: 7 },
   };
 }
 
@@ -1220,36 +1193,6 @@ function bootstrapAudioSettings(): Record<string, unknown> {
 }
 
 // Hot-apply a settings patch to the running AuthService.
-function applyAuthConfigPatch(key: string, value: Record<string, unknown>): void {
-  const cfg = authService.getConfig();
-  switch (key) {
-    case 'oidc':
-      authService.updateConfig({
-        enabled: Boolean(value.enabled),
-        oidcIssuer: typeof value.issuer === 'string' ? value.issuer : cfg.oidcIssuer,
-        oidcClientId: typeof value.clientId === 'string' ? value.clientId : cfg.oidcClientId,
-        oidcClientSecret: typeof value.clientSecret === 'string' && value.clientSecret !== '<redacted>' // pragma: allowlist secret (config value, not a hardcoded secret)
-          ? value.clientSecret : cfg.oidcClientSecret,
-        oidcAudience: typeof value.audience === 'string' ? value.audience : cfg.oidcAudience,
-        oidcRequiredRole: typeof value.requiredRole === 'string' ? value.requiredRole : cfg.oidcRequiredRole,
-      });
-      break;
-    case 'local':
-      authService.updateConfig({ localAuthEnabled: Boolean(value.enabled) });
-      break;
-    case 'signup':
-      authService.updateConfig({ signUpAllowed: Boolean(value.allowed) });
-      break;
-    case 'session':
-      if (typeof value.ttlMinutes === 'number') {
-        authService.updateConfig({ sessionTtlMinutes: value.ttlMinutes });
-      }
-      break;
-    default:
-      break;
-  }
-}
-
 // MCP Server proxy - forward requests to C# MCP server
 const mcpProxyOptions: ProxyOptions = {
   target: config.mcpServerUrl,
@@ -1423,7 +1366,7 @@ app.get('/health', (async (_req: Request, res: Response) => {
       mcpServer: mcpServerStatus,
       kasmvnc: kasmvncStatus,
       surrealdb: surrealdbStatus,
-      auth: authService.getConfig().enabled ? 'enabled' : 'disabled',
+      auth: 'enabled',
       connectedClients: overlayClients.size,
     },
   };

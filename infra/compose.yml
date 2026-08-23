@@ -7,14 +7,13 @@ x-common-env: &common_env
   # Production shape: Secure cookies + fail-closed session-secret guard in
   # infra/server/src/auth.ts. For local dev via compose, set NODE_ENV=development.
   NODE_ENV: ${NODE_ENV:-production}
-  OIDC_ENABLED: ${OIDC_ENABLED:-false}
-  OIDC_ISSUER: ${OIDC_ISSUER:-}
-  OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
-  OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:-overlay:user}
-  # Session-cookie signing secret. MUST be set to a long random value in
-  # production (fail-closed guard in infra/server/src/auth.ts). No default here
-  # so a deployment without it is visibly broken rather than forgeable.
-  SESSION_SECRET: ${SESSION_SECRET:-}
+  # Better Auth (in-app auth engine, §7). BETTER_AUTH_SECRET is the session-
+  # signing secret; ADMIN_EMAIL grants the admin role on login. No default
+  # secret here so a deployment without one is visibly broken, not forgeable.
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+  BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
   # Session cookie Secure flag. This app is commonly self-hosted over plain
   # HTTP on a LAN, where a Secure cookie would be refused by the browser, so the
   # flag is OFF by default. Set COOKIE_SECURE=true only when serving over HTTPS

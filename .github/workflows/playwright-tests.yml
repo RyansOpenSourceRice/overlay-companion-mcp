@@ -92,6 +92,10 @@ jobs:
         timeout-minutes: 5
         run: |
           cd infra/server
+          export BETTER_AUTH_SECRET="ci-test-better-auth-secret-not-for-prod-0123456789abcdef" # pragma: allowlist secret
+          export BETTER_AUTH_URL="http://localhost:8080"
+          export BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:8080"
+          export ADMIN_EMAIL="admin-playwright-e2e@overlay.test"
           export SESSION_SECRET="ci-test-secret-only-not-for-prod" # pragma: allowlist secret
           export SURREALDB_URL="http://localhost:8000"
           export SURREALDB_NAMESPACE="overlay"
@@ -101,8 +105,6 @@ jobs:
           export COOKIE_SECURE=false
           PORT=8080 \
           NODE_ENV=production \
-          LOCAL_AUTH_ENABLED=true \
-          SIGNUP_ALLOWED=true \
           MCP_SERVER_URL=http://127.0.0.1:3000 \
           nohup node dist/server.js > /tmp/oc-server.log 2>&1 &
           echo $! > /tmp/oc-server.pid

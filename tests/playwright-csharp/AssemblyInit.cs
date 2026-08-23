@@ -5,16 +5,16 @@ namespace OverlayCompanion.Tests.Playwright;
 
 /// <summary>
 /// Assembly-level bootstrap. Registers the shared admin user BEFORE any test
-/// runs so the admin role (granted to the first registered user) lands on the
-/// account the admin-gated tests rely on. It also performs ONE login and
-/// captures the session cookie, which tests inject into their FireFox sessions
-/// — avoiding a flood of login requests that would exhaust the login rate
-/// limit during a full-suite run.
+/// runs so the admin role (matched via the ADMIN_EMAIL env, per Better Auth's
+/// RBAC mapping) lands on the account the admin-gated tests rely on. It also
+/// performs ONE Better Auth login and captures the session cookie, which tests
+/// inject into their FireFox sessions — avoiding a flood of login requests that
+/// would exhaust the login rate limit during a full-suite run.
 /// </summary>
 [TestClass]
 public class AssemblyInit
 {
-    public const string AdminUsername = "admin-playwright-e2e";
+    public const string AdminEmail = "admin-playwright-e2e@overlay.test";
     public const string AdminPassword = "AdminPwE2e!2026"; // pragma: allowlist secret (test fixture, not a real credential)
 
     public static string SessionCookieValue { get; private set; } = "";
@@ -24,20 +24,20 @@ public class AssemblyInit
     {
         var target = PlaywrightWebTestBase.BaseUrl.TrimEnd('/');
         using var hc = new HttpClient(new SessionCookieHandler());
-        var reg = hc.PostAsJsonAsync($"{target}/auth/local/register",
-            new { username = AdminUsername, password = AdminPassword }).GetAwaiter().GetResult();
+        var reg = hc.PostAsJsonAsync($"{target}/api/auth/sign-up/email",
+            new { name = "Admin", email = AdminEmail, password = AdminPassword }).GetAwaiter().GetResult();
         if ((int)reg.StatusCode != 200)
         {
-            _ = hc.PostAsJsonAsync($"{target}/auth/local/login",
-                new { username = AdminUsername, password = AdminPassword }).GetAwaiter().GetResult();
+            _ = hc.PostAsJsonAsync($"{target}/api/auth/sign-in/email",
+                new { email = AdminEmail, password = AdminPassword }).GetAwaiter().GetResult();
         }
-        _ = hc.PostAsJsonAsync($"{target}/auth/local/login",
-            new { username = AdminUsername, password = AdminPassword }).GetAwaiter().GetResult();
+        _ = hc.PostAsJsonAsync($"{target}/api/auth/sign-in/email",
+            new { email = AdminEmail, password = AdminPassword }).GetAwaiter().GetResult();
         SessionCookieValue = SessionCookieHandler.LastSessionCookie;
     }
 }
 
-/// <summary>Captures the oc_session cookie from Set-Cookie for injection into browser contexts.</summary>
+/// <summary>Captures the Better Auth session cookie for injection into browser contexts.</summary>
 internal sealed class SessionCookieHandler : HttpClientHandler
 {
     public static string LastSessionCookie { get; set; } = "";
@@ -53,9 +53,9 @@ internal sealed class SessionCookieHandler : HttpClientHandler
             {
                 foreach (var c in cookies)
                 {
-                    if (c.StartsWith("oc_session=", System.StringComparison.OrdinalIgnoreCase))
+                    if (c.StartsWith("better-auth.session_token=", System.StringComparison.OrdinalIgnoreCase))
                     {
-                        LastSessionCookie = c.Split(';')[0].Substring("oc_session=".Length);
+                        LastSessionCookie = c.Split(';')[0].Substring("better-auth.session_token=".Length);
                     }
                 }
             }

@@ -58,34 +58,32 @@ export async function loginWithOidc(redirect = '/'): Promise<void> {
   window.location.href = `/auth/login?redirect=${encodeURIComponent(redirect)}`;
 }
 
-export async function loginLocal(username: string, password: string): Promise<CurrentUser> {
-  const res = await fetch('/auth/local/login', {
+export async function loginLocal(email: string, password: string): Promise<CurrentUser> {
+  const res = await fetch('/api/auth/sign-in/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message ?? 'Login failed');
-  cachedCsrfToken = data.csrfToken;
+  if (!res.ok || !data?.user) throw new Error(data?.message ?? 'Login failed');
   return data.user;
 }
 
-export async function registerLocal(username: string, password: string, email?: string): Promise<CurrentUser> {
-  const res = await fetch('/auth/local/register', {
+export async function registerLocal(name: string, email: string, password: string): Promise<CurrentUser> {
+  const res = await fetch('/api/auth/sign-up/email', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, email }),
+    body: JSON.stringify({ name, email, password }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error?.message ?? 'Registration failed');
-  cachedCsrfToken = data.csrfToken;
+  if (!res.ok || !data?.user) throw new Error(data?.message ?? 'Registration failed');
   return data.user;
 }
 
 export async function logout(): Promise<void> {
-  await fetch('/auth/logout', {
+  await fetch('/api/auth/sign-out', {
     method: 'POST',
-    headers: { 'X-CSRF-Token': cachedCsrfToken },
+    headers: { 'Content-Type': 'application/json' },
   });
   cachedCsrfToken = '';
 }

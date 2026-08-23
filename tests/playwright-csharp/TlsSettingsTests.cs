@@ -98,10 +98,10 @@ public class TlsSettingsTests : PlaywrightWebTestBase
         }
     }
 
-    private async Task LoginAsAdminAsync(string username, string password)
+    private async Task LoginAsAdminAsync(string email, string password)
     {
-        await FetchStatusAsync("/auth/local/login", "POST",
-            $"{{\"username\":\"{username}\",\"password\":\"{password}\"}}");
+        await FetchStatusAsync("/api/auth/sign-in/email", "POST",
+            $"{{\"email\":\"{email}\",\"password\":\"{password}\"}}");
     }
 
     private async Task OpenSettingsPageAsync()

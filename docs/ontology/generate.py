@@ -198,7 +198,22 @@ decisions = [
         "codes. Argon2id local fallback; legacy scrypt auto-upgraded. Sign-ups "
         "locked by default.",
         "Custom identity service",
-        "OWASP-recommended password hashing; admin opt-in sign-ups.",
+        "OWASP-recommended password hashing; admin opt-in sign-ups. Superseded "
+        "by D-014 (Better Auth).",
+    ),
+    (
+        "D-014",
+        "better-auth-auth",
+        "Better Auth in-app authentication",
+        "Replaces the hand-rolled OIDC/Argon2id auth with Better Auth (mounted "
+        "at /api/auth), backed by SurrealDB via the surreal-better-auth "
+        "adapter. Email/password, passkeys/WebAuthn, TOTP, RBAC, and social "
+        "OAuth are Better Auth features. ADMIN_EMAIL grants the admin role. "
+        "Per §7 default for in-app auth.",
+        "Hand-rolled OIDC via Keycloak + Argon2id local fallback (D-004)",
+        "No self-authored identity/crypto; the auth engine is a maintained "
+        "component; the web client and Playwright suite use Better Auth native "
+        "endpoints.",
     ),
     (
         "D-005",

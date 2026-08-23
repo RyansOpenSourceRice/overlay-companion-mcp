@@ -113,14 +113,16 @@ public abstract class PlaywrightWebTestBase : IDisposable
     protected async Task RegisterOrLoginAsync(string username, string password)
     {
         await GoToAsync("/");
+        // Better Auth email/password sign-up then sign-in (name = email for the
+        // test user so the sign-in identifier matches).
         var status = await FetchStatusAsync(
-            "/auth/local/register", "POST",
-            $"{{\"username\":\"{username}\",\"password\":\"{password}\"}}");
+            "/api/auth/sign-up/email", "POST",
+            $"{{\"name\":\"{username}\",\"email\":\"{username}\",\"password\":\"{password}\"}}");
         if (status != 200)
         {
             await FetchStatusAsync(
-                "/auth/local/login", "POST",
-                $"{{\"username\":\"{username}\",\"password\":\"{password}\"}}");
+                "/api/auth/sign-in/email", "POST",
+                $"{{\"email\":\"{username}\",\"password\":\"{password}\"}}");
         }
         // Reload so the SPA boots past the auth gate into the app view now that a
         // session cookie exists (the fetch above did not reload the page).

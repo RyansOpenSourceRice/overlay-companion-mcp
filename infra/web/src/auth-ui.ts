@@ -56,7 +56,7 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
 
   if (status.local.enabled) {
     const form = el('form', 'login-local-form') as HTMLFormElement;
-    const username = inputField('username', 'Username');
+    const username = inputField('username', 'Email');
     const password = inputField('password', 'Password', 'password');
     const submit = el('button', 'btn btn-secondary', 'Sign in') as HTMLButtonElement;
     submit.type = 'submit';
@@ -80,9 +80,9 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
       const regWrap = el('div', 'login-register');
       regWrap.appendChild(el('h3', '', 'Create an account'));
       const regForm = el('form', 'login-local-form') as HTMLFormElement;
-      const ru = inputField('reg-username', 'Username');
+      const ru = inputField('reg-username', 'Name');
       const rp = inputField('reg-password', 'Password (min 12 chars)', 'password');
-      const re = inputField('reg-email', 'Email (optional)');
+      const re = inputField('reg-email', 'Email');
       const rs = el('button', 'btn btn-secondary', 'Register') as HTMLButtonElement;
       rs.type = 'submit';
       regForm.append(ru.wrap, rp.wrap, re.wrap, rs);
@@ -91,7 +91,7 @@ function renderLoginForms(status: AuthStatus, container: HTMLElement, onLoggedIn
         e.preventDefault();
         regErr.textContent = '';
         try {
-          const user = await registerLocal(ru.input.value, rp.input.value, re.input.value || undefined);
+          const user = await registerLocal(ru.input.value, re.input.value, rp.input.value);
           onLoggedIn(user);
         } catch (err) {
           regErr.textContent = (err as Error).message;
