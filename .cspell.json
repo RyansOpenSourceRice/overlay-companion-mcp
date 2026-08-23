@@ -98,6 +98,7 @@
     "OAuth",
     "OCSP",
     "OIDC",
+    "OpenFGA",
     "OpenTofu",
     "openrouter",
     "PKI",
@@ -149,6 +150,8 @@
     "Traefik",
     "TypeScript",
     "UDP",
+    "ULID",
+    "ULIDs",
     "UPSERT",
     "Ubuntu",
     "VMware",
@@ -495,6 +498,7 @@
     "factory-method",
     "fail-fast",
     "fail-safe",
+    "fail-closed",
     "fail-stop-signature",
     "fault-injection",
     "fault-tolerant",
@@ -1193,6 +1197,7 @@
     "hostable",
     "keycloak",
     "openhands",
+    "openfga",
     "personhood",
     "pkce",
     "signup",
@@ -1221,6 +1226,8 @@
     "SPARQL",
     "Fuseki",
     "Turtle",
-    "ttl"
+    "ttl",
+    "Zanzibar",
+    "ListObjects"
   ]
 }

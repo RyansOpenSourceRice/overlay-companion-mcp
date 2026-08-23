@@ -389,6 +389,28 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   container.appendChild(tlsActions);
   void refreshTlsStatus(statusLine, isAdmin);
 
+  // Fine-grained authorization (D-017): OpenFGA is a separate service (like
+  // SurrealDB/Keycloak) — never embedded in the app. When enabled, the server
+  // enforces owner/operator/viewer relations on saved connections (fail-closed).
+  // storeId/modelId are provisioned by the server and shown read-only here.
+  const openfga = (settings.openfga?.['openfga.settings'] as Record<string, unknown>) ?? {};
+  container.appendChild(
+    settingsCard(
+      'Fine-grained authorization (OpenFGA)',
+      'Relationship-based access control for saved connections. OpenFGA runs as its own ' +
+        'service; this app only talks to it over HTTP. When enabled, the server writes the ' +
+        'creator as the connection owner and enforces viewer/operator/owner on every request. ' +
+        'Disabled by default (owner-scoped behavior).',
+      [
+        toggleRow('enabled', 'Enable OpenFGA', Boolean(openfga.enabled), isAdmin),
+        textRow('endpoint', 'OpenFGA endpoint', String(openfga.endpoint ?? 'http://openfga:8080'), isAdmin),
+        el('p', 'settings-hint', `Store: ${String(openfga.storeId ?? '—')}`),
+        el('p', 'settings-hint', `Authorization model: ${String(openfga.modelId ?? '—')}`),
+      ],
+      () => saveSection(container, 'openfga', 'settings', isAdmin),
+    ),
+  );
+
   // Account actions
   container.appendChild(el('h3', '', 'Account'));
   const accountBox = el('div', 'settings-section');

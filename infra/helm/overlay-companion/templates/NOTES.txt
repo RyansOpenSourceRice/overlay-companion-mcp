@@ -1,0 +1,17 @@
+Overlay Companion MCP is installed.
+
+The management server (web UI + API + auth) is available at:
+
+  {{- if .Values.ingress.enabled }}
+  https://{{ .Values.ingress.host }}
+  {{- else }}
+  kubectl port-forward svc/{{ include "overlay-companion.fullname" . }} 8080:{{ .Values.service.port }}
+  then open http://localhost:8080
+  {{- end }}
+
+SurrealDB: {{ if .Values.surrealdb.enabled }}in-cluster ({{ include "overlay-companion.fullname" . }}-surrealdb){{ else }}external{{ end }}
+OpenFGA:   {{ if .Values.openfga.enabled }}in-cluster ({{ include "overlay-companion.fullname" . }}-openfga){{ else }}disabled (owner-scoped authz){{ end }}
+
+NOTE: BETTER_AUTH_SECRET must be set (values.config.betterAuthSecret) for a
+production deployment. The server fails visibly without it rather than using a
+forgeable default.

@@ -1,0 +1,72 @@
+# Overlay Companion MCP — minimal podman/docker compose.
+#
+# The "solo app container" philosophy (D-017): one app container (the TS
+# management server + web frontend, built by infra/Dockerfile.server) plus the
+# services it talks to — SurrealDB (the only database, §9) and Caddy (the TLS
+# terminator / reverse proxy). OpenFGA is optional; add the `openfga` service
+# from infra/compose.yml and enable it in Settings when you deploy it.
+#
+# Usage:
+#   podman-compose -f infra/compose.minimal.yml up -d --build
+#   open http://localhost:8080
+
+x-common-env: &common_env
+  NODE_ENV: ${NODE_ENV:-development}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-only-change-me} # pragma: allowlist secret (dev default)
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+  BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost:8080}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+  SURREALDB_URL: ${SURREALDB_URL:-http://surrealdb:8000}
+  SURREALDB_NAMESPACE: ${SURREALDB_NAMESPACE:-overlay}
+  SURREALDB_DATABASE: ${SURREALDB_DATABASE:-companion}
+  SURREALDB_USERNAME: ${SURREALDB_USERNAME:-root}
+  SURREALDB_PASSWORD: ${SURREALDB_PASSWORD:-root}
+  OPENFGA_ENABLED: ${OPENFGA_ENABLED:-false}
+  OPENFGA_URL: ${OPENFGA_URL:-http://openfga:8080}
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.server
+    image: overlay-companion/server:latest
+    environment:
+      <<: *common_env
+      HTTP_PORT: 8080
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      - surrealdb
+    restart: unless-stopped
+
+  surrealdb:
+    image: surrealdb/surrealdb:v2.2.1
+    command: ["start", "--user", "${SURREALDB_USERNAME:-root}", "--pass", "${SURREALDB_PASSWORD:-root}", "--bind", "0.0.0.0:8000", "rocksdb:/data/surreal.db"]
+    environment:
+      SURREAL_LOG_LEVEL: ${SURREAL_LOG_LEVEL:-info}
+    volumes:
+      - surrealdb-data:/data
+      - ./surrealdb/schema:/schema:ro
+    ports:
+      - "${SURREALDB_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8.4
+    ports:
+      - "${CADDY_HTTP_PORT:-8081}:80"
+    volumes:
+      - ./Caddyfile.minimal:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  surrealdb-data:
+    name: overlay-minimal-surrealdb-data

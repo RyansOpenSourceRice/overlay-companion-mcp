@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "overlay-companion.fullname" . }}
+  labels:
+    {{- include "overlay-companion.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
+  BETTER_AUTH_URL: {{ .Values.config.betterAuthUrl | quote }}
+  BETTER_AUTH_TRUSTED_ORIGINS: {{ .Values.config.trustedOrigins | quote }}
+  BETTER_AUTH_PASSKEY_RP_ID: {{ .Values.config.passkeyRpId | quote }}
+  ADMIN_EMAIL: {{ .Values.config.adminEmail | quote }}
+  SURREALDB_NAMESPACE: {{ .Values.surrealdb.namespace | quote }}
+  SURREALDB_DATABASE: {{ .Values.surrealdb.database | quote }}
+  SURREALDB_USERNAME: {{ .Values.surrealdb.username | quote }}
+  {{- if .Values.surrealdb.enabled }}
+  SURREALDB_PASSWORD: {{ .Values.surrealdb.password | quote }}
+  {{- end }}

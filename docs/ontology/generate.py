@@ -248,6 +248,24 @@ decisions = [
         "lifecycle, transactions, and error mapping.",
     ),
     (
+        "D-017",
+        "openfga-fine-grained-authorization",
+        "OpenFGA is the fine-grained authorization service",
+        "OpenFGA (a separate service, never embedded in the app) is the "
+        "authorization boundary for saved connections. Model schema 1.1: "
+        "connection has owner/operator/viewer relations (owner written on "
+        "create; operator/viewer forward-looking). Enforcement is fail-closed "
+        "Check() on read/update/delete/test/touch, ListObjects(viewer) for "
+        "listing. GUI-first and opt-in via Settings (app_config category "
+        "'openfga', bootstrap env defaults); disabled by default keeps the "
+        "owner-scoped behavior. Better Auth stays identity+RBAC; OpenFGA adds "
+        "relationship-based per-object authorization.",
+        "Hand-rolled per-object checks in route handlers, or embedding an "
+        "authorization engine into the app",
+        "Reuses a maintained Zanzibar-style engine; GUI-first opt-in; no "
+        "self-authored authz logic; complements (does not replace) Better Auth.",
+    ),
+    (
         "D-005",
         "server-persisted-connections",
         "Saved connections are server-persisted",

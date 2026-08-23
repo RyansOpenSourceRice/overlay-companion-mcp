@@ -33,6 +33,7 @@ export interface SettingsBundle {
   provider?: Record<string, unknown>;
   audio?: Record<string, unknown>;
   tls?: Record<string, unknown>;
+  openfga?: Record<string, unknown>;
 }
 
 let cachedCsrfToken = '';

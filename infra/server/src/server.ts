@@ -29,6 +29,7 @@ import {
 } from './auth.js';
 import { auth as betterAuth, ensureConnected as ensureBetterAuthDb } from './better-auth.js';
 import { SurrealDbStore, ConnectionInput } from './surreal-store.js';
+import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-store.js';
 import { createChat } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { readFileSync } from 'fs';
@@ -125,6 +126,12 @@ const connectionManager = new ConnectionManager();
 // Failure to reach the DB is non-fatal at boot; routes that need it surface a
 // clear error. The schema is applied on boot (idempotent OVERWRITE).
 const surrealStore = new SurrealDbStore();
+// Fine-grained authorization (D-017). OpenFGA is a separate service — never
+// embedded in the app — and the store here is the authorization boundary. It
+// is OPT-IN via GUI-first config (§9): disabled by default keeps the existing
+// owner-scoped behavior (fail-open, no OpenFGA calls); when enabled, the
+// connection routes enforce Check()/ListObjects() fail-closed.
+const openfgaStore = new OpenFgaStore();
 // In-app chat assistant (B1): a second client to the same C# MCP tools.
 const chat = createChat(surrealStore);
 // Voice/transcription bridge (Phase C): cloud fish or local whisper, off by default.
@@ -155,6 +162,24 @@ void (async () => {
     }
   } catch (err) {
     log.warn('[TLS] failed to load TLS settings:', (err as Error).message);
+  }
+})();
+
+// OpenFGA settings are GUI-first (§9): bootstrap env defaults, editable in the
+// Settings UI, persisted in app_config (category "openfga"). On boot we load
+// them and provision the store + authorization model if enabled.
+void (async () => {
+  try {
+    const stored = await surrealStore.getConfig('openfga.settings');
+    if (stored && typeof stored === 'object') {
+      openfgaStore.update(stored as Partial<OpenFgaOptions>);
+    }
+    if (openfgaStore.getOptions().enabled) {
+      const provisioned = await openfgaStore.provision();
+      log.info(`[OpenFGA] provisioned store ${provisioned.storeId} model ${provisioned.modelId}`);
+    }
+  } catch (err) {
+    log.warn('[OpenFGA] failed to load/provision OpenFGA settings:', (err as Error).message);
   }
 })();
 
@@ -755,6 +780,30 @@ function requireAdmin(): RequestHandler {
   };
 }
 
+// OpenFGA authorization gate (D-017). When OpenFGA is enabled, the signed-in
+// user must hold the given relation on the connection or the request is denied
+// (fail-closed). When disabled, this is a no-op: the owner-scoped store query
+// is the only gate (unchanged behavior). Returns true when the request may
+// proceed, false after a response has been sent.
+async function requireConnectionRelation(
+  req: Request,
+  res: Response,
+  relation: ConnectionRelation,
+  connectionId: string,
+): Promise<boolean> {
+  const state = (req as Request & { authState?: AuthState }).authState;
+  if (!state) {
+    res.status(401).json({ error: { code: 'unauthenticated', message: 'Sign in required.' } });
+    return false;
+  }
+  const allowed = await openfgaStore.check(state.user.id, relation, connectionId);
+  if (!allowed) {
+    res.status(403).json({ error: { code: 'forbidden', message: 'You do not have permission to access this connection.' } });
+    return false;
+  }
+  return true;
+}
+
 // SECURITY: Rate limiting for the settings API (§7). These routes perform
 // authorization (session + admin checks), so they are rate-limited to prevent
 // abuse — addresses the CodeQL "authorization without rate limiting" finding.
@@ -768,7 +817,7 @@ const settingsLimiter = rateLimit({
 // GET /api/settings — all configuration grouped by category. Read by any
 // authenticated user (the Settings UI); secrets are never returned.
 app.get('/api/settings', settingsLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
-  const categories = ['auth', 'connection', 'wazuh', 'general', 'tls', 'provider', 'audio'];
+  const categories = ['auth', 'connection', 'wazuh', 'general', 'tls', 'provider', 'audio', 'openfga'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
     const rows = await surrealStore.getConfigByCategory(cat);
@@ -785,6 +834,7 @@ app.get('/api/settings', settingsLimiter, requireBetterAuthSession, (async (_req
   out.tls = { ...bootstrapTlsSettings(), ...out.tls };
   out.provider = { ...bootstrapProviderSettings(), ...out.provider };
   out.audio = { ...bootstrapAudioSettings(), ...out.audio };
+  out.openfga = { ...bootstrapOpenFgaSettings(), ...out.openfga };
   res.json(out);
 }) as RequestHandler);
 
@@ -820,6 +870,15 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   // Voice/transcription settings (Phase C): drop the cached audio config.
   if (category === 'audio') {
     audioBridge.invalidate();
+  }
+  // Fine-grained authorization (D-017): hot-apply + provision the OpenFGA
+  // store/model so a Settings save takes effect without a restart.
+  if (category === 'openfga') {
+    openfgaStore.update(value as Partial<OpenFgaOptions>);
+    if (openfgaStore.getOptions().enabled) {
+      const provisioned = await openfgaStore.provision();
+      log.info(`[OpenFGA] provisioned store ${provisioned.storeId} model ${provisioned.modelId}`);
+    }
   }
   await surrealStore.appendAudit({
     action: 'config.updated',
@@ -1122,10 +1181,15 @@ function toConnectionDto(row: {
   };
 }
 
-// GET /api/connections — the current user's saved connections.
+// GET /api/connections — the connections the current user may view. When
+// OpenFGA is enabled (D-017) the authorization decision comes from OpenFGA
+// listObjects(viewer); otherwise the owner-scoped store query is used.
 app.get('/api/connections', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  const rows = await surrealStore.listConnections(state.user.id);
+  const viewable = await openfgaStore.listViewableConnectionIds(state.user.id);
+  const rows = viewable !== null
+    ? await surrealStore.getConnectionsByIds(viewable)
+    : await surrealStore.listConnections(state.user.id);
   res.json({ connections: rows.map(toConnectionDto) });
 }) as RequestHandler);
 
@@ -1140,6 +1204,8 @@ app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (asyn
   const { password, ...clean } = input;
   const passwordHash = password ? await hashPassword(password) : undefined;
   const saved = await surrealStore.upsertConnection(state.user.id, clean, passwordHash);
+  // OpenFGA (D-017): the creator becomes the owner of the new connection.
+  await openfgaStore.writeOwner(state.user.id, saved.id);
   await surrealStore.appendAudit({
     action: 'connection.created',
     userId: state.user.id,
@@ -1150,9 +1216,10 @@ app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (asyn
   res.status(201).json({ connection: toConnectionDto(saved) });
 }) as RequestHandler);
 
-// GET /api/connections/:id — one saved connection.
+// GET /api/connections/:id — one saved connection (viewer relation).
 app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!(await requireConnectionRelation(req, res, 'viewer', req.params.id))) return;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
@@ -1161,9 +1228,10 @@ app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
   res.json({ connection: toConnectionDto(row) });
 }) as RequestHandler);
 
-// PUT /api/connections/:id — update an existing saved connection.
+// PUT /api/connections/:id — update an existing saved connection (operator).
 app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const existing = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!existing) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
@@ -1190,14 +1258,18 @@ app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
   res.json({ connection: toConnectionDto(saved) });
 }) as RequestHandler);
 
-// DELETE /api/connections/:id — remove a saved connection.
+// DELETE /api/connections/:id — remove a saved connection (owner only).
 app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!(await requireConnectionRelation(req, res, 'owner', req.params.id))) return;
   const deleted = await surrealStore.deleteConnection(state.user.id, req.params.id);
   if (!deleted) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
   }
+  // OpenFGA (D-017): drop the connection's tuples so deleted objects can't be
+  // re-checked against stale grants.
+  await openfgaStore.deleteTuplesForConnection(req.params.id);
   await surrealStore.appendAudit({
     action: 'connection.deleted',
     userId: state.user.id,
@@ -1209,9 +1281,10 @@ app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession,
 }) as RequestHandler);
 
 // POST /api/connections/:id/touch — record a successful connect (server-authoritative
-// timestamp; clients cannot forge last_connected).
+// timestamp; clients cannot forge last_connected). Operator relation (D-017).
 app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
@@ -1222,8 +1295,10 @@ app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSess
 }) as RequestHandler);
 
 // POST /api/connections/:id/test — test a saved connection against its target.
+// Operator relation (D-017).
 app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const row = await surrealStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
@@ -1364,6 +1439,20 @@ function bootstrapProviderSettings(): Record<string, unknown> {
       model: process.env.PROVIDER_MODEL ?? 'deepseek/deepseek-chat-v3-0324',
       apiKey: process.env.PROVIDER_API_KEY ? '<redacted>' : '',
       enabled: process.env.PROVIDER_CHAT_ENABLED === 'true',
+    },
+  };
+}
+
+// OpenFGA bootstrap defaults (D-017). OpenFGA is a separate service; the app
+// only talks to it over HTTP. Disabled by default (owner-scoped behavior);
+// enable in Settings when a fine-grained authorization service is deployed.
+function bootstrapOpenFgaSettings(): Record<string, unknown> {
+  return {
+    'openfga.settings': {
+      enabled: process.env.OPENFGA_ENABLED === 'true',
+      endpoint: process.env.OPENFGA_URL ?? 'http://openfga:8080',
+      storeId: process.env.OPENFGA_STORE_ID ?? '',
+      modelId: process.env.OPENFGA_MODEL_ID ?? '',
     },
   };
 }
@@ -1537,6 +1626,13 @@ app.get('/health', (async (_req: Request, res: Response) => {
   // Check SurrealDB reachability (the only database; §9).
   const surrealdbStatus = (await surrealStore.ping()) ? 'healthy' : 'unavailable';
 
+  // Check OpenFGA reachability (fine-grained authorization, D-017). Disabled
+  // when OpenFGA is not enabled; otherwise healthy/unavailable.
+  let openfgaStatus = 'disabled';
+  if (openfgaStore.getOptions().enabled) {
+    openfgaStatus = (await openfgaStore.ping()) ? 'healthy' : 'unavailable';
+  }
+
   const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -1557,6 +1653,7 @@ app.get('/health', (async (_req: Request, res: Response) => {
       mcpServer: mcpServerStatus,
       kasmvnc: kasmvncStatus,
       surrealdb: surrealdbStatus,
+      openfga: openfgaStatus,
       auth: 'enabled',
       connectedClients: overlayClients.size,
     },

@@ -56,6 +56,16 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   CORS to `CLIPBOARD_BRIDGE_ALLOWED_ORIGIN` (never `*`).
 
 ### Changed
+- **OpenFGA fine-grained authorization (D-017).** New `openfga-store.ts` is the
+  authorization boundary for saved connections. OpenFGA runs as a separate
+  service (compose `openfga`, `openfga/openfga:v1.6.2`); the server talks to it
+  over HTTP via `@openfga/sdk`. On connection create the creator becomes the
+  owner (tuple write); read/update/delete/test/touch are gated by fail-closed
+  `Check()` (viewer/operator/owner); listing uses `ListObjects(viewer)`.
+  GUI-first and opt-in: Settings → Fine-grained authorization (app_config
+  category `openfga`, bootstrap env defaults); disabled by default preserves
+  the owner-scoped behavior. Unit tests cover provisioning, tuples, checks,
+  and listing against a fake OpenFGA server.
 - **Data-access layer: store boundary (§9).** All management-server data access
   routes through the single `SurrealDbStore` boundary (`surreal-store.ts`); no
   raw SurrealQL/driver calls outside it. Better Auth's `surreal-better-auth`

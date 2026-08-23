@@ -403,6 +403,22 @@ export class SurrealDbStore {
     return rows ?? [];
   }
 
+  /**
+   * Fetch connections by their bare IDs (no user scoping). Used by the
+   * OpenFGA list path (D-017): the authorization decision (which connections
+   * a user may view) comes from OpenFGA listObjects; this fetches exactly
+   * those rows. Returns an empty array for an empty input.
+   */
+  async getConnectionsByIds(ids: string[]): Promise<DbConnection[]> {
+    const clean = ids.map((id) => `connection:${id.replace(/^connection:/, '')}`);
+    if (clean.length === 0) return [];
+    const rows = await this.query<DbConnection[]>(
+      'SELECT * FROM connection WHERE id IN $ids ORDER BY created_at DESC;',
+      { ids: clean },
+    );
+    return rows ?? [];
+  }
+
   async getConnection(userId: string, id: string): Promise<DbConnection | null> {
     const rows = await this.query<DbConnection[]>(
       'SELECT * FROM connection WHERE id = type::thing($id) AND user_id = type::thing($userId) LIMIT 1;',

@@ -1,0 +1,18 @@
+{{- if .Values.surrealdb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "overlay-companion.fullname" . }}-surrealdb
+  labels:
+    {{- include "overlay-companion.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 8000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "overlay-companion.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: surrealdb
+{{- end }}

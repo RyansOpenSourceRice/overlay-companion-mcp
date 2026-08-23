@@ -55,6 +55,30 @@ from the store is the single source of `SURREALDB_*` defaults for both paths, so
 there is exactly one place the DB connection is configured. Everything else must
 route through the store boundary (per §9 data-access-layer rule).
 
+## Decision: OpenFGA is the fine-grained authorization service (D-017)
+
+OpenFGA is a **separate service** — like SurrealDB and Keycloak, it is never
+embedded in the app (Ryan's preference: 3rd-party services run as fit, not
+built in). The management server talks to it over HTTP via the official
+`@openfga/sdk`. It is the authorization boundary for saved connections:
+
+- **Model (schema 1.1):** `user` and `connection` types. `connection` has
+  `owner` (direct), `operator` (direct or owner), and `viewer` (direct or
+  operator) relations. Today only owner tuples are written (the creator owns
+  the connection); operator/viewer are forward-looking for future
+  sharing/delegation.
+- **Enforcement:** on connection create the server writes the owner tuple; on
+  read/update/delete/test/touch it runs `Check()` (viewer/operator/owner) and
+  denies fail-closed. Listing uses `ListObjects(viewer)`.
+- **GUI-first (§9):** OpenFGA is **opt-in** via Settings → Fine-grained
+  authorization (category `openfga` in `app_config`, bootstrap env defaults).
+  Disabled by default keeps the existing owner-scoped behavior with no OpenFGA
+  calls; enabling it provisions the store + model and starts enforcing.
+
+Better Auth remains the identity + RBAC layer (who you are, admin vs user);
+OpenFGA adds relationship-based, per-object authorization on top. They are
+complementary, not competing.
+
 ## Decision: OIDC via Keycloak + local fallback (§7, §8)
 
 Never roll our own identity. Keycloak is self-hostable and admin-configurable;

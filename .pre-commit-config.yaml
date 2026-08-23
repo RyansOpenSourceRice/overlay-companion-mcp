@@ -66,6 +66,9 @@ repos:
         exclude: \.md$
       - id: check-yaml
         files: \.(yaml|yml)$
+        # Helm chart templates use Go template syntax ({{- ... -}}), which is
+        # not valid YAML until rendered. Skip them here; `helm lint` validates.
+        exclude: ^infra/helm/.*/templates/
       - id: check-json
         files: \.json$
       - id: check-toml

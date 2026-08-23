@@ -1,0 +1,47 @@
+# Overlay Companion MCP — management server (TS) + web frontend, one image.
+#
+# This is the "solo app container": it builds the web frontend (infra/web) and
+# the TypeScript management server (infra/server) and runs `node dist/server.js`
+# directly (no supervisor). It needs SurrealDB (and optionally OpenFGA) as
+# separate services — see infra/compose.minimal.yml.
+#
+# Build:  podman build -f infra/Dockerfile.server -t overlay-companion/server .
+# Run:    see infra/compose.minimal.yml
+
+# Stage 1: build the web frontend
+FROM node:20-alpine AS web-builder
+WORKDIR /app/web
+COPY infra/web/package.json ./
+RUN npm install --no-audit --no-fund
+COPY infra/web/ ./
+RUN npm run build
+
+# Stage 2: build the TypeScript management server
+FROM node:20-alpine AS server-builder
+# argon2 is a native module; alpine needs python3 + build tools for node-gyp.
+RUN apk add --no-cache python3 make g++
+WORKDIR /app/server
+COPY infra/server/package.json ./
+COPY infra/server/package-lock.json ./
+RUN npm ci --no-audit --no-fund --legacy-peer-deps
+COPY infra/server/ ./
+RUN npm run build
+RUN npm prune --omit=dev --legacy-peer-deps
+
+# Stage 3: runtime
+FROM node:20-alpine
+ENV NODE_ENV=production
+WORKDIR /app
+# Non-root user
+RUN addgroup -g 1001 appuser && adduser -D -u 1001 -G appuser appuser
+COPY --from=server-builder /app/server/dist ./dist
+COPY --from=server-builder /app/server/node_modules ./node_modules
+COPY --from=server-builder /app/server/package.json ./package.json
+# Web frontend goes where the server serves it (../public relative to dist).
+COPY --from=web-builder /app/web/dist ./public
+RUN chown -R appuser:appuser /app
+USER appuser
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
+CMD ["node", "dist/server.js"]

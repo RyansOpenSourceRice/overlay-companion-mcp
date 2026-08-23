@@ -114,6 +114,24 @@ services:
       retries: 5
       start_period: 15s
 
+# OpenFGA (fine-grained authorization, D-017). A separate service — never
+  # embedded in the app. The management server talks to it over HTTP when
+  # OpenFGA is enabled in Settings. In-memory datastore is fine for a
+  # single-operator deployment; use postgres for HA (see OpenFGA docs).
+  openfga:
+    image: openfga/openfga:v1.6.2
+    command: ["run"]
+    environment:
+      OPENFGA_DATASTORE_ENGINE: memory
+    ports:
+      - "${OPENFGA_PORT:-8086}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.2
     command: ["start-dev", "--http-port=8080", "--hostname-strict=false"]

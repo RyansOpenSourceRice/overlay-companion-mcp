@@ -1,0 +1,42 @@
+{{- if .Values.openfga.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "overlay-companion.fullname" . }}-openfga
+  labels:
+    {{- include "overlay-companion.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "overlay-companion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: openfga
+  template:
+    metadata:
+      labels:
+        {{- include "overlay-companion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: openfga
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: openfga
+          image: {{ .Values.openfga.image | quote }}
+          args: ["run"]
+          env:
+            - name: OPENFGA_DATASTORE_ENGINE
+              value: {{ .Values.openfga.datastoreEngine | quote }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.openfga.resources | nindent 12 }}
+{{- end }}

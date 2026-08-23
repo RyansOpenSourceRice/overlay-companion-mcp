@@ -1,0 +1,71 @@
+# Overlay Companion MCP — Helm values.
+#
+# Mirrors infra/compose.minimal.yml so the same configuration works under
+# podman/docker compose and Kubernetes. The app image is the solo container
+# (infra/Dockerfile.server): web frontend + TS management server.
+
+image:
+  repository: overlay-companion/server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# The management server's own config. BETTER_AUTH_SECRET is required for
+# production; leave unset to force a visible failure (never a forgeable default).
+config:
+  nodeEnv: production
+  betterAuthSecret: ""
+  betterAuthUrl: http://localhost:8080
+  trustedOrigins: http://localhost:8080
+  adminEmail: ""
+  passkeyRpId: ""
+
+# SurrealDB (the only database, §9). Enabled by default; set enabled=false to
+# use an external instance and point config at it via an existing Secret.
+surrealdb:
+  enabled: true
+  image: surrealdb/surrealdb:v2.2.1
+  namespace: overlay
+  database: companion
+  username: root
+  password: root # pragma: allowlist secret (dev default; override in production)
+  storageClass: ""
+  # Size for the PVC ("" = use the default storage class / no request).
+  size: 1Gi
+
+# OpenFGA (fine-grained authorization, D-017). Optional; disabled by default.
+# When enabled, the app provisions the store + model and enforces
+# owner/operator/viewer on saved connections (fail-closed).
+openfga:
+  enabled: false
+  image: openfga/openfga:v1.6.2
+  datastoreEngine: memory
+
+# Ingress. Disabled by default (use port-forward / NodePort for LAN testing).
+ingress:
+  enabled: false
+  className: ""
+  host: overlay.example.com
+  tls:
+    enabled: false
+    secretName: ""
+
+resources: {}
+#  requests:
+#    cpu: 100m
+#    memory: 128Mi
+#  limits:
+#    cpu: 500m
+#    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 8080
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

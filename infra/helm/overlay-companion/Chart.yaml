@@ -1,0 +1,17 @@
+apiVersion: v2
+name: overlay-companion
+description: Overlay Companion MCP — management server + web frontend (TS), SurrealDB, optional OpenFGA, optional ingress.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - overlay
+  - mcp
+  - remote-desktop
+  - kasmvnc
+home: https://github.com/RyansOpenSourceRice/overlay-companion-mcp
+sources:
+  - https://github.com/RyansOpenSourceRice/overlay-companion-mcp
+maintainers:
+  - name: RyansOpenSourceRice
+    url: https://github.com/RyansOpenSourceRice
