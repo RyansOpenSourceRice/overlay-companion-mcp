@@ -16,6 +16,7 @@ import { twoFactor } from 'better-auth/plugins/two-factor';
 import { passkey } from '@better-auth/passkey';
 import { Surreal, ConnectionStatus } from 'surrealdb';
 import { surrealdbAdapter } from 'surreal-better-auth';
+import { loadSurrealOptions } from './surreal-store.js';
 
 // ---- SurrealDB connection (lazy; the app tolerates a DB that is down at
 // boot, matching the existing SurrealDbStore behavior) ---------------------
@@ -27,14 +28,15 @@ export async function ensureConnected(): Promise<Surreal> {
   if (db && db.status === ConnectionStatus.Connected) return db;
   if (connecting) return connecting;
   connecting = (async () => {
-    const url = process.env.SURREALDB_URL || 'ws://localhost:8000';
-    const namespace = process.env.SURREALDB_NAMESPACE || 'overlay';
-    const database = process.env.SURREALDB_DATABASE || 'companion';
-    const username = process.env.SURREALDB_USERNAME || 'root';
-    const password = process.env.SURREALDB_PASSWORD || 'root';
+    // Single source of DB connection config: reuse the store boundary's
+    // options loader so every SurrealDB access path (this WebSocket driver
+    // for Better Auth, and the HTTP /sql store) reads the same SURREALDB_*
+    // defaults and bootstrap values. Only the transport differs.
+    const opts = loadSurrealOptions();
+    const url = opts.endpoint.replace(/^http/i, 'ws');
     try {
       if (!db) db = new Surreal();
-      await db.connect(url, { namespace, database, auth: { username, password } });
+      await db.connect(url, { namespace: opts.namespace, database: opts.database, auth: { username: opts.username, password: opts.password } });
       return db;
     } catch (err) {
       // Reset so a later request can retry the connection; the app tolerates

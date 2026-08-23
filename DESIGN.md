@@ -36,6 +36,25 @@ SurrealDB's built-in caching; no separate cache unless benchmarked. Services
 fall back to file storage when the DB is unreachable so the app keeps working
 during a DB outage.
 
+## Decision: Data-access layer — store boundary (§9)
+
+All management-server data access goes through a single store boundary,
+`SurrealDbStore` (`infra/server/src/surreal-store.ts`). It is the only module
+that runs SurrealQL: route handlers, services, and managers never call the
+driver or raw SQL directly — they depend on the store's typed methods
+(`getConfig`, `setConfig`, `upsertUser`, `findSessionByTokenHash`,
+`appendAudit`, `listConnections`, …). This keeps engine-specific SQL in one
+place, makes the DB testable/swappable without rewriting business logic, and
+gives a single spot for connection lifecycle, transactions, and error mapping.
+
+The one sanctioned exception is **Better Auth's storage adapter**. `better-auth.ts`
+uses the `surreal-better-auth` adapter (its `Surreal` WebSocket driver) because
+Better Auth owns its own user/session schema through the adapter, not through
+our store. It reuses the same connection config though — `loadSurrealOptions()`
+from the store is the single source of `SURREALDB_*` defaults for both paths, so
+there is exactly one place the DB connection is configured. Everything else must
+route through the store boundary (per §9 data-access-layer rule).
+
 ## Decision: OIDC via Keycloak + local fallback (§7, §8)
 
 Never roll our own identity. Keycloak is self-hostable and admin-configurable;

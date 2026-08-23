@@ -56,6 +56,12 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   CORS to `CLIPBOARD_BRIDGE_ALLOWED_ORIGIN` (never `*`).
 
 ### Changed
+- **Data-access layer: store boundary (§9).** All management-server data access
+  routes through the single `SurrealDbStore` boundary (`surreal-store.ts`); no
+  raw SurrealQL/driver calls outside it. Better Auth's `surreal-better-auth`
+  adapter is the sanctioned exception and now reuses `loadSurrealOptions()` from
+  the store, so DB connection config has a single source of truth. Documented in
+  `DESIGN.md` and the per-repo ontology (D-016).
 - **Optional passkeys + TOTP via Better Auth plugins (§7).** The management
   server now wires Better Auth's `passkey` (WebAuthn / hardware keys) and
   `two-factor` (TOTP) plugins, serving `/api/auth/passkey/*` and

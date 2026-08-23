@@ -49,7 +49,8 @@ classes = {
     "Session": "A record of an agent work session for cross-session handoff.",
     "Agent": "An AI agent or tool that produced work on the project.",
     "Risk": "A security or quality risk with its mitigations.",
-    "Skill": "An external agent skill this project references (registered in the skill conglomerate ontology).",
+    "Skill": "An external agent skill this project references (registered in the "
+    "skill conglomerate ontology).",
     "Milestone": "A roadmap milestone or development phase.",
     "Tool": "An MCP tool exposed by the project.",
     "Protocol": "A remote-desktop protocol supported by the project.",
@@ -86,7 +87,8 @@ props = {
     "hasMilestone": "Links a Project to a Milestone.",
     "hasTool": "Links a Project to a Tool.",
     "hasProtocol": "Links a Project to a Protocol.",
-    "hasSkill": "Links a Project to an external agent Skill (from the skill conglomerate).",
+    "hasSkill": "Links a Project to an external agent Skill (from the skill "
+    "conglomerate).",
     "hasPerson": "Links a Project to a Person.",
     "hasTestResult": "Links a Project to a TestResult.",
     # Decision
@@ -109,7 +111,8 @@ props = {
     "summary": "What the session accomplished.",
     "openQuestions": "Questions left open at session end.",
     "references": "Resources the session produced or consumed.",
-    "referencesExternalSkill": "Links a Skill node to its external agent skill in the skill conglomerate ontology.",
+    "referencesExternalSkill": "Links a Skill node to its external agent skill in "
+    "the skill conglomerate ontology.",
     # Agent
     "agentType": "opencode | openhands | other.",
     # Component
@@ -228,6 +231,21 @@ decisions = [
         "Hand-rolled OTP/WebAuthn or a second identity provider",
         "Maintained, audited plugin surface from the existing auth engine; no "
         "self-authored crypto; matches D-004/D-014's never-roll-your-own-identity.",
+    ),
+    (
+        "D-016",
+        "data-access-layer-store-boundary",
+        "Data-access layer: store boundary",
+        "All management-server data access routes through a single store "
+        "boundary, SurrealDbStore (surreal-store.ts). No raw driver/SurrealQL "
+        "outside it; engine specifics live in one place, DB is testable/swappable "
+        "without rewriting business logic. The one sanctioned exception is "
+        "Better Auth's surreal-better-auth adapter, which owns its own user/session "
+        "schema; it reuses the store's loadSurrealOptions() so DB connection config "
+        "has a single source of truth.",
+        "Scattered raw driver calls through route handlers and services",
+        "Single DAL; cheaper to swap/test the DB; one place for connection "
+        "lifecycle, transactions, and error mapping.",
     ),
     (
         "D-005",
@@ -792,8 +810,9 @@ external_skills = [
         "SK1",
         "better-auth",
         "better-auth-create-auth",
-        "https://gitlab.com/RyansOpenSourceRice/ryans_agent_skill_ontology_535/onto#Skill-better-auth",
-        "TypeScript auth framework (email/password, OAuth, passkeys/WebAuthn, TOTP, RBAC). Per §7 default for in-app auth.",
+        "https://gitlab.com/RyansOpenSourceRice/ryans_agent_skill_ontology_535/onto#Skill-better-auth",  # noqa: E501
+        "TypeScript auth framework (email/password, OAuth, passkeys/WebAuthn, "
+        "TOTP, RBAC). Per §7 default for in-app auth.",
     ),
 ]
 for skillId, slug, skillName, externalUri, note in external_skills:
