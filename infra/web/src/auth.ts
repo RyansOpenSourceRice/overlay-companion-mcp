@@ -21,6 +21,8 @@ export interface AuthStatus {
   oidc: { configured: boolean; issuer: string | null };
   local: { enabled: boolean };
   signup: { allowed: boolean };
+  passkey?: { enabled: boolean };
+  totp?: { enabled: boolean };
 }
 
 export interface SettingsBundle {

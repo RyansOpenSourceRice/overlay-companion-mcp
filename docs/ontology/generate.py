@@ -216,6 +216,20 @@ decisions = [
         "endpoints.",
     ),
     (
+        "D-015",
+        "optional-passkey-totp",
+        "Optional passkeys + TOTP via Better Auth plugins",
+        "Enables Better Auth's passkey (WebAuthn / hardware keys) and two-factor "
+        "(TOTP) plugins, gated by §7 as optional per-account opt-ins. The server "
+        "serves /api/auth/passkey/* and /api/auth/two-factor/*; the SPA reflects "
+        "availability in the Settings > Two-factor security card. Neither method "
+        "is forced at sign-up; password + passkey + TOTP combine for a self-hosted "
+        "defense-in-depth posture.",
+        "Hand-rolled OTP/WebAuthn or a second identity provider",
+        "Maintained, audited plugin surface from the existing auth engine; no "
+        "self-authored crypto; matches D-004/D-014's never-roll-your-own-identity.",
+    ),
+    (
         "D-005",
         "server-persisted-connections",
         "Saved connections are server-persisted",

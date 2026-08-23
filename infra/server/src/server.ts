@@ -494,6 +494,8 @@ app.get('/auth/status', (async (_req: Request, res: Response) => {
     oidc: { configured: false, issuer: null },
     local: { enabled: true },
     signup: { allowed: true },
+    passkey: { enabled: true }, // §7 optional WebAuthn/hardware keys (per-account opt-in)
+    totp: { enabled: true }, // §7 optional TOTP 2FA (per-account opt-in)
   });
 }) as RequestHandler);
 

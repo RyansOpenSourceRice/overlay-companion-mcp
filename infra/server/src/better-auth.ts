@@ -12,6 +12,8 @@
  */
 
 import { betterAuth } from 'better-auth';
+import { twoFactor } from 'better-auth/plugins/two-factor';
+import { passkey } from '@better-auth/passkey';
 import { Surreal, ConnectionStatus } from 'surrealdb';
 import { surrealdbAdapter } from 'surreal-better-auth';
 
@@ -82,4 +84,19 @@ export const auth = betterAuth({
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  plugins: [
+    // §7: optional passkeys (WebAuthn / hardware keys) and optional TOTP 2FA.
+    // Both are opt-in per account: a user adds a passkey or enables TOTP from
+    // the Settings > Security UI; neither is forced at sign-up. Password +
+    // passkey + TOTP can be combined (defense in depth for a self-hosted app).
+    passkey({
+      rpID: process.env.BETTER_AUTH_PASSKEY_RP_ID || 'localhost',
+      rpName: 'Overlay Companion MCP',
+      origin: process.env.BETTER_AUTH_URL || 'http://localhost:8080',
+    }),
+    twoFactor({
+      issuer: 'Overlay Companion MCP',
+      otpOptions: { digits: 6, period: 30 },
+    }),
+  ],
 });

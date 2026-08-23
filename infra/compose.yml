@@ -13,6 +13,7 @@ x-common-env: &common_env
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
   BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+  BETTER_AUTH_PASSKEY_RP_ID: ${BETTER_AUTH_PASSKEY_RP_ID:-}
   ADMIN_EMAIL: ${ADMIN_EMAIL:-}
   # Session cookie Secure flag. This app is commonly self-hosted over plain
   # HTTP on a LAN, where a Secure cookie would be refused by the browser, so the

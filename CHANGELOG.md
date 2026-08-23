@@ -56,6 +56,15 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   CORS to `CLIPBOARD_BRIDGE_ALLOWED_ORIGIN` (never `*`).
 
 ### Changed
+- **Optional passkeys + TOTP via Better Auth plugins (§7).** The management
+  server now wires Better Auth's `passkey` (WebAuthn / hardware keys) and
+  `two-factor` (TOTP) plugins, serving `/api/auth/passkey/*` and
+  `/api/auth/two-factor/*`. Both are optional per-account opt-ins — nothing is
+  forced at sign-up, and password + passkey + TOTP can combine for a self-hosted
+  defense-in-depth posture. `/auth/status` now reports `passkey` and `totp`
+  availability, and the SPA Settings gains a "Two-factor security" card that
+  reflects it. Configurable via `BETTER_AUTH_PASSKEY_RP_ID` (and the existing
+  `BETTER_AUTH_URL` / `BETTER_AUTH_TRUSTED_ORIGINS`).
 - `docs/CLIPBOARD_BRIDGE.md` documents the hardened env surface.
 - `DESIGN.md` and `SPECIFICATION.md` updated for Playwright + templates.
 - **HTTPS & Certificates management (§7, admin GUI + API).** The root admin can

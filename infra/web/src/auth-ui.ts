@@ -149,11 +149,37 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
     ], () => saveAuthSection(container, 'signup', isAdmin)),
   );
 
-  const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? {};
+const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? {};
   container.appendChild(
     settingsCard('Session', 'How long a login stays valid.', [
       numberRow('ttlMinutes', 'Session TTL (minutes)', Number(session.ttlMinutes ?? 480), isAdmin),
     ], () => saveAuthSection(container, 'session', isAdmin)),
+  );
+
+  // §7 optional 2FA: passkeys (WebAuthn / hardware keys) and TOTP. Both are
+  // per-account opt-in. Better Auth serves the management endpoints; the rows
+  // here reflect availability. Per-user setup runs against Better Auth's own
+  // endpoints (/api/auth/passkey/*, /api/auth/two-factor/*).
+  let passkeyEnabled = false;
+  let totpEnabled = false;
+  try {
+    const st = await getAuthStatus();
+    passkeyEnabled = st.passkey?.enabled ?? false;
+    totpEnabled = st.totp?.enabled ?? false;
+  } catch {
+    // Leave both false; the card just notes availability.
+  }
+  container.appendChild(
+    settingsCard(
+      'Two-factor security',
+      'Optional per-account passkeys (WebAuthn / hardware keys) and TOTP authenticator app codes. ' +
+        'Add these from your account\u2019s security settings; neither is required to sign in.',
+      [
+        el('p', 'settings-hint', passkeyEnabled ? 'Passkeys: enabled (optional).' : 'Passkeys: available.'),
+        el('p', 'settings-hint', totpEnabled ? 'TOTP 2FA: enabled (optional).' : 'TOTP 2FA: available.'),
+      ],
+      () => {},
+    ),
   );
 
   // Wazuh integration (§8): admin-enabled, no paywall.

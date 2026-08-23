@@ -95,6 +95,7 @@ jobs:
           export BETTER_AUTH_SECRET="ci-test-better-auth-secret-not-for-prod-0123456789abcdef" # pragma: allowlist secret
           export BETTER_AUTH_URL="http://localhost:8080"
           export BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:8080"
+          export BETTER_AUTH_PASSKEY_RP_ID="localhost"
           export ADMIN_EMAIL="admin-playwright-e2e@overlay.test"
           export SESSION_SECRET="ci-test-secret-only-not-for-prod" # pragma: allowlist secret
           export SURREALDB_URL="http://localhost:8000"
