@@ -245,7 +245,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   // Non-admin users get only their own account controls — not the admin
   // configuration surface (OIDC, TLS, provider keys, Wazuh, OpenFGA, etc.).
   if (!isAdmin) {
-    renderAccountSection(container);
+    renderAccountSection(container, user);
     return;
   }
 
@@ -484,12 +484,13 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   );
 
   // Account actions
-  renderAccountSection(container);
+  renderAccountSection(container, user);
 }
 
-function renderAccountSection(container: HTMLElement): void {
+function renderAccountSection(container: HTMLElement, user: CurrentUser): void {
   container.appendChild(el('h3', '', 'Account'));
   const accountBox = el('div', 'settings-section');
+
   const logoutBtn = el('button', 'btn btn-secondary', 'Sign out');
   logoutBtn.addEventListener('click', async () => {
     await logout();
@@ -498,17 +499,83 @@ function renderAccountSection(container: HTMLElement): void {
   accountBox.appendChild(logoutBtn);
 
   const deleteBtn = el('button', 'btn btn-danger', 'Delete my account');
+  const twoFactor = Boolean(user.twoFactorEnabled);
+  const hasPrompt = createDeletePrompt(accountBox, deleteBtn, twoFactor);
+
   deleteBtn.addEventListener('click', async () => {
-    if (!confirm('This permanently deletes your account and revokes all sessions. Continue?')) return;
-    try {
-      await deleteAccount();
-      window.location.reload();
-    } catch (err) {
-      alert((err as Error).message);
-    }
+    hasPrompt.form.style.display = 'block';
+    deleteBtn.style.display = 'none';
+    hasPrompt.confirm.disabled = hasPrompt.enabled();
   });
   accountBox.appendChild(deleteBtn);
   container.appendChild(accountBox);
+}
+
+// Build the re-authentication form revealed by "Delete my account": a password
+// prompt plus, when the account has two-factor enabled, a TOTP code field.
+function createDeletePrompt(
+  accountBox: HTMLElement,
+  deleteBtn: HTMLElement,
+  twoFactor: boolean,
+): { form: HTMLElement; confirm: HTMLButtonElement; enabled: () => boolean } {
+  const form = el('div', 'delete-account-prompt');
+  form.style.display = 'none';
+  form.appendChild(el('p', '', 'This is permanent. Re-enter your password to confirm.'));
+
+  const pw = inputField('delete-account-password', 'Password', 'password');
+  form.appendChild(pw.wrap);
+  pw.input.autocomplete = 'current-password';
+
+  let totp: ReturnType<typeof inputField> | null = null;
+  if (twoFactor) {
+    totp = inputField('delete-account-totp', 'Authenticator code', 'text');
+    totp.input.autocomplete = 'one-time-code';
+    totp.input.inputMode = 'numeric';
+    totp.input.maxLength = 6;
+    totp.input.pattern = '[0-9]*';
+    form.appendChild(totp.wrap);
+  }
+
+  const errorBox = el('p', 'delete-account-error');
+  errorBox.style.display = 'none';
+  form.appendChild(errorBox);
+
+  const row = el('div', 'delete-account-actions');
+  const cancel = el('button', 'btn btn-secondary', 'Cancel') as HTMLButtonElement;
+  const confirm = el('button', 'btn btn-danger', 'Delete account') as HTMLButtonElement;
+  cancel.type = 'button';
+  confirm.type = 'button';
+  row.appendChild(cancel);
+  row.appendChild(confirm);
+  form.appendChild(row);
+  accountBox.appendChild(form);
+
+  cancel.addEventListener('click', () => {
+    form.style.display = 'none';
+    deleteBtn.style.display = '';
+    errorBox.style.display = 'none';
+  });
+
+  confirm.addEventListener('click', async () => {
+    const password = pw.input.value;
+    const totpCode = totp ? totp.input.value.trim() : undefined;
+    try {
+      confirm.disabled = true;
+      await deleteAccount(password, totpCode);
+      // account is gone: bounce to the login view without a stale session.
+      window.location.assign('/');
+    } catch (err) {
+      confirm.disabled = false;
+      errorBox.textContent = (err as Error).message;
+      errorBox.style.display = 'block';
+    }
+  });
+
+  const enabled = (): boolean => pw.input.value.length > 0 && (!totp || totp.input.value.trim().length > 0);
+  pw.input.addEventListener('input', () => { confirm.disabled = !enabled(); });
+  if (totp) totp.input.addEventListener('input', () => { confirm.disabled = !enabled(); });
+
+  return { form, confirm, enabled };
 }
 
 async function saveAuthSection(card: HTMLElement, key: string, isAdmin: boolean): Promise<void> {

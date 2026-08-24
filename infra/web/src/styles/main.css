@@ -887,6 +887,29 @@ textarea:focus {
   gap: var(--spacing-sm);
 }
 
+.delete-account-prompt {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.delete-account-error {
+  color: var(--error-color);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.delete-account-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+  margin-top: var(--spacing-md);
+}
+
 .settings-grid {
   display: flex;
   flex-direction: column;

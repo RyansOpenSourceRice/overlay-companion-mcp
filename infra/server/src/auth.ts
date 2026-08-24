@@ -19,6 +19,7 @@ export interface AuthUser {
   displayName?: string;
   roles: string[];
   provider: string;
+  twoFactorEnabled?: boolean;
 }
 
 export interface AuthState {

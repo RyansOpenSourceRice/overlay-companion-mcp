@@ -93,6 +93,14 @@ export const auth = betterAuth({
     // password remains its own credential in transit.
     minPasswordLength: 12,
   },
+  // §7 Privacy: the user must be able to delete their own account. Better Auth
+  // disables deleteUser by default; enable it and let it re-authenticate via
+  // the password (server.ts adds the required TOTP check when 2FA is on).
+  user: {
+    deleteUser: {
+      enabled: true,
+    },
+  },
   session: {
     expiresIn: 7 * 24 * 60 * 60, // 7 days
     updateAge: 24 * 60 * 60, // refresh the session cookie once per day

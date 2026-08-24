@@ -27,7 +27,7 @@ import { ConnectionManager } from './connection-manager.js';
 import { TlsManager, TlsSettings } from './tls-manager.js';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import { toNodeHandler } from 'better-auth/node';
-import { APIError } from 'better-auth';
+import { APIError, createLocalAccountIssuer } from 'better-auth';
 import {
   AuthState,
   hashPassword,
@@ -352,6 +352,7 @@ async function requireBetterAuthSession(req: Request, res: Response, next: NextF
         displayName: u.name,
         roles: isAdmin ? ['admin', 'overlay:user'] : ['overlay:user'],
         provider: 'better-auth',
+        twoFactorEnabled: Boolean((u as unknown as { twoFactorEnabled?: boolean }).twoFactorEnabled),
       },
       sessionId: result.session.id ?? '',
       csrfToken: '',
@@ -762,11 +763,78 @@ app.post('/auth/logout', (async (req: Request, res: Response) => {
 }) as RequestHandler);
 
 // POST /auth/delete-account — delete the signed-in user (§7 Privacy).
+// Re-authentication is mandatory: the password must match, and when the
+// account has TOTP two-factor enabled the current 6-digit code must also be
+// verified before the account is deleted.
 app.post('/auth/delete-account', requireBetterAuthSession, (async (req: Request, res: Response) => {
-  await ensureBetterAuthDb();
-  await betterAuth.api.deleteUser({ headers: req.headers, body: {} });
-  res.json({ ok: true });
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const body = (req.body ?? {}) as { password?: string; totpCode?: string };
+  if (typeof body.password !== 'string' || !body.password) {
+    res.status(400).json({ error: { code: 'password_required', message: 'Enter your password to delete your account.' } });
+    return;
+  }
+  // Verify the password directly rather than relying on deleteUser's password
+  // parameter: with the SurrealDB adapter Better Auth's findCredentialAccount
+  // cannot resolve the credential account (accountId is stored as the user
+  // RecordId), so deleteUser would reject a correct password. This mirrors the
+  // credential lookup / password check that sign-in uses, which does work.
+  const passwordOk = await verifyPasswordReauth(state.user.email, body.password);
+  if (!passwordOk) {
+    res.status(400).json({ error: { code: 'invalid_password', message: 'Incorrect password.' } });
+    return;
+  }
+  if (state.user.twoFactorEnabled) {
+    if (typeof body.totpCode !== 'string' || !body.totpCode.trim()) {
+      res.status(400).json({ error: { code: 'totp_required', message: 'Enter your authenticator code to delete your account.' } });
+      return;
+    }
+    try {
+      // Better Auth's verify-totp endpoint validates the code against the
+      // stored secret when a valid session is present (it does not mint a new
+      // session in that case).
+      await ensureBetterAuthDb();
+      await betterAuth.api.verifyTOTP({ headers: req.headers, body: { code: body.totpCode.trim() } });
+    } catch {
+      res.status(400).json({ error: { code: 'invalid_totp', message: 'Incorrect authenticator code.' } });
+      return;
+    }
+  }
+  try {
+    await ensureBetterAuthDb();
+    const ctx = await betterAuth.$context;
+    await ctx.internalAdapter.deleteUser(state.user.id);
+    await ctx.internalAdapter.deleteUserSessions(state.user.id);
+    // Clear the session cookies (including the session-data cache cookie) so
+    // the now-deleted session is not served from the client-side cache.
+    const signOutResult = await betterAuth.api.signOut({ headers: req.headers, returnHeaders: true });
+    applyBetterAuthHeaders(res, signOutResult?.headers);
+    res.json({ ok: true });
+  } catch (err) {
+    log.warn('delete-account deletion failed:', (err as Error)?.message || err);
+    res.status(500).json({ error: { code: 'delete_failed', message: 'Could not delete the account.' } });
+  }
 }) as RequestHandler);
+
+// Re-authentication password check. Mirrors Better Auth's sign-in credential
+// lookup (findUserByEmail + includeAccounts, then match the local credential
+// account and verify its scrypt hash), which works with the SurrealDB adapter
+// where findCredentialAccount does not.
+async function verifyPasswordReauth(email: string | undefined, password: string): Promise<boolean> {
+  if (!email) return false;
+  try {
+    const ctx = await betterAuth.$context;
+    const record = await ctx.internalAdapter.findUserByEmail(email.toLowerCase(), { includeAccounts: true });
+    if (!record) return false;
+    const issuer = createLocalAccountIssuer('credential');
+    const account = record.accounts.find(
+      (a) => a.providerId === 'credential' && a.issuer === issuer && a.accountId === record.user.id,
+    );
+    if (!account?.password) return false;
+    return await ctx.password.verify({ hash: account.password, password });
+  } catch {
+    return false;
+  }
+}
 
 // ---- GUI-first configuration (§9) ---------------------------------------
 // Auth/connection/provider/Wazuh settings live in SurrealDB app_config and are
