@@ -15,7 +15,7 @@ import { betterAuth } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { passkey } from '@better-auth/passkey';
 import { Surreal, ConnectionStatus } from 'surrealdb';
-import { surrealdbAdapter } from 'surreal-better-auth';
+import { surrealdbAdapter } from './auth-db-adapter/surreal-adapter.js';
 import { loadSurrealOptions } from './surreal-store.js';
 
 // ---- SurrealDB connection (lazy; the app tolerates a DB that is down at
