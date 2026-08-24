@@ -40,7 +40,7 @@
                         <i class="fas fa-home"></i> Home
                     </button>
                     <button class="nav-btn" data-page="connections">
-                        <i class="fas fa-desktop"></i> Connections
+                        <i class="fas fa-desktop"></i> Computers
                     </button>
                     <button class="nav-btn" data-page="settings">
                         <i class="fas fa-cog"></i> Settings
@@ -62,17 +62,17 @@
             <div id="home-page" class="page active">
                 <div class="hero-section">
                     <div class="hero-content">
-                        <h2>AI-Powered Screen Overlay System</h2>
+                        <h2>Your remote computers, in one place</h2>
                         <p class="hero-description">
-                            Connect to remote virtual machines and enable AI-assisted screen interaction
-                            with real-time overlays, multi-monitor support, and seamless KasmVNC integration.
+                            View and mark up your computers and virtual machines from your
+                            browser — with helpful AI notes and clear, live status.
                         </p>
                         <div class="hero-actions">
                             <button class="btn btn-primary" id="quick-connect-btn">
-                                <i class="fas fa-rocket"></i> Quick Connect
+                                <i class="fas fa-rocket"></i> Connect to a Recent Computer
                             </button>
                             <button class="btn btn-secondary" data-page="connections">
-                                <i class="fas fa-plus"></i> New Connection
+                                <i class="fas fa-plus"></i> Add a Computer
                             </button>
                         </div>
                     </div>
@@ -80,18 +80,18 @@
                         <div class="feature-grid">
                             <div class="feature-card">
                                 <i class="fas fa-tv"></i>
-                                <h3>Multi-Monitor</h3>
-                                <p>Native support for multiple displays with KasmVNC</p>
+                                <h3>See every screen</h3>
+                                <p>All your monitors, one window</p>
                             </div>
                             <div class="feature-card">
                                 <i class="fas fa-robot"></i>
-                                <h3>AI Integration</h3>
-                                <p>MCP-powered intelligent screen overlays</p>
+                                <h3>AI lends a hand</h3>
+                                <p>Screenshots and on-screen notes, without the busywork</p>
                             </div>
                             <div class="feature-card">
                                 <i class="fas fa-shield-alt"></i>
-                                <h3>Secure</h3>
-                                <p>Server-side password hashes; you control access</p>
+                                <h3>Stay in control</h3>
+                                <p>Passwords are hashed; you decide who can connect</p>
                             </div>
                         </div>
                     </div>
@@ -99,6 +99,7 @@
 
                 <div class="status-section">
                     <h3><i class="fas fa-heartbeat"></i> System Status</h3>
+                    <p class="status-caption">These lights show whether each piece is running. Green means ready — there's nothing you need to do here.</p>
                     <div id="system-status" class="status-grid">
                         <div class="status-card">
                             <div class="status-indicator" id="mcp-status"></div>
@@ -129,8 +130,8 @@
                     <div id="recent-connections-list" class="connections-list">
                         <div class="empty-state">
                             <i class="fas fa-desktop"></i>
-                            <p>No recent connections</p>
-                            <button class="btn btn-primary" data-page="connections">Add Your First Connection</button>
+                            <p>Nothing here yet. A "connection" is a computer you can reach from here — add yours to get started.</p>
+                            <button class="btn btn-primary" data-page="connections">Add Your First Computer</button>
                         </div>
                     </div>
                 </div>
@@ -139,9 +140,9 @@
             <!-- Connections Page -->
             <div id="connections-page" class="page">
                 <div class="page-header">
-                    <h2><i class="fas fa-desktop"></i> Connection Management</h2>
+                    <h2><i class="fas fa-desktop"></i> Your Computers</h2>
                     <button class="btn btn-primary" id="add-connection-btn">
-                        <i class="fas fa-plus"></i> Add Connection
+                        <i class="fas fa-plus"></i> Add Computer
                     </button>
                 </div>
 
@@ -149,9 +150,8 @@
                 <div class="info-notice" style="margin-bottom: 1.5rem;">
                     <i class="fas fa-robot"></i>
                     <div class="notice-content">
-                        <strong>AI Integration:</strong> Connections can be configured manually here or programmatically
-                        via the MCP server. AI agents can dynamically manage connections using MCP tools for automated
-                        testing and target selection.
+                        <strong>AI helper:</strong> You can add computers here yourself, or let your AI
+                        assistant manage them for you.
                     </div>
                 </div>
 
@@ -159,9 +159,9 @@
                     <div id="connections-list" class="connections-grid">
                         <div class="empty-state">
                             <i class="fas fa-desktop"></i>
-                            <p>No connections configured</p>
+                            <p>No computers added yet. Add one to start viewing and controlling it from here.</p>
                             <button class="btn btn-primary" id="add-first-connection-btn">
-                                <i class="fas fa-plus"></i> Add Your First Connection
+                                <i class="fas fa-plus"></i> Add Your First Computer
                             </button>
                         </div>
                     </div>
@@ -171,33 +171,32 @@
                 <div id="connection-modal" class="modal">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h3 id="modal-title">Add New Connection</h3>
+                            <h3 id="modal-title">Add a Computer</h3>
                             <button class="modal-close">&times;</button>
                         </div>
 
                         <!-- Security Notice -->
                         <div class="security-notice">
-                            <i class="fas fa-info-circle"></i>
+                            <i class="fas fa-shield-alt"></i>
                             <div class="notice-content">
-                                <strong>Security Tip:</strong> For enhanced security, consider storing your credentials
-                                in a password manager like Bitwarden, 1Password, or your browser's built-in password manager.
-                                This ensures your credentials are encrypted and easily accessible across devices.
+                                <strong>Your password is safe:</strong> it's stored as a secure hash,
+                                never in plain text.
                             </div>
                         </div>
 
                         <form id="connection-form" class="connection-form">
                             <div class="form-group">
-                                <label for="connection-name">Connection Name</label>
+                                <label for="connection-name">Computer name</label>
                                 <input type="text" id="connection-name" name="name" required
-                                       placeholder="My Development VM">
-                                <small class="form-help">A friendly name to identify this connection</small>
+                                       placeholder="Living-room PC">
+                                <small class="form-help">A friendly name so you can spot it later</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="connection-host">Host/IP Address</label>
+                                <label for="connection-host">Computer address</label>
                                 <input type="text" id="connection-host" name="host" required
-                                       placeholder="192.168.1.100 or vm.example.com">
-                                <small class="form-help">The IP address or hostname of your VM</small>
+                                       placeholder="mycomputer.local or 192.168.1.100">
+                                <small class="form-help">How to reach this computer — usually an address on your home network</small>
                             </div>
 
                             <div class="form-row">
@@ -205,41 +204,38 @@
                                     <label for="connection-port">Port</label>
                                     <input type="number" id="connection-port" name="port"
                                            value="6901" min="1" max="65535">
-                                    <small class="form-help">Default: KasmVNC=6901, VNC=5900, RDP=3389</small>
+                                    <small class="form-help">Usually 6901 — leave it unless told otherwise</small>
                                 </div>
                                 <div class="form-group">
-                                    <label for="connection-protocol">Protocol</label>
+                                    <label for="connection-protocol">Connection type</label>
                                     <select id="connection-protocol" name="protocol">
-                                        <option value="kasmvnc">KasmVNC (Recommended - Best Multi-Monitor)</option>
-                                        <option value="vnc">Standard VNC (Single Canvas)</option>
-                                        <option value="rdp">RDP (Windows - Requires Username)</option>
+                                        <option value="kasmvnc">Screen sharing (recommended)</option>
+                                        <option value="vnc">Plain VNC</option>
+                                        <option value="rdp">Windows Remote Desktop</option>
                                     </select>
-                                    <small class="form-help">KasmVNC recommended for multi-monitor support</small>
+                                    <small class="form-help">Screen sharing is the best choice for most people</small>
                                 </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="connection-username">Username</label>
+                                <label for="connection-username">Username (optional)</label>
                                 <input type="text" id="connection-username" name="username"
-                                       placeholder="Leave empty for VNC password-only authentication">
-                                <small class="form-help">
-                                    <strong>Required for RDP</strong> (username+password),
-                                    optional for VNC (password-only or username+password)
-                                </small>
+                                       placeholder="Leave empty unless you were given one">
+                                <small class="form-help">Only needed for Windows Remote Desktop</small>
                             </div>
 
                             <div class="form-group">
                                 <label for="connection-password">Password</label>
                                 <div class="password-input-container">
                                     <input type="password" id="connection-password" name="password" required
-                                           placeholder="Connection password">
+                                           placeholder="The password for this computer">
                                     <button type="button" class="password-toggle-btn" id="toggle-password">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                 </div>
                                 <small class="form-help">
                                     <i class="fas fa-shield-alt"></i>
-                                    Stored server-side as a password hash (never plaintext)
+                                    Stored securely — never in plain text
                                 </small>
                             </div>
 
@@ -247,15 +243,15 @@
                                 <label class="checkbox-label">
                                     <input type="checkbox" id="connection-ssl" name="ssl">
                                     <span class="checkmark"></span>
-                                    Use SSL/TLS encryption
+                                    Use a secure, encrypted connection
                                 </label>
-                                <small class="form-help">Recommended for connections over the internet</small>
+                                <small class="form-help">Recommended — keeps your connection private</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="connection-description">Description (Optional)</label>
+                                <label for="connection-description">Note (optional)</label>
                                 <textarea id="connection-description" name="description"
-                                          placeholder="Development environment for AI overlay testing"></textarea>
+                                          placeholder="Optional, e.g. 'Upstairs office PC'"></textarea>
                             </div>
 
                             <div class="form-actions">
@@ -263,7 +259,7 @@
                                     <i class="fas fa-plug"></i> Test Connection
                                 </button>
                                 <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save"></i> Save Connection
+                                    <i class="fas fa-save"></i> Save Computer
                                 </button>
                             </div>
                         </form>

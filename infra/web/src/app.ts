@@ -333,10 +333,10 @@ class OverlayCompanionApp {
 
     this.editingConnectionId = connection ? connection.id : null;
     if (connection) {
-      title.textContent = 'Edit Connection';
+      title.textContent = 'Edit Computer';
       this.populateConnectionForm(connection);
     } else {
-      title.textContent = 'Add New Connection';
+      title.textContent = 'Add a Computer';
       form?.reset();
       const portInput = document.getElementById('connection-port') as HTMLInputElement | null;
       if (portInput) portInput.value = '6901';
@@ -390,7 +390,7 @@ class OverlayCompanionApp {
       this.connections.set(saved.id, saved);
       this.hideConnectionModal();
       this.renderConnections();
-      this.showToast('success', 'Connection Saved', `Connection "${saved.name}" has been saved successfully.`);
+      this.showToast('success', 'Computer Saved', `"${saved.name}" has been added.`);
     } catch (error) {
       console.error('Failed to save connection:', error);
       this.showToast('error', 'Save Error', error instanceof Error ? error.message : 'Failed to save connection');
@@ -456,9 +456,9 @@ class OverlayCompanionApp {
       container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-desktop"></i>
-                    <p>No connections configured</p>
+                    <p>No computers added yet. Add one to start viewing and controlling it from here.</p>
                     <button class="btn btn-primary" id="add-first-connection-btn">
-                        <i class="fas fa-plus"></i> Add Your First Connection
+                        <i class="fas fa-plus"></i> Add Your First Computer
                     </button>
                 </div>
             `;
@@ -512,8 +512,8 @@ class OverlayCompanionApp {
       container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-desktop"></i>
-                    <p>No recent connections</p>
-                    <button class="btn btn-primary" data-page="connections">Add Your First Connection</button>
+                    <p>Nothing here yet. A "computer" is one you can reach from here — add yours to get started.</p>
+                    <button class="btn btn-primary" data-page="connections">Add Your First Computer</button>
                 </div>
             `;
 
@@ -558,7 +558,7 @@ class OverlayCompanionApp {
         this.connections.delete(connectionId);
         this.renderConnections();
         this.renderRecentConnections();
-        this.showToast('info', 'Connection Deleted', `Connection "${connection.name}" has been deleted.`);
+        this.showToast('info', 'Computer Removed', `"${connection.name}" has been deleted.`);
       } catch (error) {
         console.error('Failed to delete connection:', error);
         this.showToast('error', 'Delete Error', error instanceof Error ? error.message : 'Failed to delete connection');

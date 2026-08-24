@@ -390,6 +390,12 @@ textarea:focus {
   gap: var(--spacing-sm);
 }
 
+.status-caption {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin: calc(-1 * var(--spacing-md)) 0 var(--spacing-md);
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));

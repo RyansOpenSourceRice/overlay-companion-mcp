@@ -33,15 +33,15 @@ export function showLoginView(container: HTMLElement, onLoggedIn: (u: CurrentUse
   left.appendChild(el('div', 'login-brand-logo', ''));
   const logoIcon = el('i', 'fas fa-layer-group');
   left.querySelector('.login-brand-logo')?.appendChild(logoIcon);
-  const title = el('h1', 'login-brand-title', 'Overlay Companion MCP');
+  const title = el('h1', 'login-brand-title', 'Overlay Companion');
   left.appendChild(title);
-  left.appendChild(el('p', 'login-brand-tagline', 'Let AI annotate, control, and understand your remote desktop.'));
+  left.appendChild(el('p', 'login-brand-tagline', 'See and mark up your remote computers, right from your browser.'));
   const bullets = el('ul', 'login-brand-list');
   [
-    ['fas fa-tv', 'Multi-monitor overlays — draw circles, boxes, arrows, and text on any screen.'],
-    ['fas fa-robot', 'AI-assisted screen interaction — an agent can screenshot, annotate, and guide you.'],
-    ['fas fa-plug', 'MCP-native — connect Cherry AI, Claude Desktop, and other assistants.'],
-    ['fas fa-shield-alt', 'Self-hosted — you control the server, the database, and who has access.'],
+    ['fas fa-tv', 'See every screen — circles, boxes, arrows, and labels on any computer.'],
+    ['fas fa-robot', 'AI lends a hand — it can take screenshots and point things out for you.'],
+    ['fas fa-plug', 'Works with your favorite AI assistant.'],
+    ['fas fa-shield-alt', 'Your data stays on your own server.'],
   ].forEach(([ic, txt]) => {
     const li = el('li', '');
     const i = el('i', ic);
@@ -50,11 +50,11 @@ export function showLoginView(container: HTMLElement, onLoggedIn: (u: CurrentUse
     bullets.appendChild(li);
   });
   left.appendChild(bullets);
-  left.appendChild(el('p', 'login-brand-footnote', 'Self-hosted. Runs in your browser against KasmVNC / VNC / RDP targets.'));
+  left.appendChild(el('p', 'login-brand-footnote', 'Runs in your browser — nothing to install on your computers.'));
 
   const right = el('div', 'login-panel');
-  right.appendChild(el('h2', 'login-panel-title', 'Welcome back'));
-  right.appendChild(el('p', 'login-panel-subtitle', 'Sign in to manage your connections and remote desktops.'));
+  right.appendChild(el('h2', 'login-panel-title', 'Remote desktops, made simple'));
+  right.appendChild(el('p', 'login-panel-subtitle', 'Sign in to see your computers, or create an account to get started.'));
   right.appendChild(el('div', 'login-status'));
   const formWrap = el('div', 'login-forms');
   right.appendChild(formWrap);
@@ -241,6 +241,14 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   }
 
   container.innerHTML = '';
+
+  // Non-admin users get only their own account controls — not the admin
+  // configuration surface (OIDC, TLS, provider keys, Wazuh, OpenFGA, etc.).
+  if (!isAdmin) {
+    renderAccountSection(container);
+    return;
+  }
+
   container.appendChild(el('h3', '', 'Authentication'));
 
   const oidc = (settings.auth?.['auth.oidc'] as Record<string, unknown>) ?? {};
@@ -476,6 +484,10 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   );
 
   // Account actions
+  renderAccountSection(container);
+}
+
+function renderAccountSection(container: HTMLElement): void {
   container.appendChild(el('h3', '', 'Account'));
   const accountBox = el('div', 'settings-section');
   const logoutBtn = el('button', 'btn btn-secondary', 'Sign out');
@@ -598,7 +610,24 @@ function inputField(id: string, label: string, type = 'text'): { wrap: HTMLEleme
   input.id = id;
   input.name = id;
   wrap.appendChild(lbl);
-  wrap.appendChild(input);
+  if (type === 'password') {
+    const box = el('div', 'password-input-container');
+    const toggle = el('button', 'password-toggle-btn') as HTMLButtonElement;
+    toggle.type = 'button';
+    toggle.setAttribute('aria-label', 'Show password');
+    toggle.innerHTML = '<i class="fas fa-eye"></i>';
+    toggle.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      toggle.innerHTML = show ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+      toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+    box.appendChild(input);
+    box.appendChild(toggle);
+    wrap.appendChild(box);
+  } else {
+    wrap.appendChild(input);
+  }
   return { wrap, input };
 }
 
