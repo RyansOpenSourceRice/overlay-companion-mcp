@@ -15,14 +15,16 @@ env:
   PACKAGE_NAME: overlay-companion-mcp
 
 permissions:
-  contents: write
+  contents: read
   actions: read
-  packages: write
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write  # create the GitHub Release
+      packages: write  # push GHCR image
 
     steps:
     - name: Checkout code

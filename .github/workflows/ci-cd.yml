@@ -25,7 +25,6 @@ on:
 permissions:
   contents: read
   actions: read
-  security-events: write  # For uploading SARIF results
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -313,6 +312,9 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write  # upload-sarif
 
     steps:
     - name: Checkout code

@@ -22,7 +22,6 @@ on:
 # auth enabled and runs the C# Playwright suite (FireFox) against it.
 permissions:
   contents: read
-  checks: write
 
 env:
   DOTNET_VERSION: '8.0.x'

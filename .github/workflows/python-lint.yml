@@ -24,7 +24,7 @@ on:
 
 # Security: Explicit permissions following principle of least privilege
 permissions:
-  contents: write  # Needed for auto-formatting commits on main branch
+  contents: read
 
 env:
   PYTHON_VERSION: '3.12'
@@ -35,6 +35,8 @@ jobs:
   python-quality:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write  # auto-formatting commits on main branch
 
     steps:
     - name: Checkout code

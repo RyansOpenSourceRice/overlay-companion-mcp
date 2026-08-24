@@ -26,7 +26,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-flatpak:
@@ -143,6 +143,8 @@ jobs:
     needs: build-flatpak
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    permissions:
+      contents: write  # create/update the GitHub Release
 
     steps:
       - name: Download artifact
