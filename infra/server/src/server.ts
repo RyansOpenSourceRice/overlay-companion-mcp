@@ -1504,6 +1504,57 @@ const mcpProxyOptions: ProxyOptions = {
 
 app.use('/mcp', authLimiter, authMiddleware, mcpLimiter, createProxyMiddleware(mcpProxyOptions));
 
+// ---- KasmVNC proxy (allowlisted noVNC web UI + VNC WebSocket) ----
+// SECURITY: target resolved ONLY from the operator allowlist (never raw host).
+// `secure: false` tolerates KasmVNC's self-signed cert.
+function vncTargetIdFromUrl(rawUrl: string): string {
+  const u = (rawUrl || '').replace(/^\/vnc/, '');
+  const m = /^\/([^/?#]+)/.exec(u);
+  return m ? m[1] : '';
+}
+
+const kasmVncProxy = createProxyMiddleware({
+  target: 'http://127.0.0.1:1',
+  router: (req) => {
+    const target = connectionManager.getKasmVncTarget(vncTargetIdFromUrl(req.url || ''));
+    return target ? `${target.ssl ? 'https' : 'http'}://${target.host}:${target.port}` : 'http://127.0.0.1:1';
+  },
+  pathRewrite: (path) => {
+    const m = /^(\/vnc)?\/[^/]+(\/.*)?$/.exec(path);
+    return m && m[2] ? m[2] : '/';
+  },
+  changeOrigin: true,
+  secure: false,
+  ws: true,
+  xfwd: true,
+  onError: (err, _req, res) => {
+    log.error('KasmVNC proxy error:', (err as Error).message);
+    const r = res as Response;
+    if (r && !r.headersSent) {
+      r.status(502).json({ error: 'kasmvnc_unavailable', message: 'KasmVNC target is not reachable.' });
+    }
+  },
+});
+
+app.use('/vnc', authMiddleware, (req, res, next) => {
+  if (!connectionManager.getKasmVncTarget(vncTargetIdFromUrl(req.url || ''))) {
+    return res.status(404).json({ error: { code: 'kasmvnc_target_not_allowed', message: 'KasmVNC target is not in the allowlist.' } });
+  }
+  next();
+}, kasmVncProxy);
+
+// WebSocket upgrade bypasses Express middleware; gate by allowlist only
+// (KasmVNC itself still enforces its own password). URL is the full path here.
+server.on('upgrade', (req, socket, head) => {
+  const url = req.url || '';
+  if (!url.startsWith('/vnc/')) return;
+  if (!connectionManager.getKasmVncTarget(vncTargetIdFromUrl(url))) {
+    socket.destroy();
+    return;
+  }
+  kasmVncProxy.upgrade!(req as unknown as Request, socket as unknown as import('net').Socket, head);
+});
+
 // SECURITY: Rate limiting for connection testing to prevent abuse
 const connectionTestLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

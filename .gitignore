@@ -108,7 +108,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+# NOTE: package-lock.json is intentionally TRACKED. The management-server
+# container build (`infra/Dockerfile.server`) does `COPY package-lock.json` +
+# `npm ci`, which requires the lockfile in the repo for reproducible CI/registry
+# builds. Do not gitignore it.
 
 # Built SPA copied into the management server's static dir (see appium-tests.yml)
 infra/server/public/

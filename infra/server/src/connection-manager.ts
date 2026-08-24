@@ -268,6 +268,16 @@ export class ConnectionManager {
   }
 
   /**
+   * Resolve an operator-defined KasmVNC target by id, or null if not allowed.
+   * This is the single gate for proxying KasmVNC traffic — never a raw host.
+   */
+  getKasmVncTarget(targetId: string | null | undefined): KasmVncTarget | null {
+    if (!targetId || typeof targetId !== 'string') return null;
+    const target = this.kasmVncAllowlist[targetId];
+    return target && typeof target.host === 'string' && Number.isInteger(target.port) ? target : null;
+  }
+
+  /**
    * Test KasmVNC connection with SSRF protection
    * SECURITY: Uses POST with fixed URL to avoid user-controlled URL construction
    */

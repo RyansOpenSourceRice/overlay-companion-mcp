@@ -593,8 +593,9 @@ class OverlayCompanionApp {
 
     let url: string;
     if (connection.protocol === 'kasmvnc') {
-      // Use proxied path under the main server so users never see a raw port
-      url = `/vnc/`;
+      // Proxied under the main server; `connection.host` is the operator's
+      // KasmVNC target id (from KASMVNC_ALLOWLIST_JSON), never a raw address.
+      url = `/vnc/${encodeURIComponent(connection.host)}`;
     } else {
       // For standard VNC, we'll need to proxy through our server
       url = `/vnc-proxy?host=${encodeURIComponent(connection.host)}&port=${connection.port}&protocol=${connection.protocol}`;

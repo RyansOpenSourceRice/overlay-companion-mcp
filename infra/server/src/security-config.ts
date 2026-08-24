@@ -41,6 +41,30 @@ export interface SecurityConfig {
   kasmVncAllowlist?: Record<string, KasmVncTarget>;
 }
 
+/**
+ * Operator-defined KasmVNC allowlist. KasmVNC connections are proxied by the
+ * management server, so the targets must be an explicit allowlist (never a raw
+ * user-supplied host:port — that would be SSRF). Populated from the
+ * `KASMVNC_ALLOWLIST_JSON` env var as a JSON map:
+ *   { "sample": { "host": "localhost", "port": 6901, "ssl": true } }
+ */
+function loadKasmVncAllowlist(): Record<string, KasmVncTarget> {
+  const raw = process.env.KASMVNC_ALLOWLIST_JSON;
+  if (!raw || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, KasmVncTarget>;
+    const out: Record<string, KasmVncTarget> = {};
+    for (const [id, t] of Object.entries(parsed)) {
+      if (typeof t?.host !== 'string' || !Number.isInteger(t?.port)) continue;
+      out[id] = { host: t.host, port: t.port, ssl: Boolean(t.ssl) };
+    }
+    return out;
+  } catch {
+    console.warn('🔒 SECURITY: KASMVNC_ALLOWLIST_JSON is not valid JSON; no KasmVNC targets loaded.');
+    return {};
+  }
+}
+
 export const securityConfig: SecurityConfig = {
   // SECURITY: Allowed host patterns for connection testing
   // Add your specific development/production hosts here
@@ -114,6 +138,9 @@ export const securityConfig: SecurityConfig = {
     logBlockedHosts: true,
     logSecurityEvents: true,
   },
+
+  // SECURITY: Operator-defined KasmVNC target allowlist (KASMVNC_ALLOWLIST_JSON).
+  kasmVncAllowlist: loadKasmVncAllowlist(),
 };
 
 export default securityConfig;
