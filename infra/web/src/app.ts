@@ -373,24 +373,35 @@ class OverlayCompanionApp {
     testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
 
     try {
-      const protocol = connection.ssl ? 'https' : 'http';
-      const url = `${protocol}://${connection.host}:${connection.port}`;
-
-      // Simple connectivity test
+      // Simple connectivity test via the server (SSRF-protected).
       const response = await fetch(`/api/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(connection)
       });
 
-      if (response.ok) {
+      const result = (await response.json().catch(() => null)) as
+        | { success?: boolean; error?: string; errors?: string[]; message?: string }
+        | null;
+
+      if (response.ok && result?.success) {
         this.showToast('success', 'Connection Test', 'Connection test successful!');
-      } else {
-        throw new Error(`HTTP ${response.status}`);
+        return;
       }
+
+      // Surface the server's actual reason instead of a generic message.
+      const reason =
+        result?.error ??
+        (result?.errors && result.errors.length > 0 ? result.errors.join('; ') : undefined) ??
+        (response.status === 429 ? 'Too many tests — wait a minute and retry.' : undefined) ??
+        `HTTP ${response.status}`;
+      this.showToast('error', 'Connection Test Failed', reason);
     } catch (error) {
       console.error('Connection test failed:', error);
-      this.showToast('warning', 'Connection Test', 'Could not verify connection. Please check your settings.');
+      const msg = error instanceof TypeError && /fetch|network/i.test(error.message)
+        ? 'Network error — the server could not be reached.'
+        : (error instanceof Error ? error.message : String(error));
+      this.showToast('error', 'Connection Test Failed', msg);
     } finally {
       testBtn.disabled = false;
       testBtn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';

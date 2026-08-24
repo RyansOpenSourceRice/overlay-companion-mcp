@@ -50,9 +50,23 @@ async function parseError(res: Response): Promise<string> {
   }
 }
 
+// Translate a low-level Fetch network failure ("NetworkError when attempting to
+// fetch resource") into an actionable message instead of leaking it verbatim.
+async function safeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (err) {
+    const isNetwork = err instanceof TypeError && /fetch|network/i.test(String(err));
+    if (isNetwork) {
+      throw new Error('Network error: the server could not be reached — check that the app is running.');
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
 /** Load the user's saved connections from the server. */
 export async function listConnections(): Promise<Connection[]> {
-  const res = await fetch('/api/connections');
+  const res = await safeFetch('/api/connections');
   if (!res.ok) throw new Error(await parseError(res));
   const data = (await res.json()) as { connections: Connection[] };
   return data.connections ?? [];
@@ -60,7 +74,7 @@ export async function listConnections(): Promise<Connection[]> {
 
 /** Create a new connection. The password is hashed server-side; never stored in plaintext. */
 export async function createConnection(input: ConnectionPayload & { password?: string }): Promise<Connection> {
-  const res = await fetch('/api/connections', {
+  const res = await safeFetch('/api/connections', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
     body: JSON.stringify(input),
@@ -72,7 +86,7 @@ export async function createConnection(input: ConnectionPayload & { password?: s
 
 /** Update an existing connection. Omit password to keep the stored hash. */
 export async function updateConnection(id: string, input: ConnectionPayload & { password?: string }): Promise<Connection> {
-  const res = await fetch(`/api/connections/${encodeURIComponent(id)}`, {
+  const res = await safeFetch(`/api/connections/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
     body: JSON.stringify(input),
@@ -84,7 +98,7 @@ export async function updateConnection(id: string, input: ConnectionPayload & { 
 
 /** Delete a saved connection. */
 export async function deleteConnection(id: string): Promise<void> {
-  const res = await fetch(`/api/connections/${encodeURIComponent(id)}`, {
+  const res = await safeFetch(`/api/connections/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: csrfHeaders(),
   });
@@ -94,7 +108,7 @@ export async function deleteConnection(id: string): Promise<void> {
 
 /** Record a successful connect; server writes the authoritative last_connected. */
 export async function touchConnection(id: string): Promise<void> {
-  const res = await fetch(`/api/connections/${encodeURIComponent(id)}/touch`, {
+  const res = await safeFetch(`/api/connections/${encodeURIComponent(id)}/touch`, {
     method: 'POST',
     headers: csrfHeaders(),
   });
@@ -103,7 +117,7 @@ export async function touchConnection(id: string): Promise<void> {
 
 /** Test a saved connection against its target. */
 export async function testSavedConnection(id: string): Promise<{ success: boolean; message?: string }> {
-  const res = await fetch(`/api/connections/${encodeURIComponent(id)}/test`, {
+  const res = await safeFetch(`/api/connections/${encodeURIComponent(id)}/test`, {
     method: 'POST',
     headers: csrfHeaders(),
   });

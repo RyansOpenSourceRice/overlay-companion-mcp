@@ -10,6 +10,9 @@
  * - Health monitoring and status endpoints
  */
 
+// OpenTelemetry must be the first import so it instruments everything below.
+import './tracing.js';
+
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';

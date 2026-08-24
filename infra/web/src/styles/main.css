@@ -1,14 +1,14 @@
 /* Overlay Companion MCP - Comprehensive UI Styles */
 
 :root {
-  /* Modern Color Palette - Black text, White backgrounds, Yellow/Blue accents */
-  --primary-color: #2563eb;        /* Clean blue */
-  --primary-dark: #1d4ed8;         /* Darker blue */
-  --primary-light: #3b82f6;        /* Lighter blue */
-  --secondary-color: #f59e0b;      /* Warm yellow/amber */
-  --accent-color: #fbbf24;         /* Light yellow accent */
+  /* Modern Color Palette - maps to theme.css design tokens so light/dark work */
+  --primary-color: var(--oc-brand);        /* Clean blue */
+  --primary-dark: var(--oc-brand-strong);  /* Darker blue */
+  --primary-light: var(--oc-brand);        /* Lighter blue */
+  --secondary-color: var(--oc-accent);     /* Warm yellow/amber */
+  --accent-color: var(--oc-accent);        /* Light yellow accent */
 
-  /* Status Colors */
+  /* Status Colors (semantic — identical in light & dark) */
   --success-color: #10b981;        /* Clean green */
   --success-light: #34d399;        /* Light green */
   --warning-color: #f59e0b;        /* Amber warning */
@@ -18,17 +18,17 @@
   --info-color: #2563eb;           /* Blue info */
   --info-light: #60a5fa;           /* Light blue */
 
-  /* Neutral Colors - High contrast for accessibility */
-  --bg-primary: #ffffff;           /* Pure white */
-  --bg-secondary: #fafafa;         /* Very light gray */
-  --bg-tertiary: #f5f5f5;          /* Light gray */
-  --bg-dark: #1f2937;              /* Dark gray for code blocks */
-  --text-primary: #000000;         /* Pure black text */
-  --text-secondary: #374151;       /* Dark gray */
-  --text-muted: #6b7280;           /* Medium gray */
-  --text-light: #9ca3af;           /* Light gray */
-  --border-color: #e5e7eb;         /* Light border */
-  --border-dark: #d1d5db;          /* Darker border */
+  /* Neutral Colors - theme-aware for light/dark support */
+  --bg-primary: var(--oc-surface);     /* Elevated surfaces / cards */
+  --bg-secondary: var(--oc-bg);        /* Page background */
+  --bg-tertiary: var(--oc-bg-subtle);  /* Subtle background */
+  --bg-dark: var(--oc-surface-2);      /* Dark gray for code blocks */
+  --text-primary: var(--oc-text);      /* Primary text */
+  --text-secondary: var(--oc-text-secondary); /* Dark gray */
+  --text-muted: var(--oc-text-muted);  /* Medium gray */
+  --text-light: var(--oc-text-muted);  /* Light gray */
+  --border-color: var(--oc-border);    /* Light border */
+  --border-dark: var(--oc-border-strong); /* Darker border */
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -194,7 +194,7 @@ textarea:focus {
 
 /* Header */
 .main-header {
-  background: white;
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
   position: sticky;
@@ -324,7 +324,7 @@ textarea:focus {
 }
 
 .feature-card {
-  background: white;
+  background: var(--bg-primary);
   padding: var(--spacing-xl);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-color);
@@ -397,7 +397,7 @@ textarea:focus {
 }
 
 .status-card {
-  background: white;
+  background: var(--bg-primary);
   padding: var(--spacing-xl);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -501,7 +501,7 @@ textarea:focus {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #d97706;
+  background: var(--oc-accent-strong);
   border-color: #d97706;
   color: white;
 }
@@ -511,7 +511,7 @@ textarea:focus {
 }
 
 .btn-outline {
-  background: white;
+  background: var(--bg-primary);
   color: var(--text-primary);
   border: 2px solid var(--border-dark);
   font-weight: 500;
@@ -529,7 +529,7 @@ textarea:focus {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #e53e3e;
+  background: var(--error-color);
 }
 
 /* Page Headers */
@@ -553,7 +553,7 @@ textarea:focus {
 
 /* Connections */
 .connections-container {
-  background: white;
+  background: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-xl);
@@ -665,7 +665,7 @@ textarea:focus {
 }
 
 .modal-content {
-  background: white;
+  background: var(--bg-primary);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
   width: 100%;
@@ -865,7 +865,7 @@ textarea:focus {
 }
 
 .settings-section {
-  background: white;
+  background: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-xl);
@@ -934,7 +934,7 @@ textarea:focus {
 }
 
 .vm-header {
-  background: white;
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
   padding: var(--spacing-md) var(--spacing-lg);
   display: flex;
@@ -1018,7 +1018,7 @@ textarea:focus {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1048,7 +1048,7 @@ textarea:focus {
 }
 
 .toast {
-  background: white;
+  background: var(--bg-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   padding: var(--spacing-lg);

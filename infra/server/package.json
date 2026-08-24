@@ -23,6 +23,9 @@
   "dependencies": {
     "@better-auth/passkey": "^1.7.1",
     "@openfga/sdk": "^0.9.7",
+    "@opentelemetry/auto-instrumentations-node": "^0.79.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
     "argon2": "^0.45.1",
     "better-auth": "^1.7.1",
     "cookie-parser": "^1.4.7",
