@@ -14,7 +14,12 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 - **Frontend AI chat UI decision (D-019).** Default the in-app chat stack to
   assistant-ui + Vercel AI SDK when a React chat surface is warranted.
 - **Per-view URL decision (D-020).** Every view gets its own URL (hash routing);
-  no silent single-page routing. Recorded as a decision; implementation pending (P-006).
+  no silent single-page routing.
+- **Per-view hash routing (P-006).** `#/home`, `#/connections`, `#/settings`,
+  and `#/vm-view` now address each view, with back/forward and deep-link support.
+- **OpenTelemetry E2E assertion (P-007).** The Playwright E2E workflow starts a
+  Jaeger collector, enables OTel on the management server, and hard-fails when
+  `overlay-companion-server` spans never reach Jaeger.
 - **Theme system applied to the main app.**
 - **Descriptive connection errors.** Connection test/save surfaces the server's
   actual reason instead of generic "could not verify" / raw NetworkError strings.
@@ -24,6 +29,11 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 - **Dark mode now covers the whole app.** `main.css` `:root` palette maps to
   `var(--oc-*)` tokens (previously a hardcoded light palette overrode the theme
   tokens, so only the login/chat themed).
+
+- **VM page visibility + single initialization.** The VM view is hidden unless
+  its route is active (`.vm-page` no longer forces `display: flex !important`),
+  and the app initializes once instead of twice (inline `load` script no longer
+  re-instantiates the app created on `DOMContentLoaded`).
 
 - **Overlay templates (§A3).** New `template_overlay` MCP tool lets the AI draw
   named templates with a small parameter set (`template="text", text="yada",

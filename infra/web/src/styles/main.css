@@ -929,8 +929,13 @@ textarea:focus {
   margin: 0 !important;
   max-width: none !important;
   height: calc(100vh - 64px);
-  display: flex !important;
   flex-direction: column;
+}
+
+/* The VM page hides like every other .page until it is the active route, then
+   it renders as a full-height flex column (flex overrides .page.active block). */
+.page.vm-page.active {
+  display: flex;
 }
 
 .vm-header {

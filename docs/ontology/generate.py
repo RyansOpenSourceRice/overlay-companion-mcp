@@ -607,23 +607,24 @@ problems = [
     (
         "P-006",
         "spa-per-view-urls-pending",
-        "Per-view URLs not yet implemented",
-        "D-020 records that every view needs a URL, but the web UI is still a "
-        "silent SPA (tab switching without hash routes or history entries).",
+        "Per-view URLs implemented via hash routing",
+        "D-020 records that every view needs a URL. Resolved: the web UI now "
+        "uses hash routes (#/home, #/connections, #/settings, #/vm-view) with "
+        "back/forward and deep-link support.",
         "medium",
-        "open",
+        "closed",
         "Add hash-based routing (#/connections, #/settings, #/home) to the web UI.",
         "Component-C-003-web-interface",
     ),
     (
         "P-007",
         "otel-in-e2e-testing",
-        "OpenTelemetry not instrumented in E2E testing",
-        "The management server emits OTLP traces (tracing.ts), but the E2E "
-        "Playwright suite and CI workflow do not yet assert on or collect "
-        "traces to catch regressions in request/error behavior.",
+        "OpenTelemetry instrumented in E2E testing",
+        "Resolved: the Playwright E2E workflow starts a Jaeger collector, enables "
+        "OTel on the management server, and hard-fails when overlay-companion-server "
+        "spans never reach Jaeger (no silent exporter outage).",
         "low",
-        "open",
+        "closed",
         "Run a Jaeger/OTel collector in the E2E workflow and add a trace-collection "
         "or span-assertion step.",
         "TestResult-001-playwright-web-suite",

@@ -173,19 +173,33 @@ jobs:
           echo "::notice title=Playwright suite ran::The Playwright suite executed and produced results in TestResults/playwright-results.trx."
 
       # The server is instrumented with OpenTelemetry (OTEL_ENABLED=true) and
-      # exports to Jaeger. Confirm the trace pipeline actually produced spans so
-      # a silent exporter-outage can't look like a healthy run. Non-fatal: the
-      # suite itself may have skipped on the shared runner.
+      # exports to Jaeger. Assert the pipeline actually produced spans so an
+      # exporter outage can never look like a healthy run. The management server
+      # answers the health-check curls above itself, so a service entry exists
+      # even when the Playwright suite provision-skips on a shared runner.
+      # Only hard-fail when Jaeger is reachable (if Jaeger never came up, an
+      # earlier step already failed and we avoid piling on a misleading error).
       - name: Verify OpenTelemetry traces reached Jaeger
         if: always()
         run: |
-          sleep 4
-          services=$(curl -fsS http://localhost:16686/api/services 2>/dev/null || echo '{}')
+          if ! curl -fsS http://localhost:16686/api/services >/dev/null 2>&1; then
+            echo "::notice title=Jaeger unavailable::Jaeger was not reachable; an earlier step may have failed, skipping the OTel assertion."
+            exit 0
+          fi
+          services="{}"
+          for i in $(seq 1 20); do
+            services=$(curl -fsS http://localhost:16686/api/services 2>/dev/null || echo '{}')
+            if echo "$services" | grep -q "overlay-companion-server"; then
+              break
+            fi
+            sleep 1
+          done
           echo "Jaeger services: $services"
           if echo "$services" | grep -q "overlay-companion-server"; then
             echo "::notice title=OTel traces collected::The management server exported traces to Jaeger."
           else
-            echo "::warning title=No OTel traces::Jaeger reported no traces for overlay-companion-server."
+            echo "::error title=No OTel traces::Jaeger is up but reported no traces for overlay-companion-server. Failing the run."
+            exit 1
           fi
 
       - name: Upload test results

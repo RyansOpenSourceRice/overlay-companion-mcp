@@ -349,7 +349,7 @@
             </div>
 
             <!-- VM Connection View -->
-            <div id="vm-view" class="page vm-page">
+            <div id="vm-view-page" class="page vm-page">
                 <div class="vm-header">
                     <button class="btn btn-secondary" id="back-to-connections">
                         <i class="fas fa-arrow-left"></i> Back to Connections
@@ -394,16 +394,13 @@
     </div>
 
     <script>
-        // Show loading screen initially, then load the app
+        // Show the loading screen until first paint settles, then reveal the
+        // app. The application itself is initialized in app.ts on
+        // DOMContentLoaded (a single instance).
         window.addEventListener('load', function() {
             setTimeout(function() {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('app').style.display = 'block';
-
-                // Initialize the application
-                if (window.OverlayCompanionApp) {
-                    window.app = new OverlayCompanionApp();
-                }
             }, 1000);
         });
     </script>

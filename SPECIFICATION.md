@@ -53,8 +53,8 @@ re-run. Record-level permissions enforce user-scoped access.
   assistant-ui + Vercel AI SDK as the default stack (D-019); the current chat
   panel is plain TypeScript.
 - **Per-view URLs**: every view has its own addressable URL (hash routes such as
-  `#/home`, `#/connections`, `#/settings`) — no silent single-page routing
-  (D-020; implementation tracked as P-006).
+  `#/home`, `#/connections`, `#/settings`, `#/vm-view`) — no silent single-page
+  routing (D-020; implemented as hash routing in `infra/web/src/app.ts`).
 - **Theming**: light/dark with auto-follow of `prefers-color-scheme` plus a
   manual toggle (D-018).
 

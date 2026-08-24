@@ -25,6 +25,10 @@ import {
 
 export type { Connection };
 
+// Per-view URL routes (Ryan's preference §5): each page is addressable via a
+// hash route so it can be deep-linked and survives back/forward navigation.
+const APP_ROUTES = ['home', 'connections', 'settings', 'vm-view'] as const;
+
 type SettingsFormsRenderer = (container: HTMLElement, user: CurrentUser) => Promise<void>;
 
 interface OverlayCommand {
@@ -120,6 +124,10 @@ class OverlayCompanionApp {
       // Setup event listeners
       this.setupEventListeners();
 
+      // Hash routing: honour any deep link and keep back/forward working.
+      this.setupRouting();
+      this.navigateToPage(OverlayCompanionApp.routeToPage(window.location.hash));
+
       // Initialize status monitoring
       this.startStatusMonitoring();
 
@@ -149,8 +157,9 @@ class OverlayCompanionApp {
       });
     }
 
-    // Navigation
-    document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => {
+    // Navigation (nav buttons + any other button carrying a data-page target,
+    // e.g. the hero "New Connection" button).
+    document.querySelectorAll<HTMLElement>('.nav-btn, button[data-page]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const page = (e.currentTarget as HTMLElement).dataset.page;
         if (page) this.navigateToPage(page);
@@ -230,29 +239,60 @@ class OverlayCompanionApp {
     }
   }
 
-  navigateToPage(page: string): void {
+  navigateToPage(page: string, updateHash: boolean = true): void {
+    const target = OverlayCompanionApp.pageToRoute(page);
+
     // Update navigation
     document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.page === page);
+      btn.classList.toggle('active', btn.dataset.page === target);
     });
 
     // Update pages
     document.querySelectorAll<HTMLElement>('.page').forEach(pageEl => {
-      pageEl.classList.toggle('active', pageEl.id === `${page}-page`);
+      pageEl.classList.toggle('active', pageEl.id === `${target}-page`);
     });
 
-    this.currentPage = page;
+    this.currentPage = target;
+
+    // Keep the URL in sync so each view is deep-linkable and back/forward
+    // works. Setting location.hash fires a hashchange; the handler below is a
+    // no-op when the route already matches currentPage.
+    const desired = `#/${target}`;
+    if (updateHash && window.location.hash !== desired) {
+      window.location.hash = desired;
+    }
 
     // Page-specific initialization
-    if (page === 'connections') {
+    if (target === 'connections') {
       this.renderConnections();
-    } else if (page === 'home') {
+    } else if (target === 'home') {
       this.renderRecentConnections();
-    } else if (page === 'settings') {
+    } else if (target === 'settings') {
       // Render the GUI-first settings forms (auth/connection/wazuh) into
       // the existing Settings page, appended to the MCP config section.
       this.renderSettingsPage();
     }
+  }
+
+  // Canonicalize a page name to a known route (fall back to "home").
+  private static pageToRoute(page: string): string {
+    return (APP_ROUTES as readonly string[]).includes(page) ? page : 'home';
+  }
+
+  // Parse "location.hash" (e.g. "#/connections", "#settings", "") into a route
+  // name, defaulting to "home".
+  private static routeToPage(hash: string): string {
+    const route = hash.replace(/^#\/?/, '').split(/[/?#]/)[0].toLowerCase();
+    return OverlayCompanionApp.pageToRoute(route);
+  }
+
+  private setupRouting(): void {
+    window.addEventListener('hashchange', () => {
+      const route = OverlayCompanionApp.routeToPage(window.location.hash);
+      if (route !== this.currentPage) {
+        this.navigateToPage(route);
+      }
+    });
   }
 
   async renderSettingsPage(): Promise<void> {
