@@ -25,6 +25,27 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
   actual reason instead of generic "could not verify" / raw NetworkError strings.
 - **Service status badges** and a right-aligned light/dark toggle.
 
+### Fixed
+- **Connection create/delete crashed the server.** The connection store mapped
+  Better Auth's plural `users` table id onto a singular `user:` prefix, producing
+  a malformed `user:users:<id>` record reference that SurrealDB rejected (and, in
+  create, took the node process down). Connections now reference the real `users`
+  table, and the schema's `record<user>` types were corrected to `record<users>`.
+- **Settings "Save" was a silent no-op.** Each card's fields were collected via a
+  `[data-setting]` selector that was never populated, so saving stored an empty
+  object (after flashing "Saved"). Save now scopes to its own card and includes
+  textareas.
+- **Chat panel composer clipped below the viewport.** `height: 100%` on the same
+  element as the fixed `top:64px/bottom:0` host resolved against the viewport,
+  pushing the input + Send ~64px off-screen (and, being fixed, unreachable). The
+  anchors now size the panel.
+- **SurrealDB errors were masked as `ERR`.** The store read `.detail` (unused by
+  the `/sql` endpoint); it now surfaces the real message from `result`.
+- **Settings leaked secrets to the browser.** `redactSecrets` gated on the config
+  *key name* (which never contained a secret fragment), so `provider.chat`,
+  `auth.oidc`, etc. returned plaintext keys. Redaction now recurses by field name,
+  and PUT preserves a secret that arrives back as the `<redacted>` placeholder.
+
 ### Changed
 - **Dark mode now covers the whole app.** `main.css` `:root` palette maps to
   `var(--oc-*)` tokens (previously a hardcoded light palette overrode the theme
