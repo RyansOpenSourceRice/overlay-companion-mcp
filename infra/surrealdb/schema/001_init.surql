@@ -58,7 +58,7 @@ DEFINE TABLE OVERWRITE connection SCHEMAFULL PERMISSIONS
     FOR create WHERE user_id = $auth.id;
 
 DEFINE FIELD OVERWRITE id           ON connection TYPE string;
-DEFINE FIELD OVERWRITE user_id      ON connection TYPE record<user>;
+DEFINE FIELD OVERWRITE user_id      ON connection TYPE record<users>;
 DEFINE FIELD OVERWRITE name         ON connection TYPE string;
 DEFINE FIELD OVERWRITE host         ON connection TYPE string;
 DEFINE FIELD OVERWRITE port         ON connection TYPE int;
@@ -80,7 +80,7 @@ DEFINE TABLE OVERWRITE audit_log SCHEMAFULL PERMISSIONS NONE;
 
 DEFINE FIELD OVERWRITE id           ON audit_log TYPE string;
 DEFINE FIELD OVERWRITE timestamp    ON audit_log TYPE datetime DEFAULT time::now();
-DEFINE FIELD OVERWRITE user_id      ON audit_log TYPE option<record<user>>;
+DEFINE FIELD OVERWRITE user_id      ON audit_log TYPE option<record<users>>;
 DEFINE FIELD OVERWRITE actor        ON audit_log TYPE string;        -- 'user' | 'system' | 'admin'
 DEFINE FIELD OVERWRITE action       ON audit_log TYPE string;        -- e.g. 'auth.login.success'
 DEFINE FIELD OVERWRITE ip_address   ON audit_log TYPE option<string>;
@@ -110,7 +110,7 @@ DEFINE FIELD OVERWRITE name         ON app_config TYPE string;       -- dotted k
 DEFINE FIELD OVERWRITE payload      ON app_config TYPE string;       -- settings object as a JSON string (SurrealQL can't take arbitrary JSON object literals by interpolation)
 DEFINE FIELD OVERWRITE category     ON app_config TYPE string;       -- 'auth' | 'connection' | 'wazuh' | 'general'
 DEFINE FIELD OVERWRITE updated_at   ON app_config TYPE datetime DEFAULT time::now();
-DEFINE FIELD OVERWRITE updated_by   ON app_config TYPE option<record<user>>;
+DEFINE FIELD OVERWRITE updated_by   ON app_config TYPE option<record<users>>;
 
 DEFINE INDEX OVERWRITE app_config_name_idx  ON app_config FIELDS name UNIQUE;
 DEFINE INDEX OVERWRITE app_config_category_idx ON app_config FIELDS category;

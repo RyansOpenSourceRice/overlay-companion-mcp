@@ -864,7 +864,11 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
     return;
   }
   const fullKey = `${category}.${key}`;
-  await surrealStore.setConfig(fullKey, value, category, state.user.id);
+  // Preserve any secret value that arrives as the '<redacted>' placeholder
+  // (the GET redacts secrets before returning them; a PUT must not write the
+  // placeholder string back over the real secret).
+  const existing = await surrealStore.getConfig(fullKey);
+  await surrealStore.setConfig(fullKey, mergePreservingSecrets(existing, value), category, state.user.id);
   // Better Auth auth config is env-driven (§9 GUI-first: env bootstrap); auth
   // settings saved here are stored but not hot-applied to the running auth.
   // TLS settings are hot-applied so the TlsManager and any generated
@@ -1378,9 +1382,17 @@ function parseConnectionBody(body: unknown): ({ password?: string } & Connection
 // Whitelist of setting keys whose value may contain a secret; redacted on read.
 const SECRET_KEY_FRAGMENTS = ['secret', 'password', 'token', 'apikey'];
 function redactSecrets(key: string, value: unknown): unknown {
-  const lower = key.toLowerCase();
-  if (!SECRET_KEY_FRAGMENTS.some((f) => lower.includes(f))) return value;
-  if (typeof value !== 'object' || value === null) return value;
+  // Scalars that are themselves a secret-named value are redacted outright;
+  // a non-secret scalar passes through unchanged.
+  if (typeof value !== 'object' || value === null) {
+    return SECRET_KEY_FRAGMENTS.some((f) => key.toLowerCase().includes(f)) && typeof value === 'string' && value.length > 0
+      ? '<redacted>'
+      : value;
+  }
+  // Redact any *nested* field whose name is secret-like, regardless of the
+  // enclosing key. The caller passes the config name (e.g. 'provider.chat'),
+  // which never contains a secret fragment, so gating on `key` (as the old
+  // code did) meant secret fields were never redacted and leaked to the UI.
   const redacted: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     const kl = k.toLowerCase();
@@ -1389,6 +1401,22 @@ function redactSecrets(key: string, value: unknown): unknown {
       : v;
   }
   return redacted;
+}
+
+// When a config object is PUT back from the Settings UI, secret fields arrive
+// as the '<redacted>' placeholder the GET returned. Preserve the stored secret
+// in that case instead of overwriting it with the placeholder string.
+function mergePreservingSecrets(existing: unknown, incoming: Record<string, unknown>): Record<string, unknown> {
+  const prev = (existing && typeof existing === 'object' && !Array.isArray(existing))
+    ? (existing as Record<string, unknown>)
+    : {};
+  const out: Record<string, unknown> = { ...incoming };
+  for (const [k, v] of Object.entries(out)) {
+    if (v === '<redacted>' && SECRET_KEY_FRAGMENTS.some((f) => k.toLowerCase().includes(f))) {
+      out[k] = typeof prev[k] === 'string' && (prev[k] as string).length > 0 ? prev[k] : '';
+    }
+  }
+  return out;
 }
 
 // Bootstrap defaults from env, shown in the UI before any DB save.

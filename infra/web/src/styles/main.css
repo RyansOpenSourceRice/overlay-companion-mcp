@@ -1486,7 +1486,12 @@ textarea:focus {
 
 /* ---- In-app assistant chat panel (Phase B1) ---- */
 .chat-panel-host { position: fixed; top: 64px; right: 0; bottom: 0; z-index: 100; width: 380px; pointer-events: none; }
-.chat-panel { display: flex; flex-direction: column; height: 100%; background: var(--surface, #fff); border-left: 1px solid var(--border, #ddd); box-shadow: -2px 0 12px rgba(0,0,0,0.1); transform: translateX(100%); transition: transform 0.2s ease; pointer-events: auto; }
+/* .chat-panel is applied to the SAME element as .chat-panel-host (the ChatPanel
+   constructor adds the class to #chat-panel-host). Do not set height:100% here:
+   on a fixed-position element it resolves against the viewport, so the 64px
+   header top offset pushed the composer/Send row below the fold. The top/bottom
+   anchors above give it the correct height. */
+.chat-panel { display: flex; flex-direction: column; background: var(--surface, #fff); border-left: 1px solid var(--border, #ddd); box-shadow: -2px 0 12px rgba(0,0,0,0.1); transform: translateX(100%); transition: transform 0.2s ease; pointer-events: auto; }
 .chat-panel--open { transform: translateX(0); }
 .chat-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border, #ddd); }
 .chat-title { font-weight: 600; }

@@ -252,28 +252,28 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
       textRow('clientSecret', 'Client secret', String(oidc.clientSecret ?? ''), isAdmin, 'password'),
       textRow('audience', 'Audience', String(oidc.audience ?? ''), isAdmin),
       textRow('requiredRole', 'Required role', String(oidc.requiredRole ?? 'overlay:user'), isAdmin),
-    ], () => saveAuthSection(container, 'oidc', isAdmin)),
+    ], (card) => saveAuthSection(card, 'oidc', isAdmin)),
   );
 
   const local = (settings.auth?.['auth.local'] as Record<string, unknown>) ?? {};
   container.appendChild(
     settingsCard('Local auth', 'Username/password fallback (hashed + salted).', [
       toggleRow('enabled', 'Enable local auth', Boolean(local.enabled), isAdmin),
-    ], () => saveAuthSection(container, 'local', isAdmin)),
+    ], (card) => saveAuthSection(card, 'local', isAdmin)),
   );
 
   const signup = (settings.auth?.['auth.signup'] as Record<string, unknown>) ?? {};
   container.appendChild(
     settingsCard('Sign-ups', 'Open registration. Locked by default (admin opt-in).', [
       toggleRow('allowed', 'Allow new sign-ups', Boolean(signup.allowed), isAdmin),
-    ], () => saveAuthSection(container, 'signup', isAdmin)),
+    ], (card) => saveAuthSection(card, 'signup', isAdmin)),
   );
 
   const session = (settings.auth?.['auth.session'] as Record<string, unknown>) ?? {};
   container.appendChild(
     settingsCard('Session', 'How long a login stays valid.', [
       numberRow('ttlMinutes', 'Session TTL (minutes)', Number(session.ttlMinutes ?? 480), isAdmin),
-    ], () => saveAuthSection(container, 'session', isAdmin)),
+    ], (card) => saveAuthSection(card, 'session', isAdmin)),
   );
 
   // §7 optional 2FA: passkeys (WebAuthn / hardware keys) and TOTP. Both are
@@ -308,7 +308,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
       toggleRow('enabled', 'Enable log shipping', Boolean(wazuh.enabled), isAdmin),
       textRow('endpoint', 'Wazuh endpoint', String(wazuh.endpoint ?? ''), isAdmin),
       textRow('apiKey', 'API key (if required)', String(wazuh.apiKey ?? ''), isAdmin, 'password'),
-    ], () => saveSection(container, 'wazuh', 'shipper', isAdmin)),
+    ], (card) => saveSection(card, 'wazuh', 'shipper', isAdmin)),
   );
 
   // In-app assistant provider (B1): the chat panel is a second client to the
@@ -320,7 +320,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
       textRow('baseUrl', 'Provider base URL', String(provider.baseUrl ?? 'https://openrouter.ai/api/v1'), isAdmin),
       textRow('model', 'Model', String(provider.model ?? 'deepseek/deepseek-chat-v3-0324'), isAdmin),
       textRow('apiKey', 'API key', String(provider.apiKey ?? ''), isAdmin, 'password'),
-    ], () => saveSection(container, 'provider', 'chat', isAdmin)),
+    ], (card) => saveSection(card, 'provider', 'chat', isAdmin)),
   );
 
   // Display ownership (B2): which agent may draw on the shared canvas.
@@ -328,7 +328,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   container.appendChild(
     settingsCard('Display ownership', 'Only one agent owns the overlay canvas at a time; switching releases the other\u2019s overlays. The in-app assistant is \u201cinterior\u201d; external MCP agents are \u201cexterior\u201d.', [
       selectRow('activeActor', 'Active owner', actor, ['interior', 'exterior'], isAdmin),
-    ], () => saveSection(container, 'general', 'activeActor', isAdmin)),
+    ], (card) => saveSection(card, 'general', 'activeActor', isAdmin)),
   );
 
   // Audio provider (Phase C): default OFF; cloud (OpenRouter fish) or local
@@ -342,7 +342,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
       textRow('ttsModel', 'TTS model (OpenRouter)', String(audio.ttsModel ?? 'fish-audio/s1'), isAdmin),
       textRow('sttUrl', 'Local STT URL', String(audio.sttUrl ?? ''), isAdmin),
       textRow('ttsUrl', 'Local TTS URL', String(audio.ttsUrl ?? ''), isAdmin),
-    ], () => saveSection(container, 'audio', 'provider', isAdmin)),
+    ], (card) => saveSection(card, 'audio', 'provider', isAdmin)),
   );
 
   // TLS / HTTPS management (§7).
@@ -379,7 +379,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
           'Optional: trust anchor for a private ACME endpoint, server-side.',
         ),
       ],
-      () => saveSection(container, 'tls', 'settings', isAdmin),
+      (card) => saveSection(card, 'tls', 'settings', isAdmin),
     ),
   );
 
@@ -471,7 +471,7 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
         el('p', 'settings-hint', `Store: ${String(openfga.storeId ?? '—')}`),
         el('p', 'settings-hint', `Authorization model: ${String(openfga.modelId ?? '—')}`),
       ],
-      () => saveSection(container, 'openfga', 'settings', isAdmin),
+      (card) => saveSection(card, 'openfga', 'settings', isAdmin),
     ),
   );
 
@@ -499,15 +499,15 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
   container.appendChild(accountBox);
 }
 
-async function saveAuthSection(container: HTMLElement, key: string, isAdmin: boolean): Promise<void> {
+async function saveAuthSection(card: HTMLElement, key: string, isAdmin: boolean): Promise<void> {
   if (!isAdmin) {
     alert('Only admins can change settings.');
     return;
   }
-  const value = collectCardValues(container, key);
+  const value = collectCardValues(card);
   try {
     await putSetting('auth', key, value);
-    flashSaved(container);
+    flashSaved(card);
   } catch (err) {
     alert((err as Error).message);
   }
@@ -542,34 +542,32 @@ async function refreshTlsStatus(el: HTMLElement, isAdmin = true): Promise<void> 
   }
 }
 
-async function saveSection(container: HTMLElement, category: string, key: string, isAdmin: boolean): Promise<void> {
+async function saveSection(card: HTMLElement, category: string, key: string, isAdmin: boolean): Promise<void> {
   if (!isAdmin) {
     alert('Only admins can change settings.');
     return;
   }
-  const value = collectCardValues(container, key);
+  const value = collectCardValues(card);
   try {
     await putSetting(category, key, value);
-    flashSaved(container);
+    flashSaved(card);
   } catch (err) {
     alert((err as Error).message);
   }
 }
 
-function collectCardValues(scope: HTMLElement, dataKey: string): Record<string, unknown> {
+function collectCardValues(card: HTMLElement): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  scope.querySelectorAll<HTMLElement>(`[data-setting="${dataKey}"]`).forEach((card) => {
-    card.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input, select').forEach((input) => {
-      const field = input.dataset.field;
-      if (!field) return;
-      if (input.type === 'checkbox') {
-        out[field] = (input as HTMLInputElement).checked;
-      } else if (input.type === 'number') {
-        out[field] = Number(input.value);
-      } else {
-        out[field] = input.value;
-      }
-    });
+  card.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea').forEach((input) => {
+    const field = input.dataset.field;
+    if (!field) return;
+    if (input instanceof HTMLInputElement && input.type === 'checkbox') {
+      out[field] = input.checked;
+    } else if (input instanceof HTMLInputElement && input.type === 'number') {
+      out[field] = Number(input.value);
+    } else {
+      out[field] = input.value;
+    }
   });
   return out;
 }
@@ -604,7 +602,7 @@ function inputField(id: string, label: string, type = 'text'): { wrap: HTMLEleme
   return { wrap, input };
 }
 
-function settingsCard(title: string, description: string, rows: HTMLElement[], onSave?: () => void): HTMLElement {
+function settingsCard(title: string, description: string, rows: HTMLElement[], onSave?: (card: HTMLElement) => void): HTMLElement {
   const card = el('div', 'settings-card');
   card.appendChild(el('h4', '', title));
   card.appendChild(el('p', 'settings-card-desc', description));
@@ -613,7 +611,7 @@ function settingsCard(title: string, description: string, rows: HTMLElement[], o
   card.appendChild(body);
   if (onSave) {
     const saveBtn = el('button', 'btn btn-primary', 'Save');
-    saveBtn.addEventListener('click', onSave);
+    saveBtn.addEventListener('click', () => onSave(card));
     card.appendChild(saveBtn);
   }
   return card;

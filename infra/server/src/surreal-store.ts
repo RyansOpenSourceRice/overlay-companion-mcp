@@ -50,6 +50,17 @@ interface SqlResponseRow {
   detail?: string;
 }
 
+// Better Auth stores accounts in the plural `users` table (surreal-better-auth
+// adapter, usePlural: true), so an authenticated user id is `users:<id>`.
+// Normalize any user id to that table form — `user:<id>`, `users:<id>`, or a
+// bare id — so record references resolve against the table that actually holds
+// the account. Using the singular `user` table here produced a malformed
+// `user:users:<id>` reference that crashed connection create/delete.
+const USER_TABLE = 'users';
+function userRecordId(userId: string): string {
+  return `${USER_TABLE}:${userId.replace(/^users?:/, '')}`;
+}
+
 export class SurrealDbStore {
   private readonly opts: SurrealDbOptions;
   private readonly authHeader: string;
@@ -98,7 +109,12 @@ export class SurrealDbStore {
       throw new Error(`SurrealDB response missing index ${resultIndex}`);
     }
     if (row.status && row.status !== 'OK') {
-      throw new Error(`SurrealDB query error: ${row.detail ?? row.status}`);
+      // The /sql endpoint returns the error text in `result` (not `detail`);
+      // surface it so a schema/type failure isn't masked as a bare "ERR".
+      const detail =
+        row.detail ||
+        (typeof row.result === 'string' ? row.result : row.result ? JSON.stringify(row.result) : '');
+      throw new Error(`SurrealDB query error: ${detail || row.status}`);
     }
     return row.result as T;
   }
@@ -398,7 +414,7 @@ export class SurrealDbStore {
   async listConnections(userId: string): Promise<DbConnection[]> {
     const rows = await this.query<DbConnection[]>(
       'SELECT * FROM connection WHERE user_id = type::thing($userId) ORDER BY created_at DESC;',
-      { userId: `user:${userId.replace(/^user:/, '')}` },
+      { userId: userRecordId(userId) },
     );
     return rows ?? [];
   }
@@ -422,7 +438,7 @@ export class SurrealDbStore {
   async getConnection(userId: string, id: string): Promise<DbConnection | null> {
     const rows = await this.query<DbConnection[]>(
       'SELECT * FROM connection WHERE id = type::thing($id) AND user_id = type::thing($userId) LIMIT 1;',
-      { id: `connection:${id.replace(/^connection:/, '')}`, userId: `user:${userId.replace(/^user:/, '')}` },
+      { id: `connection:${id.replace(/^connection:/, '')}`, userId: userRecordId(userId) },
     );
     return rows && rows.length > 0 ? rows[0] : null;
   }
@@ -432,7 +448,7 @@ export class SurrealDbStore {
     const cleanId = id.replace(/^connection:/, '');
     const vars: Record<string, unknown> = {
       id: `connection:${cleanId}`,
-      userId: `user:${userId.replace(/^user:/, '')}`,
+      userId: userRecordId(userId),
       name: input.name,
       host: input.host,
       port: input.port,
@@ -465,7 +481,7 @@ export class SurrealDbStore {
     const cleanId = id.replace(/^connection:/, '');
     const rows = await this.query<DbConnection[]>(
       'DELETE type::thing($id) WHERE user_id = type::thing($userId) RETURN BEFORE;',
-      { id: `connection:${cleanId}`, userId: `user:${userId.replace(/^user:/, '')}` },
+      { id: `connection:${cleanId}`, userId: userRecordId(userId) },
     );
     return rows !== null && rows.length > 0;
   }
@@ -474,7 +490,7 @@ export class SurrealDbStore {
     const cleanId = id.replace(/^connection:/, '');
     await this.query(
       'UPDATE type::thing($id) SET last_connected = time::now(), updated_at = time::now() WHERE user_id = type::thing($userId);',
-      { id: `connection:${cleanId}`, userId: `user:${userId.replace(/^user:/, '')}` },
+      { id: `connection:${cleanId}`, userId: userRecordId(userId) },
     );
   }
 }
