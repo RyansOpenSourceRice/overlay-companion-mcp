@@ -268,7 +268,10 @@ export class KasmVNCClient {
     this.container.appendChild(this.overlayCanvas);
 
     // Setup message listener for overlay commands
+    // Only accept overlay commands from our own origin so a third-party
+    // iframe/popup cannot inject drawing commands into the session.
     window.addEventListener('message', (event) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data && event.data.type === 'overlay_command') {
         this.handleOverlayCommand(event.data.command as OverlayCommandData);
       }
