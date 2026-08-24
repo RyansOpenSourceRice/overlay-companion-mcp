@@ -64,6 +64,28 @@ re-run. Record-level permissions enforce user-scoped access.
   `ConnectionFlowTests`, `TlsSettingsTests`.
 - CI: `.github/workflows/playwright-tests.yml` (FireFox).
 
+## Security tooling & CI posture
+
+- **Static analysis (SAST)**: OpenGrep (`.github/workflows/sast-opengrep.yml`)
+  is the open-source static scanner; results are uploaded as SARIF to code
+  scanning. GitHub CodeQL also runs for C# and Rust.
+- **Dependency updates**: Renovate (`renovate.json`) with `pinDigests: true` for
+  the `github-actions`, `dockerfile`, and `docker-compose` managers — pins
+  actions to commit SHAs and images to content digests, which satisfies the
+  OpenSSF Scorecard `Pinned-Dependencies` check.
+- **Least-privilege CI permissions**: every workflow sets `contents: read` at
+  the top level; `write` is granted only to the one job that needs it (SARIF
+  upload, GHCR push, release/asset creation, branch push), satisfying the
+  Scorecard `Token-Permissions` check.
+- **Secret scanning**: gitleaks, detect-secrets, and detect-private-key run in
+  the pre-commit suite (`.pre-commit-config.yaml`).
+- **StepSecurity stance**: `step-security/harden-runner` is Apache-2.0 and free,
+  but its "Global Block List" is fetched at runtime from StepSecurity's hosted
+  24/7 SOC (a third-party service), and the Secure Workflows generator is a
+  hosted web app. It is therefore an optional add-on, not a default; the
+  self-contained Renovate pinning + least-privilege permissions above are
+  preferred.
+
 ---
 
 *Authored by an AI agent (OpenHands) on behalf of Ryan.*
