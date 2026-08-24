@@ -24,30 +24,46 @@ import { loadSurrealOptions } from './surreal-store.js';
 let db: Surreal | null = null;
 let connecting: Promise<Surreal> | null = null;
 
+// A transient connect failure (e.g. container-DNS resolution on podman, or the
+// DB restarting under us) must not turn a login/registration/session request
+// into a 500. Retry the connect with backoff before giving up.
+const CONNECT_RETRIES = 5;
+const CONNECT_BASE_DELAY_MS = 300;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 export async function ensureConnected(): Promise<Surreal> {
   if (db && db.status === ConnectionStatus.Connected) return db;
   if (connecting) return connecting;
-  connecting = (async () => {
-    // Single source of DB connection config: reuse the store boundary's
-    // options loader so every SurrealDB access path (this WebSocket driver
-    // for Better Auth, and the HTTP /sql store) reads the same SURREALDB_*
-    // defaults and bootstrap values. Only the transport differs.
-    const opts = loadSurrealOptions();
-    const url = opts.endpoint.replace(/^http/i, 'ws');
-    try {
-      if (!db) db = new Surreal();
-      await db.connect(url, { namespace: opts.namespace, database: opts.database, auth: { username: opts.username, password: opts.password } });
-      return db;
-    } catch (err) {
-      // Reset so a later request can retry the connection; the app tolerates
-      // a DB that is down at boot.
-      db = null;
-      connecting = null;
-      throw err;
+  const opts = loadSurrealOptions();
+  const url = opts.endpoint.replace(/^http/i, 'ws');
+  const attempt = async (): Promise<Surreal> => {
+    let lastErr: unknown = null;
+    for (let i = 0; i < CONNECT_RETRIES; i++) {
+      try {
+        const c = db ?? (db = new Surreal());
+        await c.connect(url, {
+          namespace: opts.namespace,
+          database: opts.database,
+          auth: { username: opts.username, password: opts.password },
+        });
+        return c;
+      } catch (err) {
+        lastErr = err;
+        if (i < CONNECT_RETRIES - 1) await sleep(CONNECT_BASE_DELAY_MS * (i + 1));
+      }
     }
-  })();
+    throw lastErr;
+  };
+  connecting = attempt();
   try {
     return await connecting;
+  } catch (err) {
+    // Reset so a later request can retry the connection; the app tolerates a
+    // DB that is down at boot.
+    db = null;
+    connecting = null;
+    throw err;
   } finally {
     connecting = null;
   }

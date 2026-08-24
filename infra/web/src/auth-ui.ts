@@ -41,7 +41,7 @@ export function showLoginView(container: HTMLElement, onLoggedIn: (u: CurrentUse
     ['fas fa-tv', 'Multi-monitor overlays — draw circles, boxes, arrows, and text on any screen.'],
     ['fas fa-robot', 'AI-assisted screen interaction — an agent can screenshot, annotate, and guide you.'],
     ['fas fa-plug', 'MCP-native — connect Cherry AI, Claude Desktop, and other assistants.'],
-    ['fas fa-shield-alt', 'Secure by design — browser-based credential management, rate-limited auth.'],
+    ['fas fa-shield-alt', 'Self-hosted — you control the server, the database, and who has access.'],
   ].forEach(([ic, txt]) => {
     const li = el('li', '');
     const i = el('i', ic);

@@ -59,6 +59,11 @@ jobs:
         run: |
           cd infra/server && npm install && npm run build
 
+      - name: Test management server
+        timeout-minutes: 5
+        run: |
+          cd infra/server && npm test
+
       - name: Build C# MCP server
         timeout-minutes: 10
         run: |
