@@ -93,6 +93,22 @@ jobs:
             sleep 1
           done
 
+      - name: Start Jaeger (OpenTelemetry traces)
+        timeout-minutes: 3
+        run: |
+          docker run -d --name oc-jaeger-test \
+            -p 127.0.0.1:16686:16686 \
+            -p 127.0.0.1:4318:4318 \
+            -e COLLECTOR_OTLP_ENABLED=true \
+            jaegertracing/all-in-one:1.53.0
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:16686/ > /dev/null 2>&1; then
+              echo "Jaeger is up"
+              break
+            fi
+            sleep 1
+          done
+
       - name: Start test stack (web server + MCP)
         timeout-minutes: 5
         run: |
@@ -109,6 +125,9 @@ jobs:
           export SURREALDB_USERNAME="root"
           export SURREALDB_PASSWORD="root" # pragma: allowlist secret (test fixture)
           export COOKIE_SECURE=false
+          export OTEL_ENABLED=true
+          export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+          export OTEL_SERVICE_NAME="overlay-companion-server"
           PORT=8080 \
           NODE_ENV=production \
           MCP_SERVER_URL=http://127.0.0.1:3000 \
@@ -153,6 +172,22 @@ jobs:
           fi
           echo "::notice title=Playwright suite ran::The Playwright suite executed and produced results in TestResults/playwright-results.trx."
 
+      # The server is instrumented with OpenTelemetry (OTEL_ENABLED=true) and
+      # exports to Jaeger. Confirm the trace pipeline actually produced spans so
+      # a silent exporter-outage can't look like a healthy run. Non-fatal: the
+      # suite itself may have skipped on the shared runner.
+      - name: Verify OpenTelemetry traces reached Jaeger
+        if: always()
+        run: |
+          sleep 4
+          services=$(curl -fsS http://localhost:16686/api/services 2>/dev/null || echo '{}')
+          echo "Jaeger services: $services"
+          if echo "$services" | grep -q "overlay-companion-server"; then
+            echo "::notice title=OTel traces collected::The management server exported traces to Jaeger."
+          else
+            echo "::warning title=No OTel traces::Jaeger reported no traces for overlay-companion-server."
+          fi
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -178,3 +213,4 @@ jobs:
             if [ -f "$f" ]; then kill "$(cat $f)" 2>/dev/null || true; fi
           done
           docker rm -f oc-surrealdb-test 2>/dev/null || true
+          docker rm -f oc-jaeger-test 2>/dev/null || true
