@@ -25,7 +25,7 @@
     "helmet": "^7.1.0",
     "express-validator": "^7.0.1",
     "validator": "^13.11.0",
-    "dompurify": "^3.0.5",
+    "dompurify": "^3.4.14",
     "jsdom": "^23.0.1"
   },
   "engines": {
