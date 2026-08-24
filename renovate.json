@@ -7,7 +7,6 @@
   "timezone": "America/Chicago",
   "rangeStrategy": "bump",
   "rebaseWhen": "behind-base-branch",
-  "ignorePaths": ["legacy/**"],
   "commitMessagePrefix": "chore(deps)",
   "commitMessageTopic": "{{depName}}",
   "labels": ["dependencies"],
