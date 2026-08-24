@@ -284,6 +284,33 @@ decisions = [
         "custom/high-contrast themes are a documented extension.",
     ),
     (
+        "D-019",
+        "assistant-ui-frontend-chat",
+        "Frontend AI chat UI: assistant-ui + Vercel AI SDK",
+        "For in-app AI chat windows in TypeScript, the default stack is "
+        "assistant-ui (React, MIT) on top of the Vercel AI SDK — the standard "
+        "conversation-UI toolkit (ChatGPT-style UX, shadcn/ui, streaming/"
+        "retries/scroll handled). This is the 'Better Auth of AI chat UI'. The "
+        "current in-app chat is plain TypeScript and stays until a React chat "
+        "surface is warranted; assistant-ui + AI SDK is then the default.",
+        "NLUX, Deep Chat, CopilotKit, hand-rolled vanilla-TS chat, full apps "
+        "(LibreChat / Chatbot UI)",
+        "Adopts a maintained, widely-used composition model rather than owning "
+        "chat scroll/focus/streaming edge cases; matches Ryan's preference.",
+    ),
+    (
+        "D-020",
+        "per-view-urls-not-silent-spa",
+        "Each view gets its own URL (no silent single-page routing)",
+        "The web UI exposes a URL per view (e.g. #/connections, #/settings) "
+        "rather than a single silent-SPA URL with no addressable location. A "
+        "view without a URL is a navigation and deep-linking gap: users cannot "
+        "bookmark, link, share, or use back/forward reliably.",
+        "One URL with JS-only tab switching and no history entries",
+        "Bookmarkable, deep-linkable, shareable views; matches Ryan's "
+        "preference (a view without a URL was not intended).",
+    ),
+    (
         "D-005",
         "server-persisted-connections",
         "Saved connections are server-persisted",
@@ -575,6 +602,30 @@ problems = [
         "low",
         "open",
         "Wire YAML scenarios into E2E harness.",
+        "TestResult-001-playwright-web-suite",
+    ),
+    (
+        "P-006",
+        "spa-per-view-urls-pending",
+        "Per-view URLs not yet implemented",
+        "D-020 records that every view needs a URL, but the web UI is still a "
+        "silent SPA (tab switching without hash routes or history entries).",
+        "medium",
+        "open",
+        "Add hash-based routing (#/connections, #/settings, #/home) to the web UI.",
+        "Component-C-003-web-interface",
+    ),
+    (
+        "P-007",
+        "otel-in-e2e-testing",
+        "OpenTelemetry not instrumented in E2E testing",
+        "The management server emits OTLP traces (tracing.ts), but the E2E "
+        "Playwright suite and CI workflow do not yet assert on or collect "
+        "traces to catch regressions in request/error behavior.",
+        "low",
+        "open",
+        "Run a Jaeger/OTel collector in the E2E workflow and add a trace-collection "
+        "or span-assertion step.",
         "TestResult-001-playwright-web-suite",
     ),
 ]

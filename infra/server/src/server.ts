@@ -13,6 +13,8 @@
 // OpenTelemetry must be the first import so it instruments everything below.
 import './tracing.js';
 
+import { bareHostname } from './origin.js';
+
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import http from 'http';
 import WebSocket, { WebSocketServer } from 'ws';
@@ -272,25 +274,6 @@ app.use(cookieParser());
 // defense-in-depth (session cookie is httpOnly + sameSite=lax; a cross-site
 // POST is blocked by the cookie, and this rejects a same-site-host subpage).
 const STATE_CHANGING = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
-function bareHostname(authority: string): string {
-  let s = String(authority || '').trim();
-  // Defensive: drop an optional scheme prefix (e.g. "https://") if present.
-  const scheme = s.indexOf('://');
-  if (scheme >= 0) s = s.slice(scheme + 3);
-  if (s.startsWith('[')) {
-    // Bracketed IPv6 literal (e.g. "[::1]:8080" or "[::1]"): strip the
-    // brackets and any trailing port.
-    const close = s.indexOf(']');
-    s = close >= 0 ? s.slice(1, close) : s.slice(1);
-  } else {
-    // Hostname (possibly "host:port"): drop the port if present.
-    const colon = s.indexOf(':');
-    if (colon >= 0) s = s.slice(0, colon);
-  }
-  // Normalize an FQDN trailing dot (e.g. "example.com.").
-  if (s.endsWith('.')) s = s.slice(0, -1);
-  return s;
-}
 app.use(((req, res, next) => {
   if (!STATE_CHANGING.has(req.method)) return next();
   const origin = req.get('origin');

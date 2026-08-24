@@ -91,6 +91,23 @@ backgrounds `bg-light.svg` / `bg-dark.svg` showing miniature screens with
 circles, dots, and arrows) plus a sign-in/register panel — replacing the old
 single-column, unstyled login.
 
+## Decision: Frontend AI chat UI — assistant-ui + Vercel AI SDK (D-019)
+
+For in-app AI chat windows in TypeScript, the default stack is **assistant-ui**
+(React, MIT) on top of the **Vercel AI SDK** — the standard conversation-UI
+toolkit (ChatGPT-style UX, shadcn/ui, streaming/retries/scroll handled). This is
+the "Better Auth of AI chat UI". The current in-app chat panel is plain
+TypeScript and stays until a React chat surface is warranted; assistant-ui + AI
+SDK is then the default (Ryan's preference).
+
+## Decision: Every view gets its own URL — no silent single-page routing (D-020)
+
+The web UI must expose a URL per view (e.g. `#/connections`, `#/settings`)
+rather than a single silent-SPA URL with no addressable location. A view without
+a URL is a navigation + deep-linking gap: users cannot bookmark, link, share, or
+use back/forward reliably. (This is recorded as a decision now; the routing is
+still to be implemented — see P-006.)
+
 ## Decision: OIDC via Keycloak + local fallback (§7, §8)
 
 Never roll our own identity. Keycloak is self-hostable and admin-configurable;

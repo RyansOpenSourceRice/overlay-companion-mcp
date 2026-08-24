@@ -47,6 +47,17 @@ re-run. Record-level permissions enforce user-scoped access.
 - Rules: `infra/wazuh/rules/*.yml` (Sigma-style).
 - Wazuh is external; the app only ships logs. No paywall.
 
+## Web interface (build scope B)
+
+- **Frontend AI chat UI**: any first-class AI chat window in TypeScript uses
+  assistant-ui + Vercel AI SDK as the default stack (D-019); the current chat
+  panel is plain TypeScript.
+- **Per-view URLs**: every view has its own addressable URL (hash routes such as
+  `#/home`, `#/connections`, `#/settings`) — no silent single-page routing
+  (D-020; implementation tracked as P-006).
+- **Theming**: light/dark with auto-follow of `prefers-color-scheme` plus a
+  manual toggle (D-018).
+
 ## Playwright tests (build scope D)
 
 - `tests/playwright-csharp/`: `WebSmokeTests`, `LoginFlowTests`,

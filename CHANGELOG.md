@@ -7,6 +7,24 @@ All notable changes to Overlay Companion MCP are documented here. Format follows
 ## [Unreleased]
 
 ### Added
+- **OpenTelemetry tracing (opt-in).** `infra/server/src/tracing.ts` bootstraps an
+  OTLP/HTTP trace exporter when `OTEL_ENABLED=true` and `OTEL_EXPORTER_OTLP_ENDPOINT`
+  is set, so an agent can query what the user did and surface request errors via
+  the OpenTelemetry MCP server (Jaeger/Tempo/Traceloop).
+- **Frontend AI chat UI decision (D-019).** Default the in-app chat stack to
+  assistant-ui + Vercel AI SDK when a React chat surface is warranted.
+- **Per-view URL decision (D-020).** Every view gets its own URL (hash routing);
+  no silent single-page routing. Recorded as a decision; implementation pending (P-006).
+- **Theme system applied to the main app.**
+- **Descriptive connection errors.** Connection test/save surfaces the server's
+  actual reason instead of generic "could not verify" / raw NetworkError strings.
+- **Service status badges** and a right-aligned light/dark toggle.
+
+### Changed
+- **Dark mode now covers the whole app.** `main.css` `:root` palette maps to
+  `var(--oc-*)` tokens (previously a hardcoded light palette overrode the theme
+  tokens, so only the login/chat themed).
+
 - **Overlay templates (§A3).** New `template_overlay` MCP tool lets the AI draw
   named templates with a small parameter set (`template="text", text="yada",
   color="red", x=43, y=32, size=23`) instead of re-emitting geometry/SVG.
