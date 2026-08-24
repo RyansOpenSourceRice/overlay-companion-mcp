@@ -420,7 +420,11 @@ export const surrealdbAdapter = (
             where: where || [],
             model,
           });
-          const queryString = `DELETE ${tableName}${whereStr} LIMIT 1 RETURN BEFORE`;
+          // SurrealQL DELETE does not accept LIMIT (the grammar rejects it as
+          // "Unexpected token `LIMIT`"), so the one-row boundary comes from the
+          // WHERE itself. Callers always key on `id` (or an equally-unique
+          // field), so a bare DELETE ... RETURN BEFORE consumes exactly one row.
+          const queryString = `DELETE ${tableName}${whereStr} RETURN BEFORE`;
           const query = new PreparedQuery(queryString, bindings);
           logQuery(config, debugLog, "consumeOne", query, fills);
           const result = await db.query<[any[]]>(query, fills);
@@ -455,7 +459,10 @@ export const surrealdbAdapter = (
           }
           if (assignments.length === 0) return null;
 
-          const queryString = `UPDATE ${tableName} SET ${assignments.join(", ")}${whereStr} LIMIT 1 RETURN AFTER`;
+          // SurrealQL UPDATE does not accept LIMIT either (same grammar
+          // rejection as DELETE); the WHERE is either id-keyed or otherwise
+          // unique, so a single RETURN AFTER suffices.
+          const queryString = `UPDATE ${tableName} SET ${assignments.join(", ")}${whereStr} RETURN AFTER`;
           const query = new PreparedQuery(queryString, bindings);
           logQuery(config, debugLog, "incrementOne", query, fills);
           const result = await db.query<[any[]]>(query, fills);

@@ -1815,7 +1815,7 @@ app.get('/health', (async (_req: Request, res: Response) => {
 }) as RequestHandler);
 
 // MCP configuration endpoint for Cherry Studio integration
-app.get('/mcp-config', (req: Request, res: Response) => {
+app.get('/mcp-config', requireBetterAuthSession, (req: Request, res: Response) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
   const wsProtocol = req.secure ? 'wss' : 'ws';
