@@ -150,6 +150,11 @@ class OverlayCompanionApp {
       // Initialize status monitoring
       this.startStatusMonitoring();
 
+      // Open the overlay WebSocket at app init (not only after connecting to a
+      // VM) so the System Status "WebSocket" indicator reflects a real
+      // connection.
+      this.setupOverlayWebSocket();
+
       // Load MCP configuration
       await this.loadMCPConfig();
 
@@ -698,13 +703,17 @@ class OverlayCompanionApp {
 
   setupOverlayWebSocket(): void {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/overlays`;
+    // The management server's WebSocketServer is mounted on `/ws` (not
+    // `/ws/overlays`); align the client so the System Status overlay WebSocket
+    // actually connects.
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
 
     try {
       this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {
         console.log('✅ Overlay WebSocket connected');
+        this.updateStatusIndicator('websocket-status', 'websocket-status-text', true, 'Connected');
       };
 
       this.websocket.onmessage = (event) => {
@@ -718,6 +727,7 @@ class OverlayCompanionApp {
 
       this.websocket.onclose = () => {
         console.log('🔌 Overlay WebSocket disconnected');
+        this.updateStatusIndicator('websocket-status', 'websocket-status-text', false, 'Disconnected');
         // Attempt to reconnect after 3 seconds
         setTimeout(() => this.setupOverlayWebSocket(), 3000);
       };
@@ -775,10 +785,9 @@ class OverlayCompanionApp {
   }
 
   disconnectFromVM(): void {
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
-    }
+    // The overlay WebSocket is a persistent app-level connection now (opened at
+    // init); do not tear it down when leaving a VM — only clear the remote
+    // desktop surface and navigate back.
 
     // Clear KasmVNC container
     const container = document.getElementById('kasmvnc-container');

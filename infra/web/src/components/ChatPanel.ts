@@ -29,10 +29,12 @@ export class ChatPanel {
     this.container.innerHTML = `
       <div class="chat-header">
         <span class="chat-title">In-app assistant</span>
-        <span class="chat-actor-badge" id="chat-actor-badge">owner: exterior</span>
+        <div class="chat-header-right">
+          <span class="chat-actor-badge" id="chat-actor-badge">owner: exterior</span>
+          <button class="chat-close-btn" id="chat-close" aria-label="Close assistant" title="Close assistant">&times;</button>
+        </div>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
-      <div class="chat-tools-note" id="chat-tools-note"></div>
       <div class="chat-input-row">
         <button id="chat-mic" class="btn btn-secondary" title="Voice input (Phase C)" aria-label="Record voice input">🎤</button>
         <input type="text" id="chat-input" placeholder="Ask the assistant to annotate the screen…" aria-label="Chat with the in-app assistant" />
@@ -43,9 +45,11 @@ export class ChatPanel {
     this.inputEl = this.container.querySelector('#chat-input')!;
     const sendBtn = this.container.querySelector('#chat-send')!;
     const micBtn = this.container.querySelector('#chat-mic')!;
+    const closeBtn = this.container.querySelector('#chat-close')!;
 
     sendBtn.addEventListener('click', () => void this.send());
     micBtn.addEventListener('click', () => void this.toggleMic());
+    closeBtn.addEventListener('click', () => this.close());
     this.inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void this.send();
     });
@@ -115,7 +119,19 @@ export class ChatPanel {
 
   toggle(): void {
     this.open = !this.open;
-    this.container.classList.toggle('chat-panel--open', this.open);
+    this.setOpen(this.open);
+  }
+
+  close(): void {
+    this.setOpen(false);
+  }
+
+  private setOpen(open: boolean): void {
+    this.open = open;
+    this.container.classList.toggle('chat-panel--open', open);
+    // Keep the header "Assistant" toggle in sync with the panel's own state.
+    const toggleBtn = document.getElementById('chat-toggle-btn');
+    toggleBtn?.classList.toggle('active', open);
   }
 
   private async loadTools(): Promise<void> {
@@ -125,8 +141,6 @@ export class ChatPanel {
       const data = (await res.json()) as { allowlist: string[]; activeActor: string };
       this.activeActor = data.activeActor ?? 'exterior';
       this.updateActorBadge();
-      const note = this.container.querySelector('#chat-tools-note') as HTMLElement | null;
-      if (note) note.textContent = `Assistant may use: ${data.allowlist.join(', ')}`;
     } catch {
       /* server unreachable in dev; keep default */
     }
