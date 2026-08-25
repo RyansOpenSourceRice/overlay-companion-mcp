@@ -770,7 +770,7 @@ app.post('/auth/logout', (async (req: Request, res: Response) => {
 // verified before the account is deleted.
 app.post('/auth/delete-account', requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  const body = (req.body ?? {}) as { password?: string; totpCode?: string };
+  const body = (req.body ?? {}) as { password?: string; totpCode?: string }; // pragma: allowlist secret (reads a request field, not a hardcoded credential)
   if (typeof body.password !== 'string' || !body.password) {
     res.status(400).json({ error: { code: 'password_required', message: 'Enter your password to delete your account.' } });
     return;
@@ -1618,6 +1618,7 @@ const kasmVncProxy = createProxyMiddleware({
     return target ? `${target.ssl ? 'https' : 'http'}://${target.host}:${target.port}` : 'http://127.0.0.1:1';
   },
   pathRewrite: (path) => {
+    // eslint-disable-next-line security/detect-unsafe-regex -- bounded path prefix, no user-controlled backtracking risk
     const m = /^(\/vnc)?\/[^/]+(\/.*)?$/.exec(path);
     return m && m[2] ? m[2] : '/';
   },
