@@ -95,6 +95,24 @@ class OverlayCompanionApp {
     refreshIcon();
   }
 
+  // Show the account actions (user + Sign out) in the header once a session is
+  // established, and wire the GUI logout button to sign out + reload past the
+  // auth gate. When logged out the whole #app is replaced by the login view, so
+  // this element is only ever present while authenticated.
+  private setupAccountActions(user: CurrentUser): void {
+    const box = document.getElementById('account-actions');
+    if (!box) return;
+    box.style.display = 'flex';
+    const nameEl = document.getElementById('account-user');
+    if (nameEl) nameEl.textContent = user.email || user.username;
+    const btn = document.getElementById('logout-btn') as HTMLButtonElement | null;
+    btn?.addEventListener('click', async () => {
+      const { logout } = await import('./auth');
+      await logout();
+      window.location.reload();
+    });
+  }
+
   async init(): Promise<void> {
     console.log('🚀 Initializing Overlay Companion MCP');
 
@@ -116,6 +134,7 @@ class OverlayCompanionApp {
         }
       } else {
         this.currentUser = user;
+        this.setupAccountActions(user);
       }
 
       // Load stored connections

@@ -759,7 +759,8 @@ app.post('/auth/local/verify-totp', totpLimiter, (async (req: Request, res: Resp
 // POST /auth/logout — revoke the session (Better Auth).
 app.post('/auth/logout', (async (req: Request, res: Response) => {
   await ensureBetterAuthDb();
-  await betterAuth.api.signOut({ headers: req.headers });
+  const signOutResult = await betterAuth.api.signOut({ headers: req.headers, returnHeaders: true });
+  applyBetterAuthHeaders(res, signOutResult?.headers);
   res.json({ ok: true });
 }) as RequestHandler);
 

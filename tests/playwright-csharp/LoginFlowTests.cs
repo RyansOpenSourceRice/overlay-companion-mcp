@@ -59,9 +59,10 @@ public class LoginFlowTests : PlaywrightWebTestBase
     public async Task LogoutClearsSession()
     {
         await RegisterOrLoginAsync(TestUsername, TestPassword);
-        var meRaw = await Page!.EvaluateAsync<string>("fetch('/auth/me', { credentials: 'include' }).then(r => r.text())");
-        var csrf = RegexExtract(meRaw, "\"csrfToken\"\\s*:\\s*\"([^\"]+)\"");
-        await FetchStatusAsync("/auth/logout", "POST", csrf: csrf);
+
+        // Better Auth's native sign-out endpoint (the same one the header GUI
+        // logout button hits) revokes the session and clears the cookie.
+        await FetchStatusAsync("/api/auth/sign-out", "POST");
 
         await GoToAsync("/auth/me");
         var body = await BodyTextAsync();
@@ -70,9 +71,38 @@ public class LoginFlowTests : PlaywrightWebTestBase
             "After logout, /auth/me should deny access.");
     }
 
-    private static string RegexExtract(string? input, string pattern)
+    [TestMethod]
+    public async Task GuiLoginAndLogout_HidesAndShowsNav()
     {
-        var m = System.Text.RegularExpressions.Regex.Match(input ?? "", pattern);
-        return m.Success ? m.Groups[1].Value : "";
+        // Drive the GUI (header Sign out button + login form), not the fetch
+        // API. When logged out the login view replaces #app, so the nav
+        // (Computers/Settings/Assistant) and the logout button must not exist.
+        await RegisterOrLoginAsync(TestUsername, TestPassword);
+
+        // The SPA boots asynchronously past the auth gate after the page load;
+        // wait for the app shell (nav) to appear before asserting.
+        await Page!.WaitForSelectorAsync(".main-nav", new() { State = WaitForSelectorState.Visible });
+        Assert.IsTrue(await Page!.IsVisibleAsync(".main-nav"),
+            "Nav should be visible when logged in.");
+        Assert.IsTrue(await Page!.IsVisibleAsync("#logout-btn"),
+            "Header sign-out button should be visible when logged in.");
+
+        // Log out via the GUI button.
+        await Page!.ClickAsync("#logout-btn");
+        await Page!.WaitForSelectorAsync("form.login-local-form", new() { State = WaitForSelectorState.Visible });
+
+        Assert.IsFalse(await Page!.IsVisibleAsync(".main-nav"),
+            "Nav (Computers/Settings/Assistant) must not show when logged out.");
+        Assert.IsFalse(await Page!.IsVisibleAsync("#logout-btn"),
+            "Sign-out button must not show when logged out.");
+
+        // Log back in via the GUI login form.
+        await Page!.FillAsync("#username", TestUsername);
+        await Page!.FillAsync("#password", TestPassword);
+        await Page!.ClickAsync("form.login-local-form button[type='submit']");
+        await Page!.WaitForSelectorAsync(".main-nav", new() { State = WaitForSelectorState.Visible });
+
+        Assert.IsTrue(await Page!.IsVisibleAsync("#logout-btn"),
+            "Sign-out button should be visible after GUI sign-in.");
     }
 }
