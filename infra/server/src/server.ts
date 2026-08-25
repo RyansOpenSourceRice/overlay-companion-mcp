@@ -17,6 +17,7 @@ import { bareHostname } from './origin.js';
 
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import http from 'http';
+import https from 'https';
 import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1764,13 +1765,32 @@ app.get('/health', (async (_req: Request, res: Response) => {
     mcpServerStatus = 'unavailable';
   }
 
-  // Check KasmVNC health
+  // Check KasmVNC health.
+  //
+  // The KasmVNC target is a plain KasmVNC desktop (web UI on the kasmvncUrl
+  // port, typically TLS self-signed). There is no separate "/api/health"
+  // endpoint on the target, so a reachability probe of the web UI is the
+  // health signal: any HTTP response (including a 401 auth challenge) means
+  // the desktop is up; only a connect/read failure means it is down.
   let kasmvncStatus = 'unknown';
   try {
-    const response = await fetch(`${config.kasmvncApiUrl}/api/health`, {
-      signal: AbortSignal.timeout(5000),
+    kasmvncStatus = await new Promise<string>((resolve) => {
+      const url = new URL(config.kasmvncUrl);
+      const mod = url.protocol === 'https:' ? https : http;
+      const req = mod.get(
+        url,
+        { rejectUnauthorized: false, timeout: 5000 },
+        (res) => {
+          res.resume();
+          resolve('healthy');
+        },
+      );
+      req.on('error', () => resolve('unavailable'));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve('unavailable');
+      });
     });
-    kasmvncStatus = response.ok ? 'healthy' : 'unhealthy';
   } catch {
     kasmvncStatus = 'unavailable';
   }
