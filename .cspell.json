@@ -1240,6 +1240,11 @@
     "Turtle",
     "ttl",
     "Zanzibar",
-    "ListObjects"
+    "ListObjects",
+    "libsql",
+    "kysely",
+    "turso",
+    "tursodatabase",
+    "hrana"
   ]
 }

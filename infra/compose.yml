@@ -34,13 +34,18 @@ x-common-env: &common_env
   TLS_REDIRECT_HTTP: ${TLS_REDIRECT_HTTP:-false}
   TLS_ACME_DIRECTORY: ${TLS_ACME_DIRECTORY:-}  # step-ca / private ACME directory URL
   TLS_ACME_ROOT_CA: ${TLS_ACME_ROOT_CA:-}      # PEM trust anchor for the ACME endpoint
-  # SurrealDB connection (decoupled service so it can migrate to K3S later).
-  # Format: Server=<endpoint>;Namespace=<ns>;Database=<db>;Username=<u>;Password=<p>
-  SURREALDB_URL: ${SURREALDB_URL:-http://surrealdb:8000}
-  SURREALDB_NAMESPACE: ${SURREALDB_NAMESPACE:-overlay}
-  SURREALDB_DATABASE: ${SURREALDB_DATABASE:-companion}
-  SURREALDB_USERNAME: ${SURREALDB_USERNAME:-root}
-  SURREALDB_PASSWORD: ${SURREALDB_PASSWORD:-root}
+  # libSQL (Turso) — the only database. Embedded local file by default; point
+  # LIBSQL_URL at Turso Cloud (libsql://<db>.turso.io) + LIBSQL_AUTH_TOKEN, or a
+  # self-hosted libsql-server (http(s)://host:8080) to change the backend.
+  LIBSQL_URL: ${LIBSQL_URL:-file:/data/companion.db}
+  LIBSQL_AUTH_TOKEN: ${LIBSQL_AUTH_TOKEN:-}
+  # Demo seed (opt-in): provision a demo account with a pre-connected VM.
+  SEED_DEMO: ${SEED_DEMO:-false}
+  DEMO_EMAIL: ${DEMO_EMAIL:-demo@overlay.local}
+  DEMO_PASSWORD: ${DEMO_PASSWORD:-demo-password-1234}
+  DEMO_TARGET_ID: ${DEMO_TARGET_ID:-sample}
+  DEMO_TARGET_PORT: ${DEMO_TARGET_PORT:-6901}
+  DEMO_TARGET_SSL: ${DEMO_TARGET_SSL:-true}
 
 services:
   overlay-web:
@@ -51,11 +56,13 @@ services:
     environment:
       <<: *common_env
       MCP_SERVER_URL: http://mcp-server:3000
+    volumes:
+      # libSQL database file (embedded mode).
+      - overlay-data:/data
     ports:
       - "${WEB_PORT:-8082}:8080"
     depends_on:
       - mcp-server
-      - surrealdb
 
   mcp-server:
     build:
@@ -67,8 +74,6 @@ services:
       ASPNETCORE_URLS: http://0.0.0.0:3000
     expose:
       - "3000"
-    depends_on:
-      - surrealdb
 
   control-mcp:
     image: overlay-companion/control-mcp:latest
@@ -93,26 +98,10 @@ services:
     ports:
       - "${CLIPBOARD_BRIDGE_PORT:-8765}:8765"
 
-  # SurrealDB is the only database (per Ryan's preferences §9). Decoupled as a
-  # standalone service so it can move to K3S independently. Backs users,
-  # sessions, connections, audit log, and app configuration for both the TS
-  # management server and the C# MCP server.
-  surrealdb:
-    image: surrealdb/surrealdb:v2.2.1
-    command: ["start", "--user", "${SURREALDB_USERNAME:-root}", "--pass", "${SURREALDB_PASSWORD:-root}", "--bind", "0.0.0.0:8000", "rocksdb:/data/surreal.db"]
-    environment:
-      SURREAL_LOG_LEVEL: ${SURREAL_LOG_LEVEL:-info}
-    volumes:
-      - surrealdb-data:/data
-      - ./surrealdb/schema:/schema:ro
-    ports:
-      - "${SURREALDB_PORT:-8000}:8000"
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+  # SurrealDB is replaced by libSQL (Turso): the management server opens the DB
+# as an embedded file on a shared volume (see `overlay-web` above). Point
+# LIBSQL_URL at Turso Cloud or a self-hosted libsql-server for a decoupled
+# backend — no extra compose service is required for the embedded default.
 
 # OpenFGA (fine-grained authorization, D-017). A separate service — never
   # embedded in the app. The management server talks to it over HTTP when
@@ -188,5 +177,5 @@ networks:
     name: overlay-net
 
 volumes:
-  surrealdb-data:
-    name: overlay-surrealdb-data
+  overlay-data:
+    name: overlay-data

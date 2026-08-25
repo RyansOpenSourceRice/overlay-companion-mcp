@@ -19,7 +19,7 @@
     <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.3" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.3" />
 
-    <!-- Microsoft Extensions for hosting and DI (aligned to 10.0.7 for SurrealDb.Net 1.x) -->
+    <!-- Microsoft Extensions for hosting and DI (aligned to 10.0.7) -->
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7" />
@@ -31,11 +31,6 @@
     <!-- System libraries (updated for security) -->
     <PackageReference Include="System.Text.Json" Version="10.0.7" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
-
-    <!-- SurrealDB .NET SDK — SurrealDB is the only database (preferences §9).
-         Used as the backing store for connections, settings, and audit log.
-         SurrealDbClient is singleton-safe (per SDK lifetime table). -->
-    <PackageReference Include="SurrealDb.Net" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

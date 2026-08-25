@@ -1,4 +1,4 @@
-import type { SurrealDbStore } from './surreal-store.js';
+import type { LibSqlStore } from './libsql-store.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -202,9 +202,9 @@ function parseMcpResult(raw: string): unknown {
 }
 
 export class InteriorChat {
-  private store: SurrealDbStore;
+  private store: LibSqlStore;
 
-  constructor(store: SurrealDbStore) {
+  constructor(store: LibSqlStore) {
     this.store = store;
   }
 
@@ -361,4 +361,4 @@ function parsePartialArgs(accum: Record<string, unknown>, raw: string): Record<s
   }
 }
 
-export const createChat = (store: SurrealDbStore): InteriorChat => new InteriorChat(store);
+export const createChat = (store: LibSqlStore): InteriorChat => new InteriorChat(store);

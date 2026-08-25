@@ -1,4 +1,4 @@
-import type { SurrealDbStore } from './surreal-store.js';
+import type { LibSqlStore } from './libsql-store.js';
 
 /**
  * Audio provider abstraction (Phase C).
@@ -116,10 +116,10 @@ class LocalWhisper implements AudioProvider {
 }
 
 export class AudioBridge {
-  private store: SurrealDbStore;
+  private store: LibSqlStore;
   private _cached: AudioConfig | null = null;
 
-  constructor(store: SurrealDbStore) {
+  constructor(store: LibSqlStore) {
     this.store = store;
   }
 

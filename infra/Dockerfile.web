@@ -93,6 +93,8 @@ EOF
 
 # Set permissions
 RUN chown -R appuser:appuser /app
+# libSQL (Turso) database file lives on a mounted volume.
+RUN mkdir -p /data && chown appuser:appuser /data
 RUN mkdir -p /var/log/supervisor && chown -R appuser:appuser /var/log/supervisor
 
 # Health check

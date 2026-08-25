@@ -39,7 +39,8 @@ COPY --from=server-builder /app/server/node_modules ./node_modules
 COPY --from=server-builder /app/server/package.json ./package.json
 # Web frontend goes where the server serves it (../public relative to dist).
 COPY --from=web-builder /app/web/dist ./public
-RUN chown -R appuser:appuser /app
+# libSQL (Turso) database file lives on a mounted volume.
+RUN mkdir -p /data && chown -R appuser:appuser /app /data
 USER appuser
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

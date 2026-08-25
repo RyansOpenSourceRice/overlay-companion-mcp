@@ -33,11 +33,12 @@ import {
   AuthState,
   hashPassword,
 } from './auth.js';
-import { auth as betterAuth, ensureConnected as ensureBetterAuthDb } from './better-auth.js';
-import { SurrealDbStore, ConnectionInput } from './surreal-store.js';
+import { auth as betterAuth, ensureBetterAuthReady as ensureBetterAuthDb } from './better-auth.js';
+import { LibSqlStore, ConnectionInput } from './libsql-store.js';
 import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-store.js';
 import { createChat } from './chat.js';
 import { AudioBridge } from './audio.js';
+import { seedDemo } from './seed.js';
 import { readFileSync } from 'fs';
 
 // ESM-safe __dirname equivalent
@@ -127,11 +128,11 @@ app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 
-// SurrealDB is the only database (Ryan's preferences §9). The store backs
+// libSQL (Turso) is the only database (Ryan's preferences §9). The store backs
 // users, sessions, connections, audit log, and GUI-first app configuration.
 // Failure to reach the DB is non-fatal at boot; routes that need it surface a
-// clear error. The schema is applied on boot (idempotent OVERWRITE).
-const surrealStore = new SurrealDbStore();
+// clear error. The schema is applied on boot (idempotent).
+const libSqlStore = new LibSqlStore();
 // Fine-grained authorization (D-017). OpenFGA is a separate service — never
 // embedded in the app — and the store here is the authorization boundary. It
 // is OPT-IN via GUI-first config (§9): disabled by default keeps the existing
@@ -139,17 +140,28 @@ const surrealStore = new SurrealDbStore();
 // connection routes enforce Check()/ListObjects() fail-closed.
 const openfgaStore = new OpenFgaStore();
 // In-app chat assistant (B1): a second client to the same C# MCP tools.
-const chat = createChat(surrealStore);
+const chat = createChat(libSqlStore);
 // Voice/transcription bridge (Phase C): cloud fish or local whisper, off by default.
-const audioBridge = new AudioBridge(surrealStore);
+const audioBridge = new AudioBridge(libSqlStore);
 let schemaSql = '';
 try {
   // The schema file ships with the repo; read it for boot-time apply.
-  schemaSql = readFileSync(path.join(__dirname, '../../surrealdb/schema/001_init.surql'), 'utf-8');
+  schemaSql = readFileSync(path.join(__dirname, '../../libsql/schema/001_init.sql'), 'utf-8');
 } catch {
   // In dev the path may differ; the store's ensureSchema is a no-op then.
 }
-surrealStore.ensureSchema(schemaSql).catch((e) => log.warn('SurrealDB schema apply deferred:', (e as Error).message));
+libSqlStore.ensureSchema(schemaSql).catch((e) => log.warn('libSQL schema apply deferred:', (e as Error).message));
+
+// Demo seed (opt-in via SEED_DEMO=true): provision a demo account with a
+// working VM so a fresh deployment is immediately usable. Best-effort.
+void (async () => {
+  try {
+    await ensureBetterAuthDb();
+    await seedDemo(libSqlStore);
+  } catch (e) {
+    log.warn('Demo seed failed:', (e as Error).message);
+  }
+})();
 
 // Authentication is owned by Better Auth (see better-auth.ts), mounted at
 // /api/auth. §7: never roll our own identity; sign-ups locked by default;
@@ -157,12 +169,12 @@ surrealStore.ensureSchema(schemaSql).catch((e) => log.warn('SurrealDB schema app
 
 // TLS / HTTPS certificate management (§7). The management server stays HTTP
 // behind the terminator (Caddy/Traefik); this manager owns the serving-cert
-// lifecycle and renders the terminator config. Settings live in SurrealDB
+// lifecycle and renders the terminator config. Settings live in libSQL
 // app_config (category "tls") and are loaded asynchronously on boot.
 const tlsManager = new TlsManager();
 void (async () => {
   try {
-    const stored = await surrealStore.getConfig('tls.settings');
+    const stored = await libSqlStore.getConfig('tls.settings');
     if (stored && typeof stored === 'object') {
       tlsManager.update(stored as Partial<TlsSettings>);
     }
@@ -176,7 +188,7 @@ void (async () => {
 // them and provision the store + authorization model if enabled.
 void (async () => {
   try {
-    const stored = await surrealStore.getConfig('openfga.settings');
+    const stored = await libSqlStore.getConfig('openfga.settings');
     if (stored && typeof stored === 'object') {
       openfgaStore.update(stored as Partial<OpenFgaOptions>);
     }
@@ -528,7 +540,7 @@ const mcpLimiter = rateLimit({
 
 // ---- Authentication routes (§7) -----------------------------------------
 // Real login experience on top of the OIDC middleware: session cookies backed
-// by SurrealDB, OIDC auth-code+PKCE via Keycloak, local auth fallback,
+// by libSQL, OIDC auth-code+PKCE via Keycloak, local auth fallback,
 // sign-up lock, logout, delete-account, and a /me endpoint.
 
 function clientIp(req: Request): string | undefined {
@@ -775,11 +787,8 @@ app.post('/auth/delete-account', requireBetterAuthSession, (async (req: Request,
     res.status(400).json({ error: { code: 'password_required', message: 'Enter your password to delete your account.' } });
     return;
   }
-  // Verify the password directly rather than relying on deleteUser's password
-  // parameter: with the SurrealDB adapter Better Auth's findCredentialAccount
-  // cannot resolve the credential account (accountId is stored as the user
-  // RecordId), so deleteUser would reject a correct password. This mirrors the
-  // credential lookup / password check that sign-in uses, which does work.
+  // Verify the password directly via the same credential lookup sign-in uses
+  // (findUserByEmail + verify), so account deletion re-auth is consistent.
   const passwordOk = await verifyPasswordReauth(state.user.email, body.password);
   if (!passwordOk) {
     res.status(400).json({ error: { code: 'invalid_password', message: 'Incorrect password.' } });
@@ -819,8 +828,7 @@ app.post('/auth/delete-account', requireBetterAuthSession, (async (req: Request,
 
 // Re-authentication password check. Mirrors Better Auth's sign-in credential
 // lookup (findUserByEmail + includeAccounts, then match the local credential
-// account and verify its scrypt hash), which works with the SurrealDB adapter
-// where findCredentialAccount does not.
+// account and verify its hash), which works with the libSQL (Kysely) adapter.
 async function verifyPasswordReauth(email: string | undefined, password: string): Promise<boolean> {
   if (!email) return false;
   try {
@@ -839,7 +847,7 @@ async function verifyPasswordReauth(email: string | undefined, password: string)
 }
 
 // ---- GUI-first configuration (§9) ---------------------------------------
-// Auth/connection/provider/Wazuh settings live in SurrealDB app_config and are
+// Auth/connection/provider/Wazuh settings live in libSQL app_config and are
 // editable in the Settings UI. Env vars are bootstrap defaults only. The model
 // is structured and validatable so both a human and an AI agent can configure it.
 
@@ -895,7 +903,7 @@ app.get('/api/settings', settingsLimiter, requireBetterAuthSession, (async (_req
   const categories = ['auth', 'connection', 'wazuh', 'general', 'tls', 'provider', 'audio', 'openfga'];
   const out: Record<string, Record<string, unknown>> = {};
   for (const cat of categories) {
-    const rows = await surrealStore.getConfigByCategory(cat);
+    const rows = await libSqlStore.getConfigByCategory(cat);
     out[cat] = {};
     for (const row of rows) {
       // app_config id is 'app_config:<key>'; strip the table prefix.
@@ -915,7 +923,7 @@ app.get('/api/settings', settingsLimiter, requireBetterAuthSession, (async (_req
 
 // GET /api/settings/:category/:key — a single config value.
 app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
-  const value = await surrealStore.getConfig(`${req.params.category}.${req.params.key}`);
+  const value = await libSqlStore.getConfig(`${req.params.category}.${req.params.key}`);
   if (value === null) {
     res.status(404).json({ error: { code: 'not_found', message: 'Setting not set.' } });
     return;
@@ -937,8 +945,8 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   // Preserve any secret value that arrives as the '<redacted>' placeholder
   // (the GET redacts secrets before returning them; a PUT must not write the
   // placeholder string back over the real secret).
-  const existing = await surrealStore.getConfig(fullKey);
-  await surrealStore.setConfig(fullKey, mergePreservingSecrets(existing, value), category, state.user.id);
+  const existing = await libSqlStore.getConfig(fullKey);
+  await libSqlStore.setConfig(fullKey, mergePreservingSecrets(existing, value), category, state.user.id);
   // Better Auth auth config is env-driven (§9 GUI-first: env bootstrap); auth
   // settings saved here are stored but not hot-applied to the running auth.
   // TLS settings are hot-applied so the TlsManager and any generated
@@ -959,7 +967,7 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
       log.info(`[OpenFGA] provisioned store ${provisioned.storeId} model ${provisioned.modelId}`);
     }
   }
-  await surrealStore.appendAudit({
+  await libSqlStore.appendAudit({
     action: 'config.updated',
     userId: state.user.id,
     actor: 'admin',
@@ -993,7 +1001,7 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
     return;
   }
   const role = state.user.roles.includes('admin') ? 'admin' : 'user';
-  const provider = (await surrealStore.getConfig('provider.chat')) as Record<string, unknown> | null;
+  const provider = (await libSqlStore.getConfig('provider.chat')) as Record<string, unknown> | null;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -1065,7 +1073,7 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
 // GET /api/chat/tools — the bounded allowlist + active display actor, so the
 // panel can render what the assistant may do and who currently owns the canvas.
 app.get('/api/chat/tools', chatLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
-  const actorRaw = await surrealStore.getConfig('general.activeActor');
+  const actorRaw = await libSqlStore.getConfig('general.activeActor');
   res.json({
     allowlist: [
       'draw_overlay', 'template_overlay', 'take_screenshot', 'get_display_info',
@@ -1172,7 +1180,7 @@ app.post('/api/tls/cert', tlsLimiter, requireBetterAuthSession, requireAdmin(), 
     res.status(400).json({ error: { code: 'invalid_cert', message: result.error } });
     return;
   }
-  await surrealStore.appendAudit({
+  await libSqlStore.appendAudit({
     action: 'tls.cert_uploaded',
     userId: state.user.id,
     actor: 'admin',
@@ -1197,7 +1205,7 @@ app.post('/api/tls/self-signed', tlsLimiter, requireBetterAuthSession, requireAd
     res.status(500).json({ error: { code: 'generate_failed', message: result.error } });
     return;
   }
-  await surrealStore.appendAudit({
+  await libSqlStore.appendAudit({
     action: 'tls.self_signed_generated',
     userId: state.user.id,
     actor: 'admin',
@@ -1209,7 +1217,7 @@ app.post('/api/tls/self-signed', tlsLimiter, requireBetterAuthSession, requireAd
 
 // ---- Saved connections (VM connection management) ------------------------
 //
-// CRUD over the SurrealDB `connection` table, scoped to the authenticated
+// CRUD over the libSQL `connection` table, scoped to the authenticated
 // user. Plaintext passwords are never stored or returned: the server keeps an
 // Argon2id hash (password_hash) for verification; the web UI holds the
 // plaintext transiently in browser storage for the live VM handshake.
@@ -1267,8 +1275,8 @@ app.get('/api/connections', connectionsLimiter, requireBetterAuthSession, (async
   const state = (req as Request & { authState?: AuthState }).authState!;
   const viewable = await openfgaStore.listViewableConnectionIds(state.user.id);
   const rows = viewable !== null
-    ? await surrealStore.getConnectionsByIds(viewable)
-    : await surrealStore.listConnections(state.user.id);
+    ? await libSqlStore.getConnectionsByIds(viewable)
+    : await libSqlStore.listConnections(state.user.id);
   res.json({ connections: rows.map(toConnectionDto) });
 }) as RequestHandler);
 
@@ -1282,10 +1290,10 @@ app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (asyn
   }
   const { password, ...clean } = input;
   const passwordHash = password ? await hashPassword(password) : undefined;
-  const saved = await surrealStore.upsertConnection(state.user.id, clean, passwordHash);
+  const saved = await libSqlStore.upsertConnection(state.user.id, clean, passwordHash);
   // OpenFGA (D-017): the creator becomes the owner of the new connection.
   await openfgaStore.writeOwner(state.user.id, saved.id);
-  await surrealStore.appendAudit({
+  await libSqlStore.appendAudit({
     action: 'connection.created',
     userId: state.user.id,
     actor: 'user',
@@ -1299,7 +1307,7 @@ app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (asyn
 app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'viewer', req.params.id))) return;
-  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  const row = await libSqlStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
@@ -1311,7 +1319,7 @@ app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
 app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
-  const existing = await surrealStore.getConnection(state.user.id, req.params.id);
+  const existing = await libSqlStore.getConnection(state.user.id, req.params.id);
   if (!existing) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
@@ -1326,8 +1334,8 @@ app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
   const passwordHash = password
     ? await hashPassword(password)
     : (existing.password_hash ?? undefined);
-  const saved = await surrealStore.upsertConnection(state.user.id, { ...clean, id: req.params.id }, passwordHash);
-  await surrealStore.appendAudit({
+  const saved = await libSqlStore.upsertConnection(state.user.id, { ...clean, id: req.params.id }, passwordHash);
+  await libSqlStore.appendAudit({
     action: 'connection.updated',
     userId: state.user.id,
     actor: 'user',
@@ -1341,7 +1349,7 @@ app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
 app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'owner', req.params.id))) return;
-  const deleted = await surrealStore.deleteConnection(state.user.id, req.params.id);
+  const deleted = await libSqlStore.deleteConnection(state.user.id, req.params.id);
   if (!deleted) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
@@ -1349,7 +1357,7 @@ app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession,
   // OpenFGA (D-017): drop the connection's tuples so deleted objects can't be
   // re-checked against stale grants.
   await openfgaStore.deleteTuplesForConnection(req.params.id);
-  await surrealStore.appendAudit({
+  await libSqlStore.appendAudit({
     action: 'connection.deleted',
     userId: state.user.id,
     actor: 'user',
@@ -1364,12 +1372,12 @@ app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession,
 app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
-  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  const row = await libSqlStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
   }
-  await surrealStore.touchLastConnected(state.user.id, req.params.id);
+  await libSqlStore.touchLastConnected(state.user.id, req.params.id);
   res.json({ ok: true });
 }) as RequestHandler);
 
@@ -1378,7 +1386,7 @@ app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSess
 app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
-  const row = await surrealStore.getConnection(state.user.id, req.params.id);
+  const row = await libSqlStore.getConnection(state.user.id, req.params.id);
   if (!row) {
     res.status(404).json({ error: { code: 'not_found', message: 'Connection not found.' } });
     return;
@@ -1390,7 +1398,7 @@ app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSessi
       protocol: row.protocol as 'kasmvnc' | 'vnc' | 'rdp',
       ssl: row.ssl ?? false,
     });
-    await surrealStore.appendAudit({
+    await libSqlStore.appendAudit({
       action: 'connection.tested',
       userId: state.user.id,
       actor: 'user',
@@ -1399,7 +1407,7 @@ app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSessi
     });
     res.json({ success: result.success ?? false, message: result.message });
   } catch (err) {
-    await surrealStore.appendAudit({
+    await libSqlStore.appendAudit({
       action: 'connection.tested',
       userId: state.user.id,
       actor: 'user',
@@ -1534,7 +1542,7 @@ function bootstrapTlsSettings(): Record<string, unknown> {
 // Provider bootstrap defaults (§B1). The in-app chat panel is a second client
 // to the same MCP tools; it streams an OpenRouter completion and executes a
 // bounded tool allowlist against the C# MCP `/mcp` endpoint. The API key is
-// stored via SurrealDB app_config (redacted) and is never returned to the UI.
+// stored via libSQL app_config (redacted) and is never returned to the UI.
 function bootstrapProviderSettings(): Record<string, unknown> {
   return {
     'provider.chat': {
@@ -1797,8 +1805,8 @@ app.get('/health', (async (_req: Request, res: Response) => {
     kasmvncStatus = 'unavailable';
   }
 
-  // Check SurrealDB reachability (the only database; §9).
-  const surrealdbStatus = (await surrealStore.ping()) ? 'healthy' : 'unavailable';
+  // Check libSQL reachability (the only database; §9).
+  const databaseStatus = (await libSqlStore.ping()) ? 'healthy' : 'unavailable';
 
   // Check OpenFGA reachability (fine-grained authorization, D-017). Disabled
   // when OpenFGA is not enabled; otherwise healthy/unavailable.
@@ -1826,7 +1834,7 @@ app.get('/health', (async (_req: Request, res: Response) => {
       websocket: config.mcpWsEnabled ? 'enabled' : 'disabled',
       mcpServer: mcpServerStatus,
       kasmvnc: kasmvncStatus,
-      surrealdb: surrealdbStatus,
+      database: databaseStatus,
       openfga: openfgaStatus,
       auth: 'enabled',
       connectedClients: overlayClients.size,

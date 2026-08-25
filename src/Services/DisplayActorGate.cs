@@ -7,10 +7,10 @@ namespace OverlayCompanion.Services;
 /// Prevents two agents (the in-app "interior" chat assistant and an external
 /// MCP-connected "exterior" agent) from simultaneously owning the same display.
 ///
-/// The active actor is persisted in SurrealDB app_config (`general.activeActor`)
-/// so both the C# MCP server and the web layer agree on ownership. Switching
-/// actors releases overlays authored by the other actor (recoverable from the
-/// audit log) so the two never fight over the screen.
+/// The active actor is held in-memory (default Exterior). With libSQL as the
+/// database, the management server owns `general.activeActor` in app_config;
+/// this gate is the MCP server's single-process view and stays per-instance
+/// rather than reaching out-of-process for the setting.
 /// </summary>
 public enum DisplayActor
 {
@@ -48,39 +48,33 @@ public interface IDisplayActorGate
 
 public class DisplayActorGate : IDisplayActorGate
 {
-    private readonly ISurrealStore _store;
     private readonly IOverlayService _overlays;
     private readonly Microsoft.Extensions.Logging.ILogger<DisplayActorGate> _logger;
-    public const string SettingKey = "general.activeActor";
+    private DisplayActor _activeActor = DisplayActor.Exterior;
 
     public DisplayActorGate(
-        ISurrealStore store,
         IOverlayService overlays,
         Microsoft.Extensions.Logging.ILogger<DisplayActorGate> logger)
     {
-        _store = store;
         _overlays = overlays;
         _logger = logger;
     }
 
     public event System.EventHandler<DisplayActor>? ActorChanged;
 
-    public async Task<DisplayActor> GetActiveActorAsync(System.Threading.CancellationToken ct = default)
-    {
-        var value = await _store.GetSettingAsync<string>(SettingKey, null, ct);
-        return string.IsNullOrEmpty(value) ? DisplayActor.Exterior : value.ToActor();
-    }
+    public Task<DisplayActor> GetActiveActorAsync(System.Threading.CancellationToken ct = default)
+        => Task.FromResult(_activeActor);
 
     public async Task<DisplayActor> SetActiveActorAsync(DisplayActor actor, System.Threading.CancellationToken ct = default)
     {
-        var previous = await GetActiveActorAsync(ct);
+        var previous = _activeActor;
         if (previous == actor) return previous;
 
         if (!IsSettingSafe(actor.ToKey()))
         {
             throw new InvalidOperationException("Invalid display actor.");
         }
-        await _store.SetSettingAsync(SettingKey, actor.ToKey(), ct);
+        _activeActor = actor;
 
         // Release overlays not authored by the new owner so the two never share.
         var active = await _overlays.GetActiveOverlaysAsync();
