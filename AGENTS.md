@@ -25,11 +25,14 @@ surface.
 - **Clipboard bridge:** Rust (`apps/clipboard-bridge-rust/`), kept for
   AI-automated clipboard access. Do not write a C# clipboard bridge.
 - **Web layer:** TypeScript (`infra/server` + `infra/web`).
-- **Database:** SurrealDB is the only database (`infra/surrealdb/`). Used for
-  users, sessions, connections, audit log, app configuration.
+- **Database:** libSQL (the engine behind Turso) is the only database. Used
+  for users, sessions, connections, audit log, app configuration. Self-hosted
+  as an embedded local file by default (`LIBSQL_URL=file:/data/companion.db`);
+  point `LIBSQL_URL` at Turso Cloud (`libsql://<db>.turso.io` + `LIBSQL_AUTH_TOKEN`)
+  or a self-hosted `libsql-server` (`http(s)://…`) with the same client.
 - **Identity:** Better Auth (§7 default, mounted at `/api/auth`) backs users,
-  sessions, passkeys/WebAuthn, TOTP, RBAC, and social OAuth. SurrealDB is the
-  auth store (surreal-better-auth adapter). `ADMIN_EMAIL` grants the admin role.
+  sessions, passkeys/WebAuthn, TOTP, RBAC, and social OAuth. libSQL is the auth
+  store (Kysely + `@libsql/client`). `ADMIN_EMAIL` grants the admin role.
   Sign-ups are admin-opt-in.
 
 ## Language placement
@@ -59,7 +62,7 @@ surface.
 ## GUI-first config (§9)
 
 Keep configuration out of CLI/env where possible. Auth, connection, provider,
-and Wazuh settings live in the Settings UI (backed by SurrealDB `app_config`).
+and Wazuh settings live in the Settings UI (backed by libSQL `app_config`).
 Env vars are bootstrap defaults only. The GUI must be intelligible to both a
 human and an AI agent.
 

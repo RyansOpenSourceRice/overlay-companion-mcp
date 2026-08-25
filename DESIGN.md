@@ -26,38 +26,40 @@ typing. `take_screenshot` + `draw_overlay` + `set_clipboard` +
 `get_display_info` are the intended tool surface. This safety-by-design is a
 feature, not a gap.
 
-## Decision: SurrealDB is the only database (§9)
+## Decision: libSQL (Turso) is the only database (§9)
 
-SurrealDB backs users, sessions, connections, audit log, and app
-configuration. It is a **decoupled** service in `infra/compose.yml` so it can
-migrate to K3S independently. Both the TS management server (over HTTP `/sql`)
-and the C# MCP server (via the SurrealDb.Net SDK) read/write it. Rely on
-SurrealDB's built-in caching; no separate cache unless benchmarked. Services
-fall back to file storage when the DB is unreachable so the app keeps working
-during a DB outage.
+libSQL - the SQLite-compatible engine behind Turso - backs users, sessions,
+connections, audit log, and app configuration. It is self-hosted as an embedded
+local file by default (a named volume mounted at `/data`, opened by
+`@libsql/client`); pointing `LIBSQL_URL` at Turso Cloud or a self-hosted
+`libsql-server` moves the same engine off-box with no code change. The TS
+management server is the sole DB consumer (the C# MCP server keeps its
+in-process file storage). Rely on libSQL's embedded caching; no separate cache
+unless benchmarked.
 
 ## Decision: Data-access layer — store boundary (§9)
 
 All management-server data access goes through a single store boundary,
-`SurrealDbStore` (`infra/server/src/surreal-store.ts`). It is the only module
-that runs SurrealQL: route handlers, services, and managers never call the
+`LibSqlStore` (`infra/server/src/libsql-store.ts`). It is the only module
+that runs SQL: route handlers, services, and managers never call the
 driver or raw SQL directly — they depend on the store's typed methods
-(`getConfig`, `setConfig`, `upsertUser`, `findSessionByTokenHash`,
-`appendAudit`, `listConnections`, …). This keeps engine-specific SQL in one
-place, makes the DB testable/swappable without rewriting business logic, and
-gives a single spot for connection lifecycle, transactions, and error mapping.
+(`getConfig`, `setConfig`, `appendAudit`, `listConnections`, …). This keeps
+engine-specific SQL in one place, makes the DB testable/swappable without
+rewriting business logic, and gives a single spot for connection lifecycle,
+transactions, and error mapping.
 
 The one sanctioned exception is **Better Auth's storage adapter**. `better-auth.ts`
-uses the `surreal-better-auth` adapter (its `Surreal` WebSocket driver) because
-Better Auth owns its own user/session schema through the adapter, not through
-our store. It reuses the same connection config though — `loadSurrealOptions()`
-from the store is the single source of `SURREALDB_*` defaults for both paths, so
-there is exactly one place the DB connection is configured. Everything else must
-route through the store boundary (per §9 data-access-layer rule).
+points Better Auth's Kysely adapter at the same libSQL engine (via
+`@libsql/client` + `@libsql/kysely-libsql`) because Better Auth owns its own
+user/session schema through the adapter, not through our store. It reuses the
+same connection config though — `loadLibSqlOptions()` from the store is the
+single source of `LIBSQL_*` defaults for both paths, so there is exactly one
+place the DB connection is configured. Everything else must route through the
+store boundary (per §9 data-access-layer rule).
 
 ## Decision: OpenFGA is the fine-grained authorization service (D-017)
 
-OpenFGA is a **separate service** — like SurrealDB and Keycloak, it is never
+OpenFGA is a **separate service** — like libSQL and Keycloak, it is never
 embedded in the app (Ryan's preference: 3rd-party services run as fit, not
 built in). The management server talks to it over HTTP via the official
 `@openfga/sdk`. It is the authorization boundary for saved connections:
@@ -115,23 +117,23 @@ passkeys/TOTP/backup codes are provided by the Keycloak realm. Local auth
 (Argon2id-hashed passwords — OWASP-recommended) is the fallback when OIDC is
 unavailable; legacy scrypt hashes verify during a transition window and are
 auto-upgraded to Argon2id on next successful login. Sign-ups are locked by
-default (admin opt-in). Sessions are signed cookies backed by SurrealDB rows
+default (admin opt-in). Sessions are signed cookies backed by libSQL rows
 (token hashes only).
 
 ## Decision: Saved connections are server-persisted (§9)
 
-The web UI's saved VM connections live in the SurrealDB `connection` table,
+The web UI's saved VM connections live in the libSQL `connection` table,
 served through `/api/connections` on the management server and scoped to the
 authenticated user (previously they were browser-`localStorage` only). Plaintext
 passwords are never stored or returned; the server keeps an Argon2id hash and
 the web UI holds the plaintext transiently in `sessionStorage` for the live VM
 handshake. The Playwright suite asserts persistence across a page reload against a
-real SurrealDB in CI.
+a real libSQL database in CI.
 
 ## Decision: GUI-first config (§9)
 
 Auth/connection/provider/Wazuh/TLS settings live in the web Settings UI, backed by
-SurrealDB `app_config`. Env vars are bootstrap defaults only. The config model
+libSQL `app_config`. Env vars are bootstrap defaults only. The config model
 is structured and validatable so both a human and an AI agent can configure it.
 
 ## Decision: HTTPS is ACME, terminated by Caddy or Traefik (§7)
@@ -176,8 +178,9 @@ bounded tool allowlist (overlay, screenshot, display-actor) against the C#
 
 Two agents (the in-app "interior" assistant and an external "exterior" MCP
 agent) could otherwise fight over the same overlay canvas. Only the **active
-owner** may draw; the owner is persisted in SurrealDB `general.activeActor`
-(both servers agree), switching releases the other actor's overlays, and
+owner** may draw; the owner is tracked per-process by the C# MCP server (the
+management server's `general.activeActor` config is the cross-server default),
+switching releases the other actor's overlays, and
 overlay-write tools are gated on it. The human decides who owns the display.
 
 ## Decision: templates and accessible semantics (§A2/A3)

@@ -19,8 +19,9 @@
 | `/auth/me`                 | GET    | Returns the current user + CSRF token, or 401.                                                                                         |
 | `/auth/delete-account`     | POST   | Deletes the signed-in user + revokes all sessions. Requires CSRF.                                                                     |
 
-- Sessions: signed cookies (`SESSION_SECRET`), backed by SurrealDB `session`
-  rows. Token hashes only; never raw tokens. CSRF token per session.
+- Sessions: signed cookies (`SESSION_SECRET`), backed by libSQL `session`
+  rows (owned by Better Auth). Token hashes only; never raw tokens. CSRF token
+  per session.
 - Rate limit: 10/min per IP on login + register.
 
 ## Configuration API (build scope B/C)
@@ -31,14 +32,15 @@
 | `/api/settings/:category/:key`   | GET    | Single config value. Secrets redacted.                                    |
 | `/api/settings/:category/:key`   | PUT    | Create/update a setting. Admin + CSRF. Hot-applies auth changes. Audited. |
 
-- Storage: SurrealDB `app_config`. Env vars are bootstrap defaults merged into
+- Storage: libSQL `app_config`. Env vars are bootstrap defaults merged into
   the GET response.
 
-## SurrealDB schema (build scope C)
+## libSQL schema (build scope C)
 
-Tables (see `infra/surrealdb/schema/001_init.surql`): `user`, `session`,
-`connection`, `audit_log`, `app_config`. Idempotent `OVERWRITE` schema; safe to
-re-run. Record-level permissions enforce user-scoped access.
+Tables (see `infra/libsql/schema/001_init.sql`): `connection`, `audit_log`,
+`app_config`. Idempotent `CREATE ... IF NOT EXISTS` schema; safe to re-run.
+Better Auth owns `user`/`session`/`account`/`verification`/`twoFactor` through
+its own Kysely migrations. User-scoped access is enforced in the store queries.
 
 ## Wazuh / SIEM (build scope E)
 
