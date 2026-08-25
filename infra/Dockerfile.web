@@ -63,6 +63,9 @@ RUN cd server && npm prune --omit=dev
 # Copy built web frontend to the location expected by the server
 COPY --from=web-builder /app/web/dist ./public/
 
+# libSQL schema applied at boot (server resolves dist/../libsql/schema).
+COPY infra/libsql ./libsql/
+
 # Create supervisor configuration
 RUN mkdir -p /etc/supervisor/conf.d
 

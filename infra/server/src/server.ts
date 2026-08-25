@@ -144,35 +144,30 @@ const chat = createChat(libSqlStore);
 // Voice/transcription bridge (Phase C): cloud fish or local whisper, off by default.
 const audioBridge = new AudioBridge(libSqlStore);
 let schemaSql = '';
-try {
-  // The schema file ships with the repo; read it for boot-time apply.
-  schemaSql = readFileSync(path.join(__dirname, '../../libsql/schema/001_init.sql'), 'utf-8');
-} catch {
-  // In dev the path may differ; the store's ensureSchema is a no-op then.
-}
-libSqlStore.ensureSchema(schemaSql).catch((e) => log.warn('libSQL schema apply deferred:', (e as Error).message));
-
-// Demo seed (opt-in via SEED_DEMO=true): provision a demo account with a
-// working VM so a fresh deployment is immediately usable. Best-effort.
-void (async () => {
+// The schema file ships with the repo and in the container image. Its location
+// relative to __dirname differs by deployment (repo: infra/server/dist; solo
+// app image: /app/dist; web image: /app/server/dist), so probe the candidates.
+for (const rel of ['../../libsql/schema/001_init.sql', '../libsql/schema/001_init.sql']) {
   try {
-    await ensureBetterAuthDb();
-    await seedDemo(libSqlStore);
-  } catch (e) {
-    log.warn('Demo seed failed:', (e as Error).message);
+    schemaSql = readFileSync(path.join(__dirname, rel), 'utf-8');
+    break;
+  } catch {
+    // try the next candidate path
   }
-})();
-
-// Authentication is owned by Better Auth (see better-auth.ts), mounted at
-// /api/auth. §7: never roll our own identity; sign-ups locked by default;
-// rate-limit auth endpoints; delete-account is a feature.
-
-// TLS / HTTPS certificate management (§7). The management server stays HTTP
-// behind the terminator (Caddy/Traefik); this manager owns the serving-cert
-// lifecycle and renders the terminator config. Settings live in libSQL
-// app_config (category "tls") and are loaded asynchronously on boot.
+}
 const tlsManager = new TlsManager();
+
+// Boot sequence: apply the schema first so the settings reads below always find
+// their tables, then load TLS/OpenFGA settings and (optionally) seed the demo.
+// All best-effort; the app serves HTTP even when the DB is unavailable.
+const schemaReady = libSqlStore
+  .ensureSchema(schemaSql)
+  .catch((e) => log.warn('libSQL schema apply deferred:', (e as Error).message));
+
 void (async () => {
+  await schemaReady;
+  // TLS / HTTPS certificate management (§7). Settings live in libSQL app_config
+  // (category "tls") and are loaded on boot.
   try {
     const stored = await libSqlStore.getConfig('tls.settings');
     if (stored && typeof stored === 'object') {
@@ -181,12 +176,8 @@ void (async () => {
   } catch (err) {
     log.warn('[TLS] failed to load TLS settings:', (err as Error).message);
   }
-})();
-
-// OpenFGA settings are GUI-first (§9): bootstrap env defaults, editable in the
-// Settings UI, persisted in app_config (category "openfga"). On boot we load
-// them and provision the store + authorization model if enabled.
-void (async () => {
+  // OpenFGA settings are GUI-first (§9): bootstrap env defaults, editable in the
+  // Settings UI, persisted in app_config (category "openfga").
   try {
     const stored = await libSqlStore.getConfig('openfga.settings');
     if (stored && typeof stored === 'object') {
@@ -199,7 +190,19 @@ void (async () => {
   } catch (err) {
     log.warn('[OpenFGA] failed to load/provision OpenFGA settings:', (err as Error).message);
   }
+  // Demo seed (opt-in via SEED_DEMO=true): provision a demo account with a
+  // working VM so a fresh deployment is immediately usable. Best-effort.
+  try {
+    await ensureBetterAuthDb();
+    await seedDemo(libSqlStore);
+  } catch (e) {
+    log.warn('Demo seed failed:', (e as Error).message);
+  }
 })();
+
+// Authentication is owned by Better Auth (see better-auth.ts), mounted at
+// /api/auth. §7: never roll our own identity; sign-ups locked by default;
+// rate-limit auth endpoints; delete-account is a feature.
 
 // Optional OIDC/JWT middleware (no-op if OIDC is disabled) — kept for
 // programmatic Bearer-token clients. The browser uses session cookies via the

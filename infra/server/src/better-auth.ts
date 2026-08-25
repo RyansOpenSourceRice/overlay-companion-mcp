@@ -15,7 +15,8 @@ import { betterAuth } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { passkey } from '@better-auth/passkey';
 import { Kysely } from 'kysely';
-import { LibsqlDialect } from '@libsql/kysely-libsql';
+import { createClient } from '@libsql/client';
+import { LibSqlDialect } from './libsql-dialect.js';
 import { loadLibSqlOptions } from './libsql-store.js';
 
 // ---- libSQL (embedded by default; Turso Cloud / libsql-server are the same
@@ -23,9 +24,11 @@ import { loadLibSqlOptions } from './libsql-store.js';
 
 export function createKysely(): Kysely<unknown> {
   const opts = loadLibSqlOptions();
-  return new Kysely<unknown>({
-    dialect: new LibsqlDialect({ url: opts.url, authToken: opts.authToken }),
+  const client = createClient({
+    url: opts.url,
+    authToken: opts.authToken ? opts.authToken : undefined,
   });
+  return new Kysely<unknown>({ dialect: new LibSqlDialect(client) });
 }
 
 const kysely = createKysely();
