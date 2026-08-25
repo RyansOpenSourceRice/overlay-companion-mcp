@@ -277,6 +277,11 @@ export class ConnectionManager {
     return target && typeof target.host === 'string' && Number.isInteger(target.port) ? target : null;
   }
 
+  /** Snapshot of the operator-defined KasmVNC allowlist (id -> target). */
+  getKasmVncAllowlist(): Record<string, KasmVncTarget> {
+    return { ...this.kasmVncAllowlist };
+  }
+
   /**
    * Test KasmVNC connection with SSRF protection
    * SECURITY: Uses POST with fixed URL to avoid user-controlled URL construction

@@ -1622,6 +1622,23 @@ function vncTargetIdFromUrl(rawUrl: string): string {
   return m ? m[1] : '';
 }
 
+// KasmVNC's noVNC builds its WebSocket URL from window.location.host + port +
+// '/websockify', so the upgrade never carries the /vnc/<id> prefix. We stamp the
+// active target id into a cookie while proxying the web UI and read it back here
+// to route /websockify to the right allowlisted target.
+const KASMVNC_TARGET_COOKIE = 'oc-vnc-target';
+
+function kasmvncTargetIdFromCookie(headers?: { cookie?: string }): string {
+  const cookie = headers?.cookie ?? '';
+  const m = /(?:^|;\s*)oc-vnc-target=([^;]+)/.exec(cookie);
+  if (!m) return '';
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
+}
+
 type KasmVncResolvedTarget = ReturnType<ConnectionManager['getKasmVncTarget']>;
 
 // Resolve the allowlisted target from the ORIGINAL url and stash it on the
@@ -1636,6 +1653,16 @@ function resolveKasmVncTarget(req: { url?: string; originalUrl?: string }): Kasm
   return target;
 }
 
+// Basic-auth header for a target that carries KasmVNC credentials, so the
+// proxied web UI + WebSocket reach the desktop without a browser auth prompt.
+function kasmvncBasicAuth(target: KasmVncResolvedTarget | undefined): string | undefined {
+  if (!target) return undefined;
+  if (!target.username && !target.password) return undefined;
+  const user = target.username ?? '';
+  const pass = target.password ?? '';
+  return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
+}
+
 const kasmVncProxy = createProxyMiddleware({
   target: 'http://127.0.0.1:1',
   router: (req) => {
@@ -1643,6 +1670,9 @@ const kasmVncProxy = createProxyMiddleware({
     return target ? `${target.ssl ? 'https' : 'http'}://${target.host}:${target.port}` : 'http://127.0.0.1:1';
   },
   pathRewrite: (path) => {
+    // The root-level websockify path (noVNC's host+port+path) is already the
+    // upstream path; leave it intact. For /vnc/<id>/... strip the prefix.
+    if (path.startsWith('/websockify')) return path;
     // eslint-disable-next-line security/detect-unsafe-regex -- bounded path prefix, no user-controlled backtracking risk
     const m = /^(\/vnc)?\/[^/]+(\/.*)?$/.exec(path);
     return m && m[2] ? m[2] : '/';
@@ -1651,6 +1681,37 @@ const kasmVncProxy = createProxyMiddleware({
   secure: false,
   ws: true,
   xfwd: true,
+  onProxyReq: (proxyReq, req) => {
+    const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
+    const auth = kasmvncBasicAuth(target);
+    if (auth) proxyReq.setHeader('Authorization', auth);
+  },
+  onProxyReqWs: (proxyReq, req) => {
+    const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
+    const auth = kasmvncBasicAuth(target);
+    if (auth) proxyReq.setHeader('Authorization', auth);
+    if (target) {
+      // http-proxy's WebSocket path can drop the Host and the Sec-WebSocket-*
+      // headers KasmVNC's embedded websockify validates; re-assert them.
+      proxyReq.setHeader('Host', `${target.host}:${target.port}`);
+      proxyReq.setHeader('Upgrade', 'websocket');
+      proxyReq.setHeader('Connection', 'Upgrade');
+      const subproto = (req.headers ? req.headers['sec-websocket-protocol'] : undefined) ?? 'binary';
+      proxyReq.setHeader('Sec-WebSocket-Protocol', subproto);
+      const origin = req.headers ? req.headers['origin'] : undefined;
+      if (origin) proxyReq.setHeader('Origin', origin);
+      if (!proxyReq.getHeader('sec-websocket-version')) proxyReq.setHeader('Sec-WebSocket-Version', '13');
+    }
+  },
+  onProxyRes: (proxyRes, req) => {
+    // Stamp the active target id so the later /websockify upgrade can be routed
+    // back to the same allowlisted target.
+    const id = vncTargetIdFromUrl((req as { originalUrl?: string }).originalUrl || req.url || '');
+    if (!id) return;
+    const cookie = `${KASMVNC_TARGET_COOKIE}=${encodeURIComponent(id)}; Path=/; SameSite=Lax; Max-Age=300`;
+    const existing = proxyRes.headers['set-cookie'];
+    proxyRes.headers['set-cookie'] = existing ? (Array.isArray(existing) ? existing : [existing]).concat(cookie) : [cookie];
+  },
   onError: (err, _req, res) => {
     log.error('KasmVNC proxy error:', (err as Error).message);
     // For HTTP errors `res` is an Express Response; for WebSocket-upgrade
@@ -1674,11 +1735,22 @@ app.use('/vnc', authMiddleware, (req, res, next) => {
 }, kasmVncProxy);
 
 // WebSocket upgrade bypasses Express middleware; gate by allowlist only
-// (KasmVNC itself still enforces its own password). URL is the full path here.
+// (KasmVNC itself still enforces its own password). noVNC targets either
+// `/vnc/<id>...` (prefix present) or the root-level `/websockify` (target id
+// from the cookie we stamp during the web-UI load).
 server.on('upgrade', (req, socket, head) => {
   const url = req.url || '';
-  if (!url.startsWith('/vnc/')) return;
-  if (!resolveKasmVncTarget(req as unknown as { url?: string })) {
+  let target: KasmVncResolvedTarget | undefined;
+  if (url.startsWith('/vnc/')) {
+    target = resolveKasmVncTarget(req as unknown as { url?: string });
+  } else if (url.startsWith('/websockify')) {
+    const id = kasmvncTargetIdFromCookie(req.headers as { cookie?: string });
+    target = id ? connectionManager.getKasmVncTarget(id) : null;
+    (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget = target;
+  } else {
+    return;
+  }
+  if (!target) {
     socket.destroy();
     return;
   }
@@ -1810,9 +1882,18 @@ app.get('/health', (async (_req: Request, res: Response) => {
     kasmvncStatus = await new Promise<string>((resolve) => {
       const url = new URL(config.kasmvncUrl);
       const mod = url.protocol === 'https:' ? https : http;
+      // Authenticate when the target carries credentials so the probe gets a
+      // 200 instead of a repeat 401 — KasmVNC blacklists repeat failed-auth IPs,
+      // which would otherwise break real connections from this server.
+      const allowTarget = Object.values(connectionManager.getKasmVncAllowlist()).find(
+        (t) => t.host === url.hostname,
+      );
+      const auth = kasmvncBasicAuth(allowTarget);
+      const headers: Record<string, string> = {};
+      if (auth) headers.Authorization = auth;
       const req = mod.get(
         url,
-        { rejectUnauthorized: false, timeout: 5000 },
+        { rejectUnauthorized: false, timeout: 5000, headers },
         (res) => {
           res.resume();
           resolve('healthy');

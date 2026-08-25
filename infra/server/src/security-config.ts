@@ -29,6 +29,8 @@ export interface KasmVncTarget {
   host: string;
   port: number;
   ssl: boolean;
+  username?: string;
+  password?: string;
 }
 
 export interface SecurityConfig {
@@ -46,7 +48,10 @@ export interface SecurityConfig {
  * management server, so the targets must be an explicit allowlist (never a raw
  * user-supplied host:port — that would be SSRF). Populated from the
  * `KASMVNC_ALLOWLIST_JSON` env var as a JSON map:
- *   { "sample": { "host": "localhost", "port": 6901, "ssl": true } }
+ *   { "sample": { "host": "localhost", "port": 6901, "ssl": true, "username": "kasm_user", "password": "vncpassword" } }
+ * The optional `username`/`password` are applied as HTTP Basic auth when the
+ * management server proxies the target's web UI and WebSocket, so a browser
+ * can reach the desktop without being challenged for KasmVNC credentials.
  */
 function loadKasmVncAllowlist(): Record<string, KasmVncTarget> {
   const raw = process.env.KASMVNC_ALLOWLIST_JSON;
@@ -56,7 +61,13 @@ function loadKasmVncAllowlist(): Record<string, KasmVncTarget> {
     const out: Record<string, KasmVncTarget> = {};
     for (const [id, t] of Object.entries(parsed)) {
       if (typeof t?.host !== 'string' || !Number.isInteger(t?.port)) continue;
-      out[id] = { host: t.host, port: t.port, ssl: Boolean(t.ssl) };
+      out[id] = {
+        host: t.host,
+        port: t.port,
+        ssl: Boolean(t.ssl),
+        username: typeof t.username === 'string' ? t.username : undefined,
+        password: typeof t.password === 'string' ? t.password : undefined,
+      };
     }
     return out;
   } catch {
