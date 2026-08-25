@@ -104,12 +104,15 @@ public class SurrealStore : ISurrealStore
         if (Interlocked.CompareExchange(ref _initState, 1, 0) != 0) return;
         try
         {
-            await _db.Use(_options.Namespace, _options.Database, cancellationToken);
+            // Sign in before selecting the namespace/database: USE requires an
+            // authenticated session, otherwise SurrealDB rejects it with
+            // "IAM error: Not enough permissions to perform this action".
             await _db.SignIn(new SurrealDb.Net.Models.Auth.RootAuth
             {
                 Username = _options.Username,
                 Password = _options.Password,
             }, cancellationToken);
+            await _db.Use(_options.Namespace, _options.Database, cancellationToken);
             _initState = 2;
             _logger.LogInformation("SurrealDB store connected to {Endpoint} (ns={Ns}, db={Db})",
                 _options.Endpoint, _options.Namespace, _options.Database);

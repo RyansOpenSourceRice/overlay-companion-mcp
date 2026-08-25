@@ -297,26 +297,23 @@ export class ConnectionManager {
       const client = ssl ? https : http;
       const timeout = 5000; // SECURITY: Short timeout to prevent resource exhaustion
 
-      // SECURITY: Use POST with fixed URL path - no user data in URL
-      const postData = JSON.stringify({
-        target_host: validatedHost,
-        target_port: port,
-        check_type: 'health',
-      });
-
-      // SECURITY: Fixed URL path prevents SSRF via URL manipulation
-      const options: http.RequestOptions = {
+      // The KasmVNC target serves its web UI on this port (typically TLS
+      // self-signed). A reachability probe is the "Test Connection" signal:
+      // any HTTP response means the desktop is up (a 401 auth challenge is
+      // still "reachable"). There is no separate /api/health endpoint.
+      const options: https.RequestOptions = {
         hostname: validatedHost,
         port: port,
-        path: '/api/health', // Fixed path - no user input
-        method: 'POST',
+        path: '/', // Fixed path - no user input
+        method: 'GET',
         timeout,
         headers: {
           'User-Agent': 'OverlayCompanion-HealthCheck/1.0',
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
+          Accept: '*/*',
         },
+        // Self-signed TLS certs are the norm for KasmVNC desktops; the probe
+        // carries no sensitive data so cert verification is disabled.
+        rejectUnauthorized: false,
         // SECURITY: Prevent following redirects that could lead to SSRF
         // (Node's http types omit maxRedirects, but it is honored at runtime)
         ...({ maxRedirects: 0 } as object),
@@ -344,14 +341,15 @@ export class ConnectionManager {
         });
 
         res.on('end', () => {
+          const reachable = res.statusCode !== undefined;
           resolve({
-            success: res.statusCode === 200,
+            success: reachable,
             protocol: 'kasmvnc',
             host,
             port,
             ssl,
             statusCode: res.statusCode,
-            message: res.statusCode === 200 ? 'KasmVNC server is accessible' : `HTTP ${res.statusCode}`,
+            message: reachable ? 'KasmVNC server is reachable' : 'KasmVNC server did not respond',
           });
         });
       });
@@ -379,8 +377,7 @@ export class ConnectionManager {
         });
       });
 
-      // SECURITY: Write POST data and end request
-      req.write(postData);
+      // End the request (GET has no body)
       req.end();
     });
   }
