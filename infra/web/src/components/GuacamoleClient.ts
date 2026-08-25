@@ -112,7 +112,7 @@ export default class GuacamoleClient {
                     </p>
                     <p style="font-size: 0.8rem; opacity: 0.7;">
                         This VM is configured for AI-assisted screen interaction via MCP WebSocket overlay system.
-                        Cherry Studio can now control and interact with this desktop environment.
+                        Your MCP-capable AI assistant can now control and interact with this desktop environment.
                     </p>
                 </div>
             </div>

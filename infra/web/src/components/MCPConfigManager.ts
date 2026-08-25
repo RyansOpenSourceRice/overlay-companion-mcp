@@ -1,6 +1,6 @@
 /**
  * MCP Configuration Manager
- * Handles MCP configuration generation and clipboard operations for Cherry Studio integration
+ * Handles MCP configuration generation and clipboard operations for any MCP client.
  */
 
 interface McpConfig {
@@ -95,7 +95,7 @@ export default class MCPConfigManager {
         click_through: true,
         websocket_streaming: true,
       },
-      notes: 'Single-user dev package. Copy this JSON into Cherry Studio MCP slot.',
+      notes: 'Single-user dev package. Copy this JSON into your MCP client.',
     };
   }
 
@@ -207,7 +207,7 @@ export default class MCPConfigManager {
                     <div class="config-container">
                         <textarea readonly style="width: 100%; height: 200px; font-family: monospace; font-size: 12px; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">${configText}</textarea>
                         <p style="margin-top: 10px; font-size: 14px; color: #666;">
-                            Select all text above (Ctrl+A) and copy (Ctrl+C), then paste into Cherry Studio's MCP settings.
+                            Select all text above (Ctrl+A) and copy (Ctrl+C), then paste into your AI assistant's MCP settings.
                         </p>
                     </div>
                 </div>
@@ -237,18 +237,18 @@ export default class MCPConfigManager {
   }
 
   // Generate configuration for different MCP clients
-  generateCherryStudioConfig(): McpConfig | null {
+  generateMCPClientConfig(): McpConfig | null {
     if (!this.config) return null;
     return {
       ...this.config,
-      client_type: 'cherry-studio',
+      client_type: 'mcp-client',
       integration_notes: [
         '1. Copy this entire JSON configuration',
-        '2. Open Cherry Studio settings',
-        '3. Navigate to MCP (Model Context Protocol) section',
-        '4. Add new MCP server configuration',
+        '2. Open your AI assistant settings',
+        '3. Navigate to the MCP (Model Context Protocol) section',
+        '4. Add a new MCP server configuration',
         '5. Paste this JSON into the configuration field',
-        '6. Save and restart Cherry Studio',
+        '6. Save and restart your AI assistant',
         '7. The AI will now have access to screen interaction capabilities',
       ],
     };

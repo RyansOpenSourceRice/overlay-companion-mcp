@@ -485,11 +485,16 @@ export async function renderSettingsForms(container: HTMLElement, user: CurrentU
 
   // Account actions
   renderAccountSection(container, user);
+
+  // Account deletion, separated into its own danger zone at the bottom.
+  renderDangerZone(container, user);
 }
 
 function renderAccountSection(container: HTMLElement, user: CurrentUser): void {
   container.appendChild(el('h3', '', 'Account'));
   const accountBox = el('div', 'settings-section');
+
+  accountBox.appendChild(el('p', 'settings-hint', `Signed in as ${user.email ?? user.username}`));
 
   const logoutBtn = el('button', 'btn btn-secondary', 'Sign out');
   logoutBtn.addEventListener('click', async () => {
@@ -498,17 +503,31 @@ function renderAccountSection(container: HTMLElement, user: CurrentUser): void {
   });
   accountBox.appendChild(logoutBtn);
 
+  container.appendChild(accountBox);
+}
+
+// Account deletion lives in its own "danger zone" at the very bottom of the
+// Settings page — well separated from the routine actions above — so a stray
+// click cannot reach it.
+function renderDangerZone(container: HTMLElement, user: CurrentUser): void {
+  container.appendChild(el('h3', 'settings-section-title danger-title', 'Danger zone'));
+
+  const dangerBox = el('div', 'settings-section danger-zone');
+
+  dangerBox.appendChild(el('p', 'settings-hint', 'Destructive actions. These cannot be undone.'));
+
   const deleteBtn = el('button', 'btn btn-danger', 'Delete my account');
   const twoFactor = Boolean(user.twoFactorEnabled);
-  const hasPrompt = createDeletePrompt(accountBox, deleteBtn, twoFactor);
+  const hasPrompt = createDeletePrompt(dangerBox, deleteBtn, twoFactor);
 
   deleteBtn.addEventListener('click', async () => {
     hasPrompt.form.style.display = 'block';
     deleteBtn.style.display = 'none';
     hasPrompt.confirm.disabled = hasPrompt.enabled();
   });
-  accountBox.appendChild(deleteBtn);
-  container.appendChild(accountBox);
+  dangerBox.appendChild(deleteBtn);
+
+  container.appendChild(dangerBox);
 }
 
 // Build the re-authentication form revealed by "Delete my account": a password

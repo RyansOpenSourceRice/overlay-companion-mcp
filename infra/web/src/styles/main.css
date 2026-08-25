@@ -887,6 +887,19 @@ textarea:focus {
   gap: var(--spacing-sm);
 }
 
+/* Account deletion is isolated in a visually distinct "danger zone" at the
+   bottom of Settings, away from the routine account actions. */
+.danger-title {
+  color: var(--error-color);
+}
+.danger-zone {
+  border: 2px solid var(--error-color);
+  background: color-mix(in srgb, var(--error-color) 6%, var(--bg-primary));
+}
+.danger-zone .settings-hint {
+  color: var(--error-color);
+}
+
 .delete-account-prompt {
   margin-top: var(--spacing-lg);
   padding: var(--spacing-lg);
@@ -942,8 +955,9 @@ textarea:focus {
 }
 
 .config-display pre {
-  background: var(--bg-dark);
-  color: #e2e8f0;
+  background: var(--oc-bg-subtle);
+  color: var(--oc-text);
+  border: 1px solid var(--oc-border-strong);
   padding: var(--spacing-lg);
   border-radius: var(--radius-md);
   font-family: var(--font-mono);

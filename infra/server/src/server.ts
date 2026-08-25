@@ -1836,7 +1836,7 @@ app.get('/health', (async (_req: Request, res: Response) => {
   res.json(health);
 }) as RequestHandler);
 
-// MCP configuration endpoint for Cherry Studio integration
+// MCP configuration endpoint for any MCP-capable AI client
 app.get('/mcp-config', requireBetterAuthSession, (req: Request, res: Response) => {
   const hostHeader = req.get('host') || `${config.bindAddress}:${config.httpPort}`;
   const protocol = req.secure ? 'https' : 'http';
@@ -1867,7 +1867,7 @@ app.get('/mcp-config', requireBetterAuthSession, (req: Request, res: Response) =
       click_through: true,
       websocket_streaming: config.mcpWsEnabled,
     },
-    notes: 'Single-user dev package. Copy this JSON into Cherry Studio MCP slot.',
+    notes: 'Single-user dev package. Copy this JSON into your MCP client.',
   };
 
   res.json(mcpConfig);
