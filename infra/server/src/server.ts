@@ -1622,10 +1622,24 @@ function vncTargetIdFromUrl(rawUrl: string): string {
   return m ? m[1] : '';
 }
 
+type KasmVncResolvedTarget = ReturnType<ConnectionManager['getKasmVncTarget']>;
+
+// Resolve the allowlisted target from the ORIGINAL url and stash it on the
+// request. http-proxy-middleware runs `pathRewrite` before its `router`, so the
+// `router` sees a stripped url (e.g. `/websockify`) where the `/vnc/<id>`
+// prefix is gone; reading the stash (or the pre-rewrite url) keeps the target id
+// intact for both the HTTP and the WebSocket-upgrade paths.
+function resolveKasmVncTarget(req: { url?: string; originalUrl?: string }): KasmVncResolvedTarget {
+  const raw = req.originalUrl || req.url || '';
+  const target = connectionManager.getKasmVncTarget(vncTargetIdFromUrl(raw));
+  (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget = target;
+  return target;
+}
+
 const kasmVncProxy = createProxyMiddleware({
   target: 'http://127.0.0.1:1',
   router: (req) => {
-    const target = connectionManager.getKasmVncTarget(vncTargetIdFromUrl(req.url || ''));
+    const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
     return target ? `${target.ssl ? 'https' : 'http'}://${target.host}:${target.port}` : 'http://127.0.0.1:1';
   },
   pathRewrite: (path) => {
@@ -1639,15 +1653,21 @@ const kasmVncProxy = createProxyMiddleware({
   xfwd: true,
   onError: (err, _req, res) => {
     log.error('KasmVNC proxy error:', (err as Error).message);
-    const r = res as Response;
-    if (r && !r.headersSent) {
-      r.status(502).json({ error: 'kasmvnc_unavailable', message: 'KasmVNC target is not reachable.' });
+    // For HTTP errors `res` is an Express Response; for WebSocket-upgrade
+    // errors it is the raw socket. Only an Express Response has `.status`.
+    const r = res as unknown as Response & { destroy?: () => void };
+    if (r && typeof (r as Response).status === 'function') {
+      if (!(r as Response).headersSent) {
+        (r as Response).status(502).json({ error: 'kasmvnc_unavailable', message: 'KasmVNC target is not reachable.' });
+      }
+    } else if (r && typeof r.destroy === 'function') {
+      r.destroy();
     }
   },
 });
 
 app.use('/vnc', authMiddleware, (req, res, next) => {
-  if (!connectionManager.getKasmVncTarget(vncTargetIdFromUrl(req.url || ''))) {
+  if (!resolveKasmVncTarget(req)) {
     return res.status(404).json({ error: { code: 'kasmvnc_target_not_allowed', message: 'KasmVNC target is not in the allowlist.' } });
   }
   next();
@@ -1658,7 +1678,7 @@ app.use('/vnc', authMiddleware, (req, res, next) => {
 server.on('upgrade', (req, socket, head) => {
   const url = req.url || '';
   if (!url.startsWith('/vnc/')) return;
-  if (!connectionManager.getKasmVncTarget(vncTargetIdFromUrl(url))) {
+  if (!resolveKasmVncTarget(req as unknown as { url?: string })) {
     socket.destroy();
     return;
   }

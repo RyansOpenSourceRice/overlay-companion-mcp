@@ -626,6 +626,12 @@ textarea:focus {
 .connection-actions {
   display: flex;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.connection-actions .btn {
+  flex: 1 1 auto;
+  justify-content: center;
 }
 
 .empty-state {
@@ -817,6 +823,11 @@ textarea:focus {
 
 .password-input-container {
   position: relative;
+  width: 100%;
+}
+
+.password-input-container input {
+  width: 100%;
 }
 
 .password-toggle-btn {

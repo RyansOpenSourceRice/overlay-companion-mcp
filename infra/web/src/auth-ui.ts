@@ -50,7 +50,7 @@ export function showLoginView(container: HTMLElement, onLoggedIn: (u: CurrentUse
     bullets.appendChild(li);
   });
   left.appendChild(bullets);
-  left.appendChild(el('p', 'login-brand-footnote', 'Runs in your browser — nothing to install on your computers.'));
+  left.appendChild(el('p', 'login-brand-footnote', 'Runs on your own server — connects to KasmVNC, VNC, and RDP desktops in your browser.'));
 
   const right = el('div', 'login-panel');
   right.appendChild(el('h2', 'login-panel-title', 'Remote desktops, made simple'));

@@ -61,6 +61,7 @@ class OverlayCompanionApp {
   private _renderSettingsForms: SettingsFormsRenderer | null = null;
   private editingConnectionId: string | null = null;
   private chatPanel: ChatPanel | null = null;
+  private mcpConfigLoaded = false;
 
   constructor() {
     // Apply the persisted theme (auto/light/dark) and wire the toggle.
@@ -893,26 +894,37 @@ class OverlayCompanionApp {
   // ==================== MCP Configuration ====================
 
   async loadMCPConfig(): Promise<void> {
+    const configElement = document.getElementById('mcp-config-json');
+    const copyButton = document.getElementById('copy-config-btn') as HTMLButtonElement | null;
     try {
       const response = await fetch('/mcp-config');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const config = await response.json();
-
-      const configElement = document.getElementById('mcp-config-json');
       if (configElement) {
         configElement.textContent = JSON.stringify(config, null, 2);
       }
+      this.mcpConfigLoaded = true;
+      if (copyButton) copyButton.disabled = false;
     } catch (error) {
       console.error('Failed to load MCP config:', error);
-      const configElement = document.getElementById('mcp-config-json');
+      this.mcpConfigLoaded = false;
       if (configElement) {
-        configElement.textContent = 'Failed to load configuration';
+        configElement.textContent = 'Configuration unavailable. Reload the page to retry.';
       }
+      // Don't let the user copy a placeholder: with no config loaded there is
+      // nothing to copy.
+      if (copyButton) copyButton.disabled = true;
     }
   }
 
   async copyMCPConfig(): Promise<void> {
     const configElement = document.getElementById('mcp-config-json');
     if (!configElement) return;
+
+    if (!this.mcpConfigLoaded) {
+      this.showToast('error', 'Copy Unavailable', 'Configuration has not loaded — reload the page and try again.');
+      return;
+    }
 
     try {
       await navigator.clipboard.writeText(configElement.textContent ?? '');
