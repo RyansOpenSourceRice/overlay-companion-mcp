@@ -30,7 +30,11 @@ RUN apk add --no-cache \
     supervisor \
     # Network tools
     curl \
-    jq
+    jq \
+    # Native build toolchain for argon2 (node-gyp-build)
+    python3 \
+    make \
+    g++
 
 # Create app user
 RUN addgroup -g 1001 appuser && \
