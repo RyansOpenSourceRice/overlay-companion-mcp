@@ -25,12 +25,74 @@ export interface ChatSessionOptions {
   providerApiKey: string;
   providerModel: string;
   userRole: string;
+  /** Authenticated user id; required for per-user model persistence. */
+  userId?: string;
 }
 
 // Centralized fallbacks so admin-curated defaults can never silently drift
 // from the hard-coded last-resort values (OpenCodeReview finding).
 export const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
 export const DEFAULT_PROVIDER_MODEL = 'deepseek/deepseek-chat-v3-0324';
+
+// ── Model-registry helpers shared by HTTP routes and the switch_ai_model tool ──
+// OpenRouter slugs carry routing VARIANT suffixes (:nitro = throughput-sorted
+// providers, :floor = cheapest, :free = free tier, :thinking = deeper
+// reasoning). Variants are part of the requested model string and are kept
+// intact everywhere; matching treats "base" and "base:variant" as related.
+
+export interface ApprovedModel { id: string; label?: string; baseUrl: string; model: string }
+
+/** Strip an OpenRouter routing-variant suffix, e.g. "org/name:nitro" -> "org/name". */
+export function baseSlug(model: string): string {
+  const i = model.indexOf(':');
+  return i > 0 ? model.slice(0, i) : model;
+}
+
+/**
+ * Resolve a free-form model reference (an id like 'openrouter-z-ai-glm',
+ * a full slug like 'qwen/qwen3.5-35b-a3b:nitro', or its base slug without a
+ * variant) against the approved registry. Exact ids win, then exact slugs,
+ * then base-slug matches preferring same-variant over cross-variant.
+ */
+export function findApprovedModel(
+  models: ApprovedModel[],
+  queryRaw: string,
+): ApprovedModel | null {
+  const query = (queryRaw ?? '').trim();
+  if (!query) return null;
+  const byId = models.find((m) => m.id === query);
+  if (byId) return byId;
+  const bySlug = models.find((m) => m.model === query);
+  if (bySlug) return bySlug;
+  const qBase = baseSlug(query);
+  const byBase = models.filter((m) => baseSlug(m.model) === qBase);
+  if (byBase.length === 0) return null;
+  // Same explicit variant first; otherwise barest (variant-less) entry; else first.
+  if (!query.includes(':')) return byBase.find((m) => !m.model.includes(':')) ?? byBase[0];
+  return byBase.find((m) => m.model === query) ?? byBase[0];
+}
+
+export function userSelectionKey(userId: string): string {
+  return `provider.chat.user.${userId}`;
+}
+
+// Fallback registry used before an admin has curated anything in the DB.
+// Mirrors the bootstrap seeds in server.ts — keep the two lists in step.
+export const DEFAULT_APPROVED_MODELS: ApprovedModel[] = [
+  {
+    id: 'openrouter-z-ai-glm-5.3-flash',
+    label: 'GLM 5.3 Flash (OpenRouter)',
+    baseUrl: DEFAULT_PROVIDER_BASE_URL,
+    model: 'z-ai/glm-5.3-flash',
+  },
+  {
+    id: 'openrouter-qwen35-35b-a3b-nitro',
+    label: 'Qwen3.5 35B A3B Nitro (OpenRouter, fastest)',
+    baseUrl: DEFAULT_PROVIDER_BASE_URL,
+    // :nitro routes to throughput-sorted providers (OpenRouter variant).
+    model: 'qwen/qwen3.5-35b-a3b:nitro',
+  },
+];
 
 const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Record<string, unknown> }> = [
   {
@@ -96,6 +158,20 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
       type: 'object',
       properties: { category: { type: 'string' }, key: { type: 'string' }, value: { type: 'object' } },
       required: ['category', 'key', 'value'],
+    },
+  },
+  {
+    name: 'switch_ai_model',
+    description:
+      "Switch the AI model powering this chat. Use whenever the user asks to change your AI model/brain/speed. " +
+      "Pass the model slug exactly as the user said it — OpenRouter routing variants are supported and preserved, e.g. 'qwen/qwen3.5-35b-a3b:nitro' (nitro = fastest providers). " +
+      "Only admin-approved models are permitted; if the slug is not approved the result explains how approval works.",
+    parameters: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: "Model id or OpenRouter slug, optionally with variant suffix, e.g. 'qwen/qwen3.5-35b-a3b:nitro'." },
+      },
+      required: ['slug'],
     },
   },
 ];
@@ -256,6 +332,9 @@ export class InteriorChat {
     const decoder = new TextDecoder();
     let buffer = '';
     let toolCalls: ChatToolCall[] = [];
+    // Staging buffer for streamed tool-call argument fragments (keyed by the
+    // provider's call id; '__call__' fallback when ids are omitted).
+    const pendingTools = new Map<string, { id: string; name: string; rawArgs: string }>();
 
     try {
       while (true) {
@@ -281,16 +360,33 @@ export class InteriorChat {
               if (choice?.delta?.content) yield choice.delta.content;
               if (choice?.delta?.tool_calls) {
                 for (const tc of choice.delta.tool_calls) {
-                  const existing = toolCalls.find((t) => t.id === tc.id);
-                  if (existing) {
-                    if (tc.function?.arguments) existing.arguments = { ...existing.arguments, ...parsePartialArgs(existing.arguments, tc.function.arguments) };
-                  } else if (tc.function) {
-                    toolCalls.push({ id: tc.id ?? randomUUID(), name: tc.function.name ?? '', arguments: parsePartialArgs({}, tc.function.arguments ?? '') });
+                  // Provider-streamed tool calls arrive as FRAGMENTS sharing
+                  // one index: the first chunk carries id+name+empty args,
+                  // later chunks carry ONLY index+argument text. Key strictly
+                  // by that index; fill id/name as they appear; append arg
+                  // text verbatim.
+                  const slotKey = String((tc as { index?: number }).index ?? tc.id ?? `slot${pendingTools.size}`);
+                  let entry = pendingTools.get(slotKey);
+                  if (!entry) {
+                    entry = { id: '', name: '', rawArgs: '' };
+                    pendingTools.set(slotKey, entry);
                   }
+                  if (tc.id) entry.id = tc.id;
+                  if (tc.function?.name) entry.name = tc.function.name;
+                  const fragment = tc.function?.arguments ?? '';
+                  if (fragment) entry.rawArgs += fragment;
                 }
               }
               if (choice?.finish_reason) {
-                // Tool calls are gathered on finish; executed by the caller loop.
+                // Parse accumulated argument fragments once, now that the full
+                // JSON string has arrived.
+                for (const staged of pendingTools.values()) {
+                  if (!staged.name) continue;
+                  let args: Record<string, unknown> = {};
+                  try { args = JSON.parse(staged.rawArgs || '{}'); } catch { /* leave {} */ }
+                  toolCalls.push({ id: staged.id || randomUUID(), name: staged.name, arguments: args });
+                }
+                pendingTools.clear();
                 if (toolCalls.length > 0) {
                   yield JSON.stringify({ __tool_calls: toolCalls });
                   toolCalls = [];
@@ -323,6 +419,9 @@ export class InteriorChat {
     if (call.name === 'set_config') {
       if (opts.userRole !== 'admin') return JSON.stringify({ error: 'Admin role required to set config.' });
       return await this.setConfigLocal(opts, call.arguments);
+    }
+    if (call.name === 'switch_ai_model') {
+      return await this.switchModelLocal(opts, call.arguments);
     }
 
     const session = await openMcpSession(opts.mcpServerUrl);
@@ -357,19 +456,69 @@ export class InteriorChat {
     await this.store.setConfig(`${category}.${key}`, value as Record<string, unknown>, category);
     return JSON.stringify({ success: true, category, key, updated: true, by: opts.userRole });
   }
+
+  /**
+   * switch_ai_model: resolve the requested slug against the admin-approved
+   * registry (tolerating OpenRouter variant suffixes) and persist it for this
+   * user. Permission model: any signed-in user may switch among APPROVED
+   * combos; unapproved slugs get an actionable explanation instead of a bare
+   * rejection so lower-quality models can recover and explain.
+   */
+  private async switchModelLocal(_opts: ChatSessionOptions, args: Record<string, unknown>): Promise<string> {
+    const slug = String(args.slug ?? '').trim();
+    if (!slug) {
+      return JSON.stringify({
+        error: 'missing_slug',
+        message: "Tell me which model as a slug, e.g. 'qwen/qwen3.5-35b-a3b:nitro'.",
+      });
+    }
+    const cfg = (await this.store.getConfig('provider.approved')) as { models?: ApprovedModel[] } | null;
+    const registry = Array.isArray(cfg?.models) && cfg!.models!.length > 0
+      ? cfg!.models!
+      : DEFAULT_APPROVED_MODELS;
+    const match = findApprovedModel(registry, slug);
+    if (!match) {
+      return JSON.stringify({
+        error: 'not_approved',
+        requested: slug,
+        allowed: registry.map((m) => ({ id: m.id, label: m.label ?? m.model, model: m.model })),
+        message:
+          'That model is not in the approved list yet. You can pick any listed option now; ' +
+          'to use the requested model, ask an administrator to approve it.',
+      });
+    }
+
+    // Persist per-user selection; applies from the NEXT chat message because
+    // the current turn's stream is already running on the previous model.
+    const previous = _opts.providerModel;
+    if (_opts.userId) {
+      await this.store.setConfig(userSelectionKey(_opts.userId), { modelId: match.id }, 'provider');
+      await this.store.setConfig(
+        'general.activeModelLabel',
+        { id: match.id, label: match.label ?? match.model },
+        'provider',
+      ).catch(() => undefined);
+    } else {
+      // No identity bound to the session: apply without persistence.
+      return JSON.stringify({ ok: true, switched: false, reason: 'no_user_context', active_model: previous });
+    }
+
+    return JSON.stringify({
+      ok: true,
+      switched: true,
+      id: match.id,
+      label: match.label ?? match.model,
+      model: match.model,
+      effective_from: 'next message',
+      note: match.model.includes(':nitro') ? 'nitro variant selected — fastest available providers.' : undefined,
+      previous,
+    });
+  }
 }
 
 function redactSecretsLocal(key: string, value: unknown): unknown {
   if (/api[_-]?key|secret|password|token/i.test(key)) return '<redacted>';
   return value;
-}
-
-function parsePartialArgs(accum: Record<string, unknown>, raw: string): Record<string, unknown> {
-  try {
-    return { ...accum, ...JSON.parse(raw) };
-  } catch {
-    return accum;
-  }
 }
 
 export const createChat = (store: LibSqlStore): InteriorChat => new InteriorChat(store);

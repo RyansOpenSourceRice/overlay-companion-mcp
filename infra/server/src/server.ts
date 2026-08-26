@@ -37,7 +37,8 @@ import {
 import { auth as betterAuth, ensureBetterAuthReady as ensureBetterAuthDb } from './better-auth.js';
 import { LibSqlStore, ConnectionInput } from './libsql-store.js';
 import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-store.js';
-import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL } from './chat.js';
+import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL, DEFAULT_APPROVED_MODELS,
+  findApprovedModel, userSelectionKey, type ApprovedModel } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { seedDemo } from './seed.js';
 import { readFileSync } from 'fs';
@@ -1005,16 +1006,10 @@ const chatLimiter = rateLimit({
 // from that list (or leave unset for the admin default). Resolution never
 // trusts client-supplied baseUrl/model — only ids that exist in the registry.
 
-interface ApprovedModel { id: string; label?: string; baseUrl: string; model: string }
-
 async function approvedModels(): Promise<ApprovedModel[]> {
   const cfg = (await libSqlStore.getConfig('provider.approved')) as { models?: ApprovedModel[] } | null;
   const list = Array.isArray(cfg?.models) ? cfg!.models! : ((bootstrapProviderSettings()['provider.approved'] as { models: ApprovedModel[] }).models);
   return list.filter((m) => m && typeof m.id === 'string' && typeof m.model === 'string' && typeof m.baseUrl === 'string');
-}
-
-function userSelectionKey(userId: string): string {
-  return `provider.chat.user.${userId}`;
 }
 
 // GET /api/chat/models — any authenticated user may LIST the approved
@@ -1138,6 +1133,7 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
     providerApiKey: (provider?.apiKey as string) || process.env.PROVIDER_API_KEY || '',
     providerModel: selection?.model ?? DEFAULT_PROVIDER_MODEL,
     userRole: role,
+    userId: state.user.id,
   };
 
   try {
@@ -1147,8 +1143,25 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
       return;
     }
 
-    // Tool loop: stream text; on tool_calls, execute and re-issue.
-    let currentMessages = messages;
+    // Ground-truth snapshot up front: weak models routinely claim they cannot
+    // annotate/switch models or hallucinate client limits. This fixed system
+    // message states what IS possible so they attempt the right tool first.
+    const actorCfg = (await libSqlStore.getConfig('general.activeActor')) as Record<string, unknown> | null;
+    const activeActor = String(actorCfg?.activeActor ?? actorCfg ?? 'exterior');
+    const sysContext =
+      [
+        `You are the interior assistant of Overlay Companion MCP.`,
+        `Effective model this turn: ${opts.providerModel}.`,
+        `Current display owner: ${activeActor}. If drawing is rejected, call set_display_actor {actor:"interior"} once, then retry once.`,
+        `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
+        role === 'admin'
+          ? `You are an admin: set_config lets you change app settings via chat.`
+          : `Config changes are admin-only; direct the user to Settings instead of attempting them.`,
+      ].join(' ');
+    // Only inject when the caller did not already manage their own system turns.
+    const hasSystem = messages.some((m) => m.role === 'system');
+    let currentMessages: Array<Record<string, unknown>> = hasSystem ? messages : [{ role: 'system', content: sysContext }, ...messages];
     for (let turn = 0; turn < 5; turn++) {
       const collected: Array<string> = [];
       let toolCalls: Array<import('./chat.js').ChatToolCall> = [];
@@ -1686,14 +1699,7 @@ function bootstrapProviderSettings(): Record<string, unknown> {
     // which prevents pointing the shared API key at arbitrary endpoints (SSRF /
     // key-exfiltration). Seed from env or with one sensible OpenRouter default.
     'provider.approved': {
-      models: parseApprovedModelsEnv() ?? [
-        {
-          id: 'openrouter-z-ai-glm-5.3-flash',
-          label: 'GLM 5.3 Flash (OpenRouter)',
-          baseUrl: 'https://openrouter.ai/api/v1',
-          model: 'z-ai/glm-5.3-flash',
-        },
-      ],
+      models: parseApprovedModelsEnv() ?? DEFAULT_APPROVED_MODELS,
     },
   };
 }
@@ -1707,6 +1713,7 @@ function parseApprovedModelsEnv(): Array<Record<string, unknown>> | null {
   } catch { /* fall back to default list */ }
   return null;
 }
+
 
 // OpenFGA bootstrap defaults (D-017). OpenFGA is a separate service; the app
 // only talks to it over HTTP. Disabled by default (owner-scoped behavior);

@@ -251,12 +251,16 @@ export class ChatPanel {
         }
         return thinkingEl;
       };
-      /** One compact "✔ impact" row per tool call; raw payload stays collapsed. */
+      /** One compact "✔ impact" row per tool call; raw payload stays collapsed.
+       *  Block layout keeps the label pinned to its line when <details> opens
+       *  (the payload grows downward, never sideways). */
       const addImpact = (tool: string, resultJson: string) => {
         const impact = ChatPanel.IMPACT[tool] ?? 'Applied your change';
         const line = document.createElement('div');
         line.className = 'chat-impact';
-        line.textContent = `✔ ${impact}`;
+        const label = document.createElement('span');
+        label.className = 'chat-impact-label';
+        label.textContent = `✔ ${impact}`;
         const details = document.createElement('details');
         details.className = 'chat-impact-details';
         const summary = document.createElement('summary');
@@ -265,6 +269,7 @@ export class ChatPanel {
         pre.textContent = resultJson.slice(0, 600);
         details.appendChild(summary);
         details.appendChild(pre);
+        line.appendChild(label);
         line.appendChild(details);
         this.messagesEl.appendChild(line);
         this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
