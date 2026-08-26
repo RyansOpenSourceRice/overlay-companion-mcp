@@ -39,17 +39,14 @@ public static class TemplateOverlayTool
         [Description("Display actor issuing this call: 'interior' (in-app assistant) or 'exterior' (external MCP agent). Must match the active display owner.")] string actor = "exterior")
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("draw_overlay"))
-        {
-            throw new InvalidOperationException($"Action 'draw_overlay' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("draw_overlay");
 
         // Display-ownership gate: reject if a different agent holds the canvas.
         var caller = actor.ToActor();
         if (!await displayActor.CanWriteAsync(caller))
         {
             var active = await displayActor.GetActiveActorAsync();
-            throw new InvalidOperationException(
+            throw new ModelContextProtocol.McpException(
                 $"Display is owned by the '{active.ToKey()}' agent. Switch ownership (or use the other agent) before drawing overlays.");
         }
 

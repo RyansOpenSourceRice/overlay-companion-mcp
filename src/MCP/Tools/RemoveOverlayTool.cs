@@ -20,10 +20,7 @@ public static class RemoveOverlayTool
         [Description("ID of the overlay to remove")] string overlayId)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("remove_overlay"))
-        {
-            throw new InvalidOperationException($"Action 'remove_overlay' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("remove_overlay");
 
         if (string.IsNullOrEmpty(overlayId))
         {

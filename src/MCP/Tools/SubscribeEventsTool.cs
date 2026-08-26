@@ -23,10 +23,7 @@ public static class SubscribeEventsTool
         [Description("JSON array of event types to subscribe to (mouse_move, mouse_click, key_press, window_focus)")] string events)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("subscribe_events"))
-        {
-            throw new InvalidOperationException($"Action 'subscribe_events' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("subscribe_events");
 
         if (string.IsNullOrEmpty(events))
         {

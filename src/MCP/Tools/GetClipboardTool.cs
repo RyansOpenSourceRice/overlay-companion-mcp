@@ -22,10 +22,7 @@ public static class GetClipboardTool
         [Description("Format to retrieve (text, html, image)")] string format = "text")
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("get_clipboard"))
-        {
-            throw new InvalidOperationException($"Action 'get_clipboard' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("get_clipboard");
 
         try
         {

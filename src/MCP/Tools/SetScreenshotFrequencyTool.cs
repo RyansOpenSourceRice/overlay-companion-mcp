@@ -21,10 +21,7 @@ public static class SetScreenshotFrequencyTool
         [Description("Interval in milliseconds for interval mode")] int intervalMs = 1000)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("set_screenshot_frequency"))
-        {
-            throw new InvalidOperationException($"Action 'set_screenshot_frequency' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("set_screenshot_frequency");
 
         if (string.IsNullOrEmpty(mode))
         {

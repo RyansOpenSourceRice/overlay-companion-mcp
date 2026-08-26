@@ -13,6 +13,8 @@ public interface IModeManager
     OperationalMode CurrentMode { get; }
     Task<bool> SetModeAsync(OperationalMode mode, Dictionary<string, object>? metadata = null);
     bool CanExecuteAction(string actionType);
+    /// <summary>Throws an McpException with a self-service recovery hint when the current mode blocks the action.</summary>
+    void EnsureAllowed(string actionType);
     bool RequiresConfirmation(string actionType);
     event EventHandler<OperationalMode>? ModeChanged;
 }
@@ -54,6 +56,14 @@ public class ModeManager : IModeManager
             OperationalMode.Custom => IsCustomModeAllowedAction(actionType),
             _ => false
         };
+    }
+
+    public void EnsureAllowed(string actionType)
+    {
+        if (CanExecuteAction(actionType)) return;
+        throw new ModelContextProtocol.McpException(
+            $"Action '{actionType}' is not allowed while the system is in {CurrentMode} mode."
+            + " To enable state-changing actions, call set_mode with mode=\"assist\" first, then retry your original tool call.");
     }
 
     public bool RequiresConfirmation(string actionType)

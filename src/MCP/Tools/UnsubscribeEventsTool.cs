@@ -21,10 +21,7 @@ public static class UnsubscribeEventsTool
         [Description("Subscription ID to unsubscribe from")] string subscriptionId)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("unsubscribe_events"))
-        {
-            throw new InvalidOperationException($"Action 'unsubscribe_events' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("unsubscribe_events");
 
         if (string.IsNullOrEmpty(subscriptionId))
         {

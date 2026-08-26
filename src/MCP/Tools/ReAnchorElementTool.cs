@@ -26,10 +26,7 @@ public static class ReAnchorElementTool
         [Description("Monitor index to anchor to (0 = primary)")] int monitor_index = 0)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("re_anchor_element"))
-        {
-            throw new InvalidOperationException($"Action 're_anchor_element' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("re_anchor_element");
 
         // Validate monitor index
         var monitor = await screenCaptureService.GetMonitorInfoAsync(monitor_index);
@@ -80,7 +77,7 @@ public static class ReAnchorElementTool
 
         if (!success)
         {
-            throw new InvalidOperationException($"Failed to reposition overlay '{overlay_id}'");
+            throw new ModelContextProtocol.McpException($"Failed to reposition overlay '{overlay_id}'");
         }
 
         // Return response with updated position information

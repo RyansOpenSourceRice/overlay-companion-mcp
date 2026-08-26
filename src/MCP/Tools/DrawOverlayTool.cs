@@ -31,16 +31,13 @@ public static class DrawOverlayTool
         [Description("Display actor: 'interior' (in-app assistant) or 'exterior' (external MCP agent). Must match active owner.")] string actor = "exterior")
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("draw_overlay"))
-        {
-            throw new InvalidOperationException($"Action 'draw_overlay' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("draw_overlay");
 
         var caller = actor.ToActor();
         if (!await displayActor.CanWriteAsync(caller))
         {
             var active = await displayActor.GetActiveActorAsync();
-            throw new InvalidOperationException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
+            throw new ModelContextProtocol.McpException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
         }
 
         // Validate monitor index

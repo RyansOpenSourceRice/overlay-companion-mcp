@@ -26,10 +26,7 @@ public static class SetDisplayActorTool
         IModeManager modeManager,
         [Description("Actor to activate: 'interior' (in-app assistant) or 'exterior' (external MCP agent)")] string actor)
     {
-        if (!modeManager.CanExecuteAction("set_display_actor"))
-        {
-            throw new InvalidOperationException($"Action 'set_display_actor' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("set_display_actor");
 
         var target = (actor ?? "").ToActor();
         var previous = await displayActor.GetActiveActorAsync();

@@ -23,10 +23,7 @@ public static class SetClipboardTool
         [Description("Format of the content (text, html)")] string format = "text")
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("set_clipboard"))
-        {
-            throw new InvalidOperationException($"Action 'set_clipboard' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("set_clipboard");
 
         if (string.IsNullOrEmpty(text))
         {

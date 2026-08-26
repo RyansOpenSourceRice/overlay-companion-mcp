@@ -26,9 +26,11 @@ public static class DisplayActorExtensions
         => actor == DisplayActor.Interior ? "interior" : "exterior";
 
     public static DisplayActor ToActor(this string key)
-        => string.Equals(key, "interior", System.StringComparison.OrdinalIgnoreCase)
-            ? DisplayActor.Interior
-            : DisplayActor.Exterior;
+    {
+        if (string.Equals(key, "interior", System.StringComparison.OrdinalIgnoreCase)) return DisplayActor.Interior;
+        if (string.Equals(key, "exterior", System.StringComparison.OrdinalIgnoreCase)) return DisplayActor.Exterior;
+        throw new ModelContextProtocol.McpException("Invalid display actor: expected 'interior' or 'exterior'.");
+    }
 }
 
 public interface IDisplayActorGate
@@ -72,7 +74,7 @@ public class DisplayActorGate : IDisplayActorGate
 
         if (!IsSettingSafe(actor.ToKey()))
         {
-            throw new InvalidOperationException("Invalid display actor.");
+            throw new ModelContextProtocol.McpException("Invalid display actor: expected 'interior' or 'exterior'.");
         }
         _activeActor = actor;
 

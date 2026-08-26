@@ -1152,17 +1152,20 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
       [
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
-        `Current display owner: ${activeActor}. If drawing is rejected, call set_display_actor {actor:"interior"} once, then retry once.`,
+        `If the user asks for any overlay/drawing and either the owner below is not 'interior' or a tool errors mentioning Passive mode, do this first in order: set_mode {mode:"assist"}, set_display_actor {actor:"interior"}, then the draw call. Current display owner: ${activeActor}; you may switch ownership yourself via set_display_actor. Only retry an overlay once after fixing mode/ownership.`,
         `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         role === 'admin'
           ? `You are an admin: set_config lets you change app settings via chat.`
           : `Config changes are admin-only; direct the user to Settings instead of attempting them.`,
       ].join(' ');
-    // Only inject when the caller did not already manage their own system turns.
+    // Injection happens when the conversation carries no system role of its
+    // own (the web panel never sends one). Callers that DO manage system
+    // prompts opted out of this snapshot by design.
     const hasSystem = messages.some((m) => m.role === 'system');
     let currentMessages: Array<Record<string, unknown>> = hasSystem ? messages : [{ role: 'system', content: sysContext }, ...messages];
-    for (let turn = 0; turn < 5; turn++) {
+    const MAX_TOOL_TURNS = 8;
+    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
       const collected: Array<string> = [];
       let toolCalls: Array<import('./chat.js').ChatToolCall> = [];
 
@@ -1190,9 +1193,24 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
       // Execute each tool, append the tool results as assistant + tool messages.
       const toolResults: Array<Record<string, unknown>> = [];
       for (const tc of toolCalls) {
-        const result = await chat.runTool(opts, tc);
+        let result: string;
+        try {
+          result = await chat.runTool(opts, tc);
+        } catch (err) {
+          // A failed tool must reach the model as structured feedback so it can
+          // self-correct, never as a dropped connection.
+          result = JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+            isError: true,
+            hint: 'Treat this error as real feedback: follow any instructions inside it (e.g. call set_mode first), fix arguments, then retry once.',
+          });
+        }
         toolResults.push({ role: 'tool', tool_call_id: tc.id, content: result });
         res.write(`data: ${JSON.stringify({ tool: tc.name, result })}\n\n`);
+      }
+      if (turn === MAX_TOOL_TURNS - 1) {
+        res.write(`data: ${JSON.stringify({ error: 'Reached the per-message tool round limit before finishing the task.' })}\n\n`);
+        break;
       }
       currentMessages = [
         ...currentMessages,

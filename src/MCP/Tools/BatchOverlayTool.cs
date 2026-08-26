@@ -28,16 +28,13 @@ public static class BatchOverlayTool
         [Description("Display actor: 'interior' or 'exterior'. Must match active owner.")] string actor = "exterior")
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("batch_overlay"))
-        {
-            throw new InvalidOperationException($"Action 'batch_overlay' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("batch_overlay");
 
         var caller = actor.ToActor();
         if (!await displayActor.CanWriteAsync(caller))
         {
             var active = await displayActor.GetActiveActorAsync();
-            throw new InvalidOperationException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
+            throw new ModelContextProtocol.McpException($"Display is owned by the '{active.ToKey()}' agent. Switch ownership before drawing overlays.");
         }
 
         if (string.IsNullOrEmpty(overlays))

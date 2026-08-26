@@ -24,10 +24,7 @@ public static class TakeScreenshotTool
         [Description("Height of the region to capture (optional)")] int? height = null)
     {
         // Check if action is allowed in current mode
-        if (!modeManager.CanExecuteAction("take_screenshot"))
-        {
-            throw new InvalidOperationException($"Action 'take_screenshot' not allowed in {modeManager.CurrentMode} mode");
-        }
+        modeManager.EnsureAllowed("take_screenshot");
 
         // Create region if coordinates provided
         ScreenRegion? region = null;
