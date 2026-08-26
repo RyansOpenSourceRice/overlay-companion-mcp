@@ -11,7 +11,7 @@
  */
 
 // OpenTelemetry must be the first import so it instruments everything below.
-import './tracing.js';
+import { recordHealthCheck } from './tracing.js';
 
 import { bareHostname } from './origin.js';
 
@@ -1971,6 +1971,11 @@ app.get('/health', (async (_req: Request, res: Response) => {
       connectedClients: overlayClients.size,
     },
   };
+
+  // Surface the sampled service statuses in OpenTelemetry so a degraded
+  // dependency (MCP server unreachable, WebSocket disabled, DB down, …) becomes
+  // queryable/alertable in the trace backend rather than only in this JSON.
+  recordHealthCheck(health.services);
 
   res.json(health);
 }) as RequestHandler);
