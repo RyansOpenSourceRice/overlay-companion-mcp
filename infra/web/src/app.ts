@@ -660,7 +660,11 @@ class OverlayCompanionApp {
     if (connection.protocol === 'kasmvnc') {
       // Proxied under the main server; `connection.host` is the operator's
       // KasmVNC target id (from KASMVNC_ALLOWLIST_JSON), never a raw address.
-      url = `/vnc/${encodeURIComponent(connection.host)}`;
+      // Trailing slash is required so the browser resolves KasmVNC's relative
+      // sub-resource URLs (dist/*.js, vendor/*.js, style.bundle.css, etc.)
+      // under /vnc/<id>/ and not one directory up — missing it makes every
+      // asset 404 and the desktop render as an unstyled black page.
+      url = `/vnc/${encodeURIComponent(connection.host)}/`;
     } else {
       // For standard VNC, we'll need to proxy through our server
       url = `/vnc-proxy?host=${encodeURIComponent(connection.host)}&port=${connection.port}&protocol=${connection.protocol}`;

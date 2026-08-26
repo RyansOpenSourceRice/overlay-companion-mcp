@@ -1679,7 +1679,12 @@ const kasmVncProxy = createProxyMiddleware({
   },
   changeOrigin: true,
   secure: false,
-  ws: true,
+  // `ws` is intentionally false. The upgrade is handled exclusively by the
+  // `server.on('upgrade', ...)` handler above (which resolves the allowlisted
+  // target and calls `kasmVncProxy.upgrade()`). Setting `ws: true` would make
+  // http-proxy-middleware subscribe its own `server.on('upgrade')` listener for
+  // its `/` context, stealing every upgrade (including /ws and /websockify)
+  // before target resolution and proxying them to the 127.0.0.1:1 fallback.
   xfwd: true,
   onProxyReq: (proxyReq, req) => {
     const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
@@ -1728,6 +1733,15 @@ const kasmVncProxy = createProxyMiddleware({
 });
 
 app.use('/vnc', authMiddleware, (req, res, next) => {
+  // Canonical trailing slash: KasmVNC's index.html references everything
+  // relatively (dist/*.js, vendor/*.js, style.bundle.css, app/images/...), so
+  // the iframe document URL must end with a slash or the browser resolves those
+  // URLs one directory up and they 404. Redirect the bare `/vnc/<id>` form.
+  const raw = (req.originalUrl || req.url || '').split('?')[0];
+  const noSlashMatch = /^\/vnc\/[^/]+$/.exec(raw);
+  if (noSlashMatch) {
+    return res.redirect(301, `${raw}/`);
+  }
   if (!resolveKasmVncTarget(req)) {
     return res.status(404).json({ error: { code: 'kasmvnc_target_not_allowed', message: 'KasmVNC target is not in the allowlist.' } });
   }
@@ -1738,6 +1752,14 @@ app.use('/vnc', authMiddleware, (req, res, next) => {
 // (KasmVNC itself still enforces its own password). noVNC targets either
 // `/vnc/<id>...` (prefix present) or the root-level `/websockify` (target id
 // from the cookie we stamp during the web-UI load).
+//
+// NOTE: this is the ONLY upgrade handler for KasmVNC. The proxy's `ws` option
+// is intentionally NOT set, otherwise http-proxy-middleware subscribes its own
+// `server.on('upgrade', handleUpgrade)` for *every* path (its context is `/`),
+// which races with (and can override) the target resolution done here and also
+// swallows unrelated upgrades such as the `/ws` overlay socket. Resolving the
+// target here, then calling `kasmVncProxy.upgrade()` directly, keeps routing
+// deterministic.
 server.on('upgrade', (req, socket, head) => {
   const url = req.url || '';
   let target: KasmVncResolvedTarget | undefined;
@@ -1748,12 +1770,17 @@ server.on('upgrade', (req, socket, head) => {
     target = id ? connectionManager.getKasmVncTarget(id) : null;
     (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget = target;
   } else {
+    // Not a KasmVNC route (e.g. the overlay `/ws` socket). Let it time out
+    // naturally instead of trying to proxy it to an undefined target.
+    if (url !== '/ws' && url !== '/ws/') log.debug(`Ignoring non-KasmVNC WS upgrade: ${url}`);
     return;
   }
   if (!target) {
+    log.warn(`KasmVNC WS upgrade rejected (no allowed target) for: ${url}`);
     socket.destroy();
     return;
   }
+  log.info(`KasmVNC WS upgrade routed: ${url} -> ${target.host}:${target.port}`);
   kasmVncProxy.upgrade!(req as unknown as Request, socket as unknown as import('net').Socket, head);
 });
 
