@@ -31,6 +31,12 @@
     <!-- System libraries (updated for security) -->
     <PackageReference Include="System.Text.Json" Version="10.0.7" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+
+    <!-- OpenTelemetry: export MCP tool-call traces to OTLP/Jaeger.
+         Kept >= 1.11.2 to clear the 1.9.x DoS advisory (GHSA-4625-4j76-fww9). -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.12.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.12.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
   </ItemGroup>
 
   <ItemGroup>

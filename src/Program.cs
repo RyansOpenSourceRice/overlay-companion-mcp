@@ -12,6 +12,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.IO;
 using OverlayCompanion.Web;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace OverlayCompanion;
 
@@ -107,6 +109,32 @@ public class Program
         builder.Logging.AddConsole();
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 
+        // ── OpenTelemetry (observability parity with the Node management app)
+        // Exports one span per MCP JSON-RPC action to Jaeger so tool failures
+        // (e.g. set_display_actor missing its 'actor' argument) are queryable
+        // instead of living only in `podman logs`. Console output is untouched.
+        var otelEnabled = string.Equals(Environment.GetEnvironmentVariable("OTEL_ENABLED"), "true", StringComparison.OrdinalIgnoreCase);
+        if (otelEnabled)
+        {
+            var serviceName = Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME") ?? "overlay-companion-mcp";
+            var otlpEndpoint = Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT") ?? "http://jaeger-otel:4318";
+            var tracesUrl = otlpEndpoint.TrimEnd('/');
+            if (!tracesUrl.EndsWith("/v1/traces", StringComparison.OrdinalIgnoreCase)) tracesUrl += "/v1/traces";
+
+            builder.Services.AddOpenTelemetry()
+                .ConfigureResource(rb => rb.AddService(serviceName))
+                .WithTracing(tb => tb
+                    .AddAspNetCoreInstrumentation()
+                    .AddSource(McpTrace.SourceName)                     // middleware spans below
+                    .AddSource("Experimental.ModelContextProtocol*")    // native SDK sources, if any
+                    .AddSource("ModelContextProtocol*")
+                    .AddOtlpExporter(o =>
+                    {
+                        o.Protocol = OpenTelemetry.Exporter.OtlpExportProtocol.HttpProtobuf;
+                        o.Endpoint = new Uri(tracesUrl);
+                    }));
+        }
+
         // Register core services
         builder.Services.AddSingleton<IScreenCaptureService, ScreenCaptureService>();
         builder.Services.AddSingleton<IOverlayService, OverlayService>();
@@ -183,6 +211,14 @@ public class Program
         logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");
         logger.LogInformation("HTTP transport provides multi-client support, streaming, web integration, and image handling");
         logger.LogInformation("HTTP Transport listening on http://0.0.0.0:{Port}/ (root)", port);
+
+        // Per-JSON-RPC-action trace spans (gated by the same OTEL_ENABLED flag
+        // that configures the exporter above). Registered first so it wraps the
+        // MCP endpoints; it pass-throughs everything else untouched.
+        if (otelEnabled)
+        {
+            app.UseMiddleware<Services.McpRpcTraceMiddleware>();
+        }
 
         app.UseWebSockets();
 
