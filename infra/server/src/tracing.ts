@@ -50,13 +50,16 @@ export function getTracer(): Tracer | null {
   return tracer;
 }
 
-/** Status strings that mean a dependency is NOT fully healthy. */
-const DEGRADED_VALUES = new Set(['unavailable', 'unhealthy', 'down', 'disconnected', 'disabled', 'unknown']);
+/** Status strings that mean a dependency is genuinely broken (→ span ERROR). */
+const BROKEN_VALUES = new Set(['unavailable', 'unhealthy', 'down', 'disconnected', 'failed', 'error']);
 
-function isHealthyStatus(key: string, value: unknown): boolean {
-  if (key === 'connectedClients') return true; // a numeric count, not a status
+/** Status strings that mean an optional dependency is turned off (→ note only). */
+const OFF_VALUES = new Set(['disabled', 'unknown']);
+
+function isBrokenStatus(key: string, value: unknown): boolean {
+  if (key === 'connectedClients') return false; // a numeric count, not a status
   if (typeof value !== 'string') return false;
-  return !DEGRADED_VALUES.has(value);
+  return BROKEN_VALUES.has(value);
 }
 
 // Previous sample, keyed by service name — lets us emit a span event when a
@@ -78,13 +81,18 @@ export function recordHealthCheck(services: Record<string, string | number | boo
 
   const span = tracer.startSpan('health_check');
   try {
-    const degraded: string[] = [];
+    const broken: string[] = [];
+    const off: string[] = [];
 
     for (const [key, value] of Object.entries(services)) {
       if (value === undefined) continue;
       span.setAttribute(`health.${key}`, String(value));
 
-      if (!isHealthyStatus(key, value)) degraded.push(`${key}=${value}`);
+      if (isBrokenStatus(key, value)) {
+        broken.push(`${key}=${value}`);
+      } else if (typeof value === 'string' && OFF_VALUES.has(value)) {
+        off.push(`${key}=${value}`);
+      }
 
       const prev = previousSample.get(key);
       if (prev !== undefined && prev !== value) {
@@ -92,17 +100,19 @@ export function recordHealthCheck(services: Record<string, string | number | boo
           dependency: key,
           from: String(prev),
           to: String(value),
-          degraded: !isHealthyStatus(key, value),
+          broken: isBrokenStatus(key, value),
         });
       }
       previousSample.set(key, value as string | number);
     }
 
-    if (degraded.length > 0) {
+    if (off.length > 0) span.setAttribute('health.optional_off', off.join(', '));
+
+    if (broken.length > 0) {
       span.setAttribute('health.ok', false);
-      span.setAttribute('health.degraded', degraded.join(', '));
-      span.setStatus({ code: SpanStatusCode.ERROR, message: `degraded: ${degraded.join(', ')}` });
-      span.addEvent('unhealthy_dependencies', { services: degraded.join(', ') });
+      span.setAttribute('health.degraded', broken.join(', '));
+      span.setStatus({ code: SpanStatusCode.ERROR, message: `degraded: ${broken.join(', ')}` });
+      span.addEvent('unhealthy_dependencies', { services: broken.join(', ') });
     } else {
       span.setAttribute('health.ok', true);
       span.setStatus({ code: SpanStatusCode.OK });
