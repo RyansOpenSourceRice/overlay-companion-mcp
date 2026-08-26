@@ -18,6 +18,7 @@ import { bareHostname } from './origin.js';
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import http from 'http';
 import https from 'https';
+import crypto from 'crypto';
 import WebSocket, { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -121,10 +122,15 @@ const app = express();
 // Trust reverse proxy (e.g., Caddy/Traefik) so req.secure and X-Forwarded-* are
 // respected. We do NOT trust all proxies: `true` would let any client spoof
 // X-Forwarded-For and bypass the IP-based rate limiters (§7), and
-// express-rate-limit refuses to run on it. Default to loopback (no proxy, e.g.
+// express-rate-limit refuses to work with it. Default to loopback (no proxy, e.g.
 // local dev / direct access). Behind a reverse proxy, set TRUST_PROXY to the
-// proxy hop count or address(es); see .env.example.
+// proxy hop count or address(es). See .env.example.
 app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
+
+// TEMP: log all requests to see if upgrades go through Express
+app.use(((req: Request, _res: Response, next: NextFunction) => {
+  next();
+}) as RequestHandler);
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 
@@ -397,9 +403,14 @@ let wss: WebSocketServer | null = null;
 const overlayClients = new Set<WebSocket>();
 
 if (config.mcpWsEnabled) {
+  // noServer mode: the WSS must NOT attach its own `server.on('upgrade')`
+  // handler. In server mode with a `path`, ws aborts ANY upgrade whose path
+  // doesn't match with `400 Bad Request` (websocket-server.js:277-280) — and
+  // since it registers before the KasmVNC upgrade handler below, that 400
+  // killed every `/websockify` desktop connection. Instead, the shared
+  // `server.on('upgrade')` handler below routes `/ws` here via `handleUpgrade`.
   wss = new WebSocketServer({
-    server,
-    path: '/ws',
+    noServer: true,
     clientTracking: true,
   });
 
@@ -1679,25 +1690,21 @@ const kasmVncProxy = createProxyMiddleware({
   },
   changeOrigin: true,
   secure: false,
-  // `ws` is intentionally false. The upgrade is handled exclusively by the
-  // `server.on('upgrade', ...)` handler above (which resolves the allowlisted
-  // target and calls `kasmVncProxy.upgrade()`). Setting `ws: true` would make
-  // http-proxy-middleware subscribe its own `server.on('upgrade')` listener for
-  // its `/` context, stealing every upgrade (including /ws and /websockify)
-  // before target resolution and proxying them to the 127.0.0.1:1 fallback.
+  // ws is intentionally false: WebSocket upgrades are handled via raw TLS
+  // forwarding in the server.on('upgrade') handler below. http-proxy's ws mode
+  // lowercases all header names via Node's setHeader(), but KasmVNC's websockify
+  // requires uppercase `Host` — so we build the upstream request manually.
   xfwd: true,
   onProxyReq: (proxyReq, req) => {
     const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
     const auth = kasmvncBasicAuth(target);
     if (auth) proxyReq.setHeader('Authorization', auth);
   },
-  onProxyReqWs: (proxyReq, req) => {
+onProxyReqWs: (proxyReq, req) => {
     const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
     const auth = kasmvncBasicAuth(target);
     if (auth) proxyReq.setHeader('Authorization', auth);
     if (target) {
-      // http-proxy's WebSocket path can drop the Host and the Sec-WebSocket-*
-      // headers KasmVNC's embedded websockify validates; re-assert them.
       proxyReq.setHeader('Host', `${target.host}:${target.port}`);
       proxyReq.setHeader('Upgrade', 'websocket');
       proxyReq.setHeader('Connection', 'Upgrade');
@@ -1753,15 +1760,22 @@ app.use('/vnc', authMiddleware, (req, res, next) => {
 // `/vnc/<id>...` (prefix present) or the root-level `/websockify` (target id
 // from the cookie we stamp during the web-UI load).
 //
-// NOTE: this is the ONLY upgrade handler for KasmVNC. The proxy's `ws` option
-// is intentionally NOT set, otherwise http-proxy-middleware subscribes its own
-// `server.on('upgrade', handleUpgrade)` for *every* path (its context is `/`),
-// which races with (and can override) the target resolution done here and also
-// swallows unrelated upgrades such as the `/ws` overlay socket. Resolving the
-// target here, then calling `kasmVncProxy.upgrade()` directly, keeps routing
-// deterministic.
+// NOTE: this is the single upgrade router for the whole server. Two rules:
+// 1. The overlay WSS runs in noServer mode and is routed here via
+//    `handleUpgrade` — otherwise ws aborts non-matching upgrades with
+//    `400 Bad Request` and kills `/websockify` connections.
+// 2. KasmVNC upgrades are forwarded with a hand-built upstream request:
+//    http-proxy's ws mode lowercases header names (Node's setHeader), but
+//    KasmVNC's websockify requires uppercase `Host`, and its 101
+//    response-handling can be swallowed — the manual forward avoids both.
 server.on('upgrade', (req, socket, head) => {
   const url = req.url || '';
+  // The overlay broadcast socket (ws, noServer mode) — hand it to the WSS.
+  if (url === '/ws' || url === '/ws/' || url.startsWith('/ws?')) {
+    if (!wss) { socket.destroy(); return; }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+    return;
+  }
   let target: KasmVncResolvedTarget | undefined;
   if (url.startsWith('/vnc/')) {
     target = resolveKasmVncTarget(req as unknown as { url?: string });
@@ -1770,9 +1784,8 @@ server.on('upgrade', (req, socket, head) => {
     target = id ? connectionManager.getKasmVncTarget(id) : null;
     (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget = target;
   } else {
-    // Not a KasmVNC route (e.g. the overlay `/ws` socket). Let it time out
-    // naturally instead of trying to proxy it to an undefined target.
-    if (url !== '/ws' && url !== '/ws/') log.debug(`Ignoring non-KasmVNC WS upgrade: ${url}`);
+    log.debug(`Ignoring non-KasmVNC WS upgrade: ${url}`);
+    socket.destroy();
     return;
   }
   if (!target) {
@@ -1781,7 +1794,62 @@ server.on('upgrade', (req, socket, head) => {
     return;
   }
   log.info(`KasmVNC WS upgrade routed: ${url} -> ${target.host}:${target.port}`);
-  kasmVncProxy.upgrade!(req as unknown as Request, socket as unknown as import('net').Socket, head);
+
+  // Forward the WebSocket upgrade via raw TLS to the upstream KasmVNC target.
+  // We build the request manually because http-proxy's ws mode lowercases all
+  // header names (Node's setHeader), but KasmVNC's websockify requires uppercase
+  // `Host`. The raw TLS path also avoids the response-handling race in
+  // http-proxy's ws-incoming.js that can swallow 101 responses.
+  const auth = kasmvncBasicAuth(target);
+  const wsKey = (req.headers['sec-websocket-key'] as string) || crypto.randomBytes(16).toString('base64');
+  const wsProtocol = (req.headers['sec-websocket-protocol'] as string) || 'binary';
+  const wsOrigin = (req.headers['origin'] as string) || 'http://localhost';
+  const wsExt = req.headers['sec-websocket-extensions'] as string | undefined;
+  const upstreamReqHeaders: Record<string, string> = {
+    'Host': `${target.host}:${target.port}`,
+    'Upgrade': 'websocket',
+    'Connection': 'Upgrade',
+    'Sec-WebSocket-Key': wsKey,
+    'Sec-WebSocket-Version': '13',
+    'Sec-WebSocket-Protocol': wsProtocol,
+    'Origin': wsOrigin,
+  };
+  if (auth) upstreamReqHeaders['Authorization'] = auth;
+  if (wsExt) upstreamReqHeaders['Sec-WebSocket-Extensions'] = wsExt;
+  const upstream = https.request({
+    hostname: target.host,
+    port: target.port,
+    path: url,
+    method: 'GET',
+    rejectUnauthorized: false,
+    headers: upstreamReqHeaders,
+  });
+  upstream.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
+    // Write 101 response to client
+    const respHeaders = Object.entries(proxyRes.headers)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+      .join('\r\n');
+    socket.write(`HTTP/1.1 101 Switching Protocols\r\n${respHeaders}\r\n\r\n`);
+    // Pipe data bidirectionally
+    if (proxyHead && proxyHead.length) proxySocket.write(proxyHead);
+    proxySocket.pipe(socket).pipe(proxySocket);
+    proxySocket.on('error', () => socket.destroy());
+    socket.on('error', () => proxySocket.destroy());
+    proxySocket.on('close', () => socket.destroy());
+    socket.on('close', () => proxySocket.destroy());
+  });
+  upstream.on('response', (res) => {
+    // Non-101 response: forward to client
+    const respHeaders = Object.entries(res.headers)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+      .join('\r\n');
+    socket.write(`HTTP/1.1 ${res.statusCode} ${res.statusMessage}\r\n${respHeaders}\r\n\r\n`);
+    res.pipe(socket);
+  });
+  upstream.on('error', (err) => {
+    socket.destroy();
+  });
+  upstream.end();
 });
 
 // SECURITY: Rate limiting for connection testing to prevent abuse
