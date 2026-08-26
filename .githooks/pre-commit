@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# OpenCodeReview pre-commit hook (§ precommit-ocr).
+#
+# Credentials come from the LOCAL ocr configuration (~/.config/...) or the
+# OCR_* environment — nothing secret is stored in this repo.
+#
+# Behavior:
+#   - No local ocr / unconfigured LLM -> review skipped, commit proceeds
+#     (so fresh clones and keyless environments are never bricked).
+#   - ocr configured                -> review runs; findings (nonzero exit)
+#     block the commit. OCR_SKIP=1 bypasses intentionally:
+#       OCR_SKIP=1 git commit -m "..."
+#
+# Enable:  git config core.hooksPath .githooks   (once per clone)
+
+if [ "${OCR_SKIP:-0}" = "1" ]; then
+  echo "[pre-commit] OCR_SKIP=1 set — skipping OpenCodeReview."
+  exit 0
+fi
+
+if ! command -v ocr >/dev/null 2>&1; then
+  echo "[pre-commit] 'ocr' CLI not installed — skipping OpenCodeReview."
+  exit 0
+fi
+
+if ! ocr llm test >/dev/null 2>&1; then
+  echo "[pre-commit] ocr LLM not configured locally (no API key) — skipping OpenCodeReview."
+  exit 0
+fi
+
+echo "[pre-commit] running OpenCodeReview on workspace changes…"
+timeout 570s ocr review --color never
+code=$?
+case $code in
+  0) echo "[pre-commit] review clean."; exit 0 ;;
+  124) echo "[pre-commit] ocr timed out — commit BLOCKED. Fix or rerun with OCR_SKIP=1 to bypass." >&2; exit 124 ;;
+  *) echo "[pre-commit] OpenCodeReview found issues (exit ${code}) — commit BLOCKED." >&2
+     echo "[pre-commit] Address the findings above, or bypass intentionally with OCR_SKIP=1." >&2
+     exit "$code" ;;
+esac

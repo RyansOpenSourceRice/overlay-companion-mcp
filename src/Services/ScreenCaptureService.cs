@@ -30,8 +30,31 @@ public class ScreenCaptureService : IScreenCaptureService
 {
     public event EventHandler<Screenshot>? ScreenCaptured;
 
+    private readonly ISleepGate? _sleepGate;
+    private Screenshot? _lastScreenshot;
+
+    // The gate is optional in DI so tests / alternate hosts can construct the
+    // service without power management.
+    public ScreenCaptureService(ISleepGate? sleepGate = null)
+    {
+        _sleepGate = sleepGate;
+    }
+
     public async Task<Screenshot> CaptureScreenAsync(ScreenRegion? region = null, bool fullScreen = true)
     {
+        // Power management: while asleep, captures are the expensive part we
+        // are avoiding (they spawn helper processes). Serve the last captured
+        // frame instead of spawning a fresh one; identity flags tell callers.
+        if (_sleepGate?.IsAsleep == true)
+        {
+            if (_lastScreenshot == null)
+            {
+                throw new InvalidOperationException(
+                    "Server is asleep (no cached frame yet); wake it via set_sleep(false) or user input.");
+            }
+            return _lastScreenshot;
+        }
+
         try
         {
             var imageData = await CaptureUsingLinuxTools(region, fullScreen);
@@ -46,6 +69,8 @@ public class ScreenCaptureService : IScreenCaptureService
                 DisplayScale = await GetDisplayScaleAsync(),
                 CaptureRegion = region
             };
+
+            _lastScreenshot = screenshot;
 
             // Fire event
             ScreenCaptured?.Invoke(this, screenshot);

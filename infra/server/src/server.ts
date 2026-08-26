@@ -37,7 +37,7 @@ import {
 import { auth as betterAuth, ensureBetterAuthReady as ensureBetterAuthDb } from './better-auth.js';
 import { LibSqlStore, ConnectionInput } from './libsql-store.js';
 import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-store.js';
-import { createChat } from './chat.js';
+import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { seedDemo } from './seed.js';
 import { readFileSync } from 'fs';
@@ -1000,7 +1000,102 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// POST /api/chat — body { messages: OpenAI chat messages[] }. Streams assistant
+// ---- Model selection (delegated, admin-approved) ---------------------------
+// Admins curate provider/model combos via /api/chat/models; users pick only
+// from that list (or leave unset for the admin default). Resolution never
+// trusts client-supplied baseUrl/model — only ids that exist in the registry.
+
+interface ApprovedModel { id: string; label?: string; baseUrl: string; model: string }
+
+async function approvedModels(): Promise<ApprovedModel[]> {
+  const cfg = (await libSqlStore.getConfig('provider.approved')) as { models?: ApprovedModel[] } | null;
+  const list = Array.isArray(cfg?.models) ? cfg!.models! : ((bootstrapProviderSettings()['provider.approved'] as { models: ApprovedModel[] }).models);
+  return list.filter((m) => m && typeof m.id === 'string' && typeof m.model === 'string' && typeof m.baseUrl === 'string');
+}
+
+function userSelectionKey(userId: string): string {
+  return `provider.chat.user.${userId}`;
+}
+
+// GET /api/chat/models — any authenticated user may LIST the approved
+// combinations and see their current effective selection. Secrets are not part
+// of the response.
+app.get('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const [models, pref] = await Promise.all([
+    approvedModels(),
+    libSqlStore.getConfig(userSelectionKey(state.user.id)) as Promise<{ modelId?: string } | null>,
+  ]);
+  const providerCfg = (await libSqlStore.getConfig('provider.chat')) as Record<string, unknown> | null;
+  const activeId = models.find((m) => m.id === pref?.modelId)?.id ?? 'default';
+  // Users only need id/label/model to choose; baseUrl is an admin concern and
+  // stays server-side (OpenCodeReview finding).
+  res.json({
+    active: activeId,
+    default: {
+      label: 'Admin default',
+      model: String(providerCfg?.model ?? process.env.PROVIDER_MODEL ?? DEFAULT_PROVIDER_MODEL),
+    },
+    models: models.map((m) => ({ id: m.id, label: m.label, model: m.model })),
+  });
+}) as RequestHandler);
+
+// POST /api/chat/models/select {modelId} — choose among approved entries; the
+// id must exist or the choice is rejected rather than silently ignored.
+app.post('/api/chat/models/select', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const { modelId } = (req.body ?? {}) as { modelId?: string };
+  if (!modelId) {
+    // No id means "back to admin default" — clear the per-user override.
+    await libSqlStore.setConfig(userSelectionKey(state.user.id), {}, 'provider');
+    res.json({ success: true, active: 'default' });
+    return;
+  }
+  const models = await approvedModels();
+  if (!models.some((m) => m.id === modelId)) {
+    res.status(403).json({ error: { code: 'not_approved', message: `Model ${modelId} is not in the approved list.` } });
+    return;
+  }
+  await libSqlStore.setConfig(userSelectionKey(state.user.id), { modelId }, 'provider');
+  res.json({ success: true, active: modelId });
+}) as RequestHandler);
+
+// POST /api/chat/models — ADMIN curation: add/update/remove registry entries.
+app.post('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  if (!state.user.roles.includes('admin')) {
+    res.status(403).json({ error: { code: 'forbidden', message: 'Admin role required to curate models.' } });
+    return;
+  }
+  const { action, entry } = (req.body ?? {}) as { action?: string; entry?: Partial<ApprovedModel> };
+  const current = await approvedModels();
+  let next: ApprovedModel[];
+  if (action === 'remove') {
+    if (!entry?.id || !current.some((m) => m.id === entry.id)) {
+      res.status(404).json({ error: { code: 'not_found', message: 'No such model id.' } });
+      return;
+    }
+    next = current.filter((m) => m.id !== entry!.id);
+  } else {
+    // add-or-update: keep fields strict so nothing leaks into requests later.
+    if (!entry?.id || !entry?.model || !entry?.baseUrl ||
+        !/^https?:\/\//.test(entry.baseUrl)) {
+      res.status(400).json({ error: { code: 'bad_request', message: 'entry{id,label?,baseUrl,model} with http(s) baseUrl required.' } });
+      return;
+    }
+    const clean: ApprovedModel = {
+      id: entry.id.slice(0, 100),
+      label: (entry.label ?? '').slice(0, 120),
+      baseUrl: entry.baseUrl,
+      model: entry.model.slice(0, 200),
+    };
+    next = [...current.filter((m) => m.id !== clean.id), clean];
+  }
+  await libSqlStore.setConfig('provider.approved', { models: next }, 'provider');
+  res.json({ success: true, count: next.length });
+}) as RequestHandler);
+
+// POST /api/chat — body { messages: OpenAI chat messages[], modelId? }. Streams assistant
 // text (SSE) and runs the tool loop server-side. Admin users may use config
 // tools (B3); role is enforced here, not by the model.
 app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
@@ -1013,6 +1108,25 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
   const role = state.user.roles.includes('admin') ? 'admin' : 'user';
   const provider = (await libSqlStore.getConfig('provider.chat')) as Record<string, unknown> | null;
 
+  // Resolve the chat model: explicit body.modelId OR the user's saved
+  // selection — but ONLY if that id exists in the approved registry. Anything
+  // else falls back to the admin default. Raw baseUrl/model from the client is
+  // never used for non-admin bodies (prevents endpoint/key misuse).
+  const models = await approvedModels();
+  let selection: ApprovedModel | null = null;
+  const requestedId = typeof req.body?.modelId === 'string' ? req.body.modelId : undefined;
+  const wantId = requestedId ?? ((await libSqlStore.getConfig(userSelectionKey(state.user.id)) as { modelId?: string } | null)?.modelId);
+  if (wantId) selection = models.find((m) => m.id === wantId) ?? null;
+  if (!selection && provider?.model && !wantId) {
+    // Admin default remains addressable as an approved pseudo-entry when the
+    // registry does not override it.
+    selection = {
+      id: 'default',
+      baseUrl: String(provider.baseUrl ?? process.env.PROVIDER_BASE_URL ?? DEFAULT_PROVIDER_BASE_URL),
+      model: String(provider.model),
+    };
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -1020,9 +1134,9 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
 
   const opts = {
     mcpServerUrl: config.mcpServerUrl,
-    providerBaseUrl: (provider?.baseUrl as string) || 'https://openrouter.ai/api/v1',
+    providerBaseUrl: selection?.baseUrl ?? DEFAULT_PROVIDER_BASE_URL,
     providerApiKey: (provider?.apiKey as string) || process.env.PROVIDER_API_KEY || '',
-    providerModel: (provider?.model as string) || 'deepseek/deepseek-chat-v3-0324',
+    providerModel: selection?.model ?? DEFAULT_PROVIDER_MODEL,
     userRole: role,
   };
 
@@ -1047,6 +1161,11 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
           } catch {
             /* ignore malformed tool marker */
           }
+        } else if (chunk.startsWith('{') && chunk.includes('__thinking')) {
+          try {
+            const thinking = JSON.parse(chunk).__thinking as string;
+            if (thinking) res.write(`data: ${JSON.stringify({ thinking })}\n\n`);
+          } catch { /* ignore malformed thinking marker */ }
         } else {
           collected.push(chunk);
           res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
@@ -1556,12 +1675,37 @@ function bootstrapTlsSettings(): Record<string, unknown> {
 function bootstrapProviderSettings(): Record<string, unknown> {
   return {
     'provider.chat': {
-      baseUrl: process.env.PROVIDER_BASE_URL ?? 'https://openrouter.ai/api/v1',
-      model: process.env.PROVIDER_MODEL ?? 'deepseek/deepseek-chat-v3-0324',
+      baseUrl: process.env.PROVIDER_BASE_URL ?? DEFAULT_PROVIDER_BASE_URL,
+      model: process.env.PROVIDER_MODEL ?? DEFAULT_PROVIDER_MODEL,
       apiKey: process.env.PROVIDER_API_KEY ? '<redacted>' : '',
       enabled: process.env.PROVIDER_CHAT_ENABLED === 'true',
     },
+    // Delegated model choice (§ model switching): admins curate a registry of
+    // provider/model/endpoint combinations; regular users may ONLY pick among
+    // these. baseUrl/model are never accepted from user bodies for direct use,
+    // which prevents pointing the shared API key at arbitrary endpoints (SSRF /
+    // key-exfiltration). Seed from env or with one sensible OpenRouter default.
+    'provider.approved': {
+      models: parseApprovedModelsEnv() ?? [
+        {
+          id: 'openrouter-z-ai-glm-5.3-flash',
+          label: 'GLM 5.3 Flash (OpenRouter)',
+          baseUrl: 'https://openrouter.ai/api/v1',
+          model: 'z-ai/glm-5.3-flash',
+        },
+      ],
+    },
   };
+}
+
+function parseApprovedModelsEnv(): Array<Record<string, unknown>> | null {
+  const raw = process.env.PROVIDER_APPROVED_MODELS_JSON;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch { /* fall back to default list */ }
+  return null;
 }
 
 // OpenFGA bootstrap defaults (D-017). OpenFGA is a separate service; the app

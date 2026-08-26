@@ -1588,5 +1588,16 @@ textarea:focus {
 .chat-msg { max-width: 92%; padding: 0.5rem 0.75rem; border-radius: 8px; white-space: pre-wrap; word-break: break-word; }
 .chat-msg--user { align-self: flex-end; background: var(--accent, #2563eb); color: #fff; }
 .chat-msg--assistant { align-self: flex-start; background: var(--muted-bg, #f1f3f5); }
+/* Impact-focused tool feedback (Q3/Q4): outcome first, machinery collapsed. */
+.chat-impact { align-self: flex-start; max-width: 92%; font-size: 0.85rem; color: var(--text-dim, #666); padding: 0 0.25rem; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.chat-impact-details { display: inline-block; }
+.chat-impact-details summary { cursor: pointer; opacity: 0.7; list-style: none; text-decoration: underline dotted; font-size: 0.8em; }
+.chat-impact-details pre { margin: 0.35rem 0 0; padding: 0.5rem; background: var(--muted-bg, #f1f3f5); border-radius: 6px; overflow: auto; max-height: 10rem; font-size: 0.75rem; white-space: pre-wrap; word-break: break-all; }
+/* Collapsible model reasoning (Q1). */
+.chat-thinking { align-self: flex-start; max-width: 92%; font-size: 0.82rem; color: var(--text-dim, #666); border: 1px dashed var(--border, #ddd); border-radius: 8px; padding: 0.25rem 0.6rem; background: transparent; }
+.chat-thinking summary { cursor: pointer; user-select: none; }
+.chat-thinking pre { margin: 0.4rem 0 0.2rem; white-space: pre-wrap; word-break: break-word; max-height: 14rem; overflow: auto; }
+/* Header model picker (admin-delegated AI models). */
+.chat-model-select { border: 1px solid var(--border, #ddd); border-radius: 6px; background: transparent; color: inherit; font-size: 0.75rem; max-width: 11rem; padding: 2px 4px; }
 .chat-input-row { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; border-top: 1px solid var(--border, #ddd); }
 .chat-input-row input { flex: 1; padding: 0.5rem; border: 1px solid var(--border, #ddd); border-radius: 6px; }

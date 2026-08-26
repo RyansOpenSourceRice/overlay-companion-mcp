@@ -27,6 +27,11 @@ export interface ChatSessionOptions {
   userRole: string;
 }
 
+// Centralized fallbacks so admin-curated defaults can never silently drift
+// from the hard-coded last-resort values (OpenCodeReview finding).
+export const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
+export const DEFAULT_PROVIDER_MODEL = 'deepseek/deepseek-chat-v3-0324';
+
 const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Record<string, unknown> }> = [
   {
     name: 'draw_overlay',
@@ -212,9 +217,9 @@ export class InteriorChat {
     const provider = (await this.store.getConfig('provider.chat')) as Record<string, unknown> | null;
     return {
       mcpServerUrl: process.env.MCP_SERVER_URL || 'http://localhost:3001',
-      providerBaseUrl: (provider?.baseUrl as string) || 'https://openrouter.ai/api/v1',
+      providerBaseUrl: (provider?.baseUrl as string) || DEFAULT_PROVIDER_BASE_URL,
       providerApiKey: (provider?.apiKey as string) || process.env.PROVIDER_API_KEY || '',
-      providerModel: (provider?.model as string) || 'deepseek/deepseek-chat-v3-0324',
+      providerModel: (provider?.model as string) || DEFAULT_PROVIDER_MODEL,
       userRole: 'user',
     };
   }
@@ -267,6 +272,12 @@ export class InteriorChat {
             try {
               const chunk = JSON.parse(data);
               const choice = chunk.choices?.[0];
+              // Reasoning models stream their chain-of-thought in a separate
+              // delta; forward it so the panel can render a collapsible
+              // "thinking" block instead of losing it silently.
+              if (choice?.delta?.reasoning) {
+                yield JSON.stringify({ __thinking: choice.delta.reasoning });
+              }
               if (choice?.delta?.content) yield choice.delta.content;
               if (choice?.delta?.tool_calls) {
                 for (const tc of choice.delta.tool_calls) {

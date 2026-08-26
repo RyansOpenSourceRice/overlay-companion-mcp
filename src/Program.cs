@@ -136,9 +136,15 @@ public class Program
         }
 
         // Register core services
+        // Power management: SleepGate tracks input activity (auto-sleep after
+        // OC_IDLE_SLEEP_SECONDS, instant sleep via set_sleep tool) and gates
+        // screen captures; registered before ScreenCaptureService so DI hands
+        // it to the capture service. Input monitoring starts right after the
+        // host builds — see StartPowerManagement below.
+        builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
+        builder.Services.AddSingleton<ISleepGate, SleepGate>();
         builder.Services.AddSingleton<IScreenCaptureService, ScreenCaptureService>();
         builder.Services.AddSingleton<IOverlayService, OverlayService>();
-        builder.Services.AddSingleton<IInputMonitorService, InputMonitorService>();
         builder.Services.AddSingleton<IModeManager, ModeManager>();
         builder.Services.AddSingleton<ISessionStopService, SessionStopService>();
         builder.Services.AddSingleton<ISettingsService, SettingsService>();
@@ -206,6 +212,16 @@ public class Program
         });
 
         var app = builder.Build();
+
+        // Start input monitoring immediately: SleepGate uses its events both
+        // for idle detection and instant wake-on-input. See Services/SleepGate.cs.
+        var inputMonitor = app.Services.GetRequiredService<IInputMonitorService>();
+        var sleepGate = app.Services.GetRequiredService<ISleepGate>();
+        inputMonitor.StartMonitoring();
+        app.Logger.LogInformation(
+            "Power management armed: auto-sleep after {Seconds}s idle ({Asleep} currently).",
+            Environment.GetEnvironmentVariable("OC_IDLE_SLEEP_SECONDS") ?? "600",
+            sleepGate.IsAsleep);
 
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Starting Overlay Companion with Native HTTP Transport (Primary)...");

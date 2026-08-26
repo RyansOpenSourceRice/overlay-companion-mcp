@@ -30,6 +30,7 @@ export class ChatPanel {
       <div class="chat-header">
         <span class="chat-title">In-app assistant</span>
         <div class="chat-header-right">
+          <select id="chat-model" class="chat-model-select" title="AI model (choices approved by your admin)" aria-label="AI model"></select>
           <span class="chat-actor-badge" id="chat-actor-badge">owner: exterior</span>
           <button class="chat-close-btn" id="chat-close" aria-label="Close assistant" title="Close assistant">&times;</button>
         </div>
@@ -55,7 +56,61 @@ export class ChatPanel {
     });
 
     void this.loadTools();
+    void this.loadModels();
   }
+
+  private async loadModels(): Promise<void> {
+    const select = this.container.querySelector('#chat-model') as HTMLSelectElement | null;
+    if (!select) return;
+    try {
+      const res = await fetch('/api/chat/models', { credentials: 'include' });
+      if (!res.ok) { select.style.display = 'none'; return; }
+      const data = (await res.json()) as {
+        active: string;
+        default: { label: string; model: string };
+        models: Array<{ id: string; label?: string; model: string }>;
+      };
+      // With only the admin default there is nothing to choose; hide it and
+      // keep the header uncluttered.
+      if (!data.models?.length) { select.style.display = 'none'; return; }
+      select.innerHTML = '';
+      const def = document.createElement('option');
+      def.value = '';
+      def.textContent = data.default.label ?? 'Default';
+      select.appendChild(def);
+      for (const m of data.models) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.label || m.model;
+        select.appendChild(opt);
+      }
+      if (data.active && data.active !== 'default') select.value = data.active;
+      // Persist the choice server-side so it survives panel reopenings
+      // (per-user storage under /api/chat/models/select).
+      select.addEventListener('change', () => {
+        void fetch('/api/chat/models/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ modelId: select.value || undefined }),
+        }).catch(() => undefined);
+      });
+    } catch {
+      /* server unreachable; leave hidden */
+    }
+  }
+
+  /** Human "impact" phrasing per tool so users see outcomes, not plumbing. */
+  private static IMPACT: Record<string, string> = {
+    draw_overlay: 'Annotated your screen',
+    template_overlay: 'Annotated your screen',
+    take_screenshot: 'Looked at your screen',
+    get_display_info: 'Checked display layout',
+    set_display_actor: 'Switched who owns the canvas',
+    get_overlay_capabilities: 'Checked overlay support',
+    get_config: 'Read app configuration',
+    set_config: 'Updated app configuration',
+  };
 
   private async toggleMic(): Promise<void> {
     const micBtn = this.container.querySelector('#chat-mic') as HTMLButtonElement | null;
@@ -163,7 +218,7 @@ export class ChatPanel {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messages: this.history }),
+        body: JSON.stringify({ messages: this.history, modelId: (this.container.querySelector('#chat-model') as HTMLSelectElement | null)?.value || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
@@ -177,6 +232,8 @@ export class ChatPanel {
       let buffer = '';
       let assistantText = '';
       let bubble: HTMLElement | null = null;
+      let thinkingEl: HTMLElement | null = null;
+      let thinkingText = '';
       const ensureBubble = () => {
         if (!bubble) {
           bubble = document.createElement('div');
@@ -184,6 +241,33 @@ export class ChatPanel {
           this.messagesEl.appendChild(bubble);
         }
         return bubble;
+      };
+      const ensureThinking = () => {
+        if (!thinkingEl) {
+          thinkingEl = document.createElement('details');
+          thinkingEl.className = 'chat-thinking';
+          thinkingEl.appendChild(Object.assign(document.createElement('summary'), { textContent: 'Thinking…' }));
+          this.messagesEl.appendChild(thinkingEl);
+        }
+        return thinkingEl;
+      };
+      /** One compact "✔ impact" row per tool call; raw payload stays collapsed. */
+      const addImpact = (tool: string, resultJson: string) => {
+        const impact = ChatPanel.IMPACT[tool] ?? 'Applied your change';
+        const line = document.createElement('div');
+        line.className = 'chat-impact';
+        line.textContent = `✔ ${impact}`;
+        const details = document.createElement('details');
+        details.className = 'chat-impact-details';
+        const summary = document.createElement('summary');
+        summary.textContent = 'details';
+        const pre = document.createElement('pre');
+        pre.textContent = resultJson.slice(0, 600);
+        details.appendChild(summary);
+        details.appendChild(pre);
+        line.appendChild(details);
+        this.messagesEl.appendChild(line);
+        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
       };
       while (true) {
         const { done, value } = await reader.read();
@@ -197,18 +281,32 @@ export class ChatPanel {
             const payload = line.slice(5).trim();
             if (!payload) continue;
             try {
-              const parsed = JSON.parse(payload) as { text?: string; tool?: string; result?: string; error?: string };
+              const parsed = JSON.parse(payload) as { text?: string; tool?: string; result?: string; error?: string; thinking?: string };
               if (parsed.error) {
                 ensureBubble().textContent = `Error: ${parsed.error}`;
+              } else if (parsed.thinking) {
+                // Collapsible reasoning (issue #1): short header by default so
+                // it never pushes the conversation out of view.
+                thinkingText += parsed.thinking;
+                const t = ensureThinking() as HTMLDetailsElement & { _pre?: HTMLElement };
+                if (!t._pre) {
+                  t._pre = document.createElement('pre');
+                  t._pre.style.whiteSpace = 'pre-wrap';
+                  t.appendChild(t._pre);
+                }
+                if (!t.open) t.open = false;
+                t._pre.textContent = thinkingText;
+                t.querySelector('summary')!.textContent =
+                  `Thinking (${Math.min(Math.round(thinkingText.length / 4), 999)} tokens)…`;
               } else if (parsed.text) {
                 assistantText += parsed.text;
                 ensureBubble().textContent = assistantText;
+                this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
               } else if (parsed.tool) {
+                // Issue #3/#4: show the effect, not the machinery. The raw
+                // result is one click away under 'details'.
                 const result = typeof parsed.result === 'string' ? parsed.result : JSON.stringify(parsed.result);
-                const toolLine = document.createElement('div');
-                toolLine.className = 'chat-tool-call';
-                toolLine.textContent = `⚙ ${parsed.tool}: ${result.slice(0, 120)}`;
-                this.messagesEl.appendChild(toolLine);
+                addImpact(parsed.tool, result ?? '');
               }
             } catch {
               /* ignore non-JSON SSE */

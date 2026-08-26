@@ -18,6 +18,14 @@ public interface IInputMonitorService
     void StartMonitoring();
     void StopMonitoring();
     bool IsMonitoring { get; }
+    /// <summary>
+    /// Adjust the position-poll cadence at runtime. Each tick spawns a helper
+    /// process (wlrctl/hyprctl), so idle periods should poll slowly: power
+    /// management (SleepGate) slows this down while the user is away.
+    /// </summary>
+    void SetPollingIntervalMs(int intervalMs);
+    /// <summary>Current cadence so SleepGate can restore the exact pre-sleep value (honors OC_INPUT_POLL_MS).</summary>
+    int PollingIntervalMs { get; }
     ScreenPoint GetCurrentMousePosition();
     Task<bool> SimulateClickAsync(ScreenPoint position, string button = "left", int clicks = 1);
     Task<bool> SimulateTypingAsync(string text, int typingSpeedWpm = 60);
@@ -33,17 +41,45 @@ public class InputMonitorService : IInputMonitorService
     private bool _isMonitoring;
     private Timer? _mouseTimer;
     private ScreenPoint _lastMousePosition = new(0, 0);
-    private readonly int _pollingIntervalMs;
+    // Mutable: SleepGate lowers this to a heartbeat while asleep and restores
+    // it on wake (SetPollingIntervalMs).
+    private int _pollingIntervalMs;
 
     public event EventHandler<InputEvent>? MouseMoved;
     public event EventHandler<InputEvent>? MouseClicked;
     public event EventHandler<InputEvent>? KeyPressed;
 
     public bool IsMonitoring => _isMonitoring;
+    public int PollingIntervalMs => _pollingIntervalMs;
 
-    public InputMonitorService(int pollingIntervalMs = 50) // 20 FPS default
+    public InputMonitorService(int pollingIntervalMs = 250)
     {
+        // Each tick spawns a helper process (see GetCursorPositionFromSystem),
+        // so the default cadence is deliberately modest: 250ms gives responsive
+        // activity detection without burning 20 process spawns per second for
+        // hours. Override with OC_INPUT_POLL_MS.
+        if (int.TryParse(Environment.GetEnvironmentVariable("OC_INPUT_POLL_MS"), out var ms) && ms >= 50)
+        {
+            pollingIntervalMs = ms;
+        }
         _pollingIntervalMs = pollingIntervalMs;
+    }
+
+    private readonly object _timerLock = new();
+
+    /// <inheritdoc />
+    public void SetPollingIntervalMs(int intervalMs)
+    {
+        if (intervalMs < 50 || intervalMs == _pollingIntervalMs) return;
+        lock (_timerLock)
+        {
+            if (!(_isMonitoring && _mouseTimer != null)) return;
+            // Recreate the timer so the new cadence takes effect immediately
+            // while keeping monitoring state.
+            _mouseTimer.Dispose();
+            _mouseTimer = new Timer(CheckMousePosition, null, 0, intervalMs);
+        }
+        _pollingIntervalMs = intervalMs;
     }
 
     public void StartMonitoring()
