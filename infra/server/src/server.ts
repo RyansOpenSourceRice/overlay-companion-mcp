@@ -127,10 +127,6 @@ const app = express();
 // proxy hop count or address(es). See .env.example.
 app.set('trust proxy', process.env.TRUST_PROXY || 'loopback');
 
-// TEMP: log all requests to see if upgrades go through Express
-app.use(((req: Request, _res: Response, next: NextFunction) => {
-  next();
-}) as RequestHandler);
 const server = http.createServer(app);
 const connectionManager = new ConnectionManager();
 
@@ -1700,7 +1696,7 @@ const kasmVncProxy = createProxyMiddleware({
     const auth = kasmvncBasicAuth(target);
     if (auth) proxyReq.setHeader('Authorization', auth);
   },
-onProxyReqWs: (proxyReq, req) => {
+  onProxyReqWs: (proxyReq, req) => {
     const target = (req as unknown as { __kasmvncTarget?: KasmVncResolvedTarget }).__kasmvncTarget;
     const auth = kasmvncBasicAuth(target);
     if (auth) proxyReq.setHeader('Authorization', auth);
@@ -1800,26 +1796,38 @@ server.on('upgrade', (req, socket, head) => {
   // header names (Node's setHeader), but KasmVNC's websockify requires uppercase
   // `Host`. The raw TLS path also avoids the response-handling race in
   // http-proxy's ws-incoming.js that can swallow 101 responses.
+  // Mirror the HTTP proxy's pathRewrite: root-level /websockify passes
+  // through; /vnc/<id>/... loses its prefix so KasmVNC sees /websockify etc.
+  const upstreamPath = url.startsWith('/websockify')
+    ? url
+    : ((/^(\/vnc)?\/[^/]+(\/.*)?$/.exec(url)?.[2]) || '/');
+
   const auth = kasmvncBasicAuth(target);
   const wsKey = (req.headers['sec-websocket-key'] as string) || crypto.randomBytes(16).toString('base64');
-  const wsProtocol = (req.headers['sec-websocket-protocol'] as string) || 'binary';
-  const wsOrigin = (req.headers['origin'] as string) || 'http://localhost';
   const wsExt = req.headers['sec-websocket-extensions'] as string | undefined;
+  // Forward client headers verbatim; fall back only where the upstream
+  // genuinely requires a value (KasmVNC's websockify rejects requests without
+  // Sec-WebSocket-Origin), deriving it from the caller's Host rather than a
+  // fabricated constant.
+  const wsOrigin = (req.headers['origin'] as string) || `https://${req.headers.host || 'localhost'}`;
   const upstreamReqHeaders: Record<string, string> = {
     'Host': `${target.host}:${target.port}`,
     'Upgrade': 'websocket',
     'Connection': 'Upgrade',
     'Sec-WebSocket-Key': wsKey,
     'Sec-WebSocket-Version': '13',
-    'Sec-WebSocket-Protocol': wsProtocol,
     'Origin': wsOrigin,
   };
+  const wsProtocol = req.headers['sec-websocket-protocol'] as string | undefined;
+  if (wsProtocol) upstreamReqHeaders['Sec-WebSocket-Protocol'] = wsProtocol;
   if (auth) upstreamReqHeaders['Authorization'] = auth;
   if (wsExt) upstreamReqHeaders['Sec-WebSocket-Extensions'] = wsExt;
-  const upstream = https.request({
+  // Respect the target's scheme — plain-HTTP KasmVNC deployments must not get
+  // a TLS handshake. (TLS verification matches the HTTP proxy's secure:false.)
+  const upstream = (target.ssl ? https : http).request({
     hostname: target.host,
     port: target.port,
-    path: url,
+    path: upstreamPath,
     method: 'GET',
     rejectUnauthorized: false,
     headers: upstreamReqHeaders,
@@ -1830,8 +1838,10 @@ server.on('upgrade', (req, socket, head) => {
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
       .join('\r\n');
     socket.write(`HTTP/1.1 101 Switching Protocols\r\n${respHeaders}\r\n\r\n`);
-    // Pipe data bidirectionally
+    // Pipe data bidirectionally; forward any early-data buffers from BOTH
+    // sides so pipelined first frames aren't dropped mid-handshake.
     if (proxyHead && proxyHead.length) proxySocket.write(proxyHead);
+    if (head && head.length) proxySocket.write(head);
     proxySocket.pipe(socket).pipe(proxySocket);
     proxySocket.on('error', () => socket.destroy());
     socket.on('error', () => proxySocket.destroy());
@@ -1839,12 +1849,13 @@ server.on('upgrade', (req, socket, head) => {
     socket.on('close', () => proxySocket.destroy());
   });
   upstream.on('response', (res) => {
-    // Non-101 response: forward to client
+    // Non-101 response: forward to client and close the raw socket once done.
     const respHeaders = Object.entries(res.headers)
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
       .join('\r\n');
     socket.write(`HTTP/1.1 ${res.statusCode} ${res.statusMessage}\r\n${respHeaders}\r\n\r\n`);
     res.pipe(socket);
+    res.on('end', () => socket.end());
   });
   upstream.on('error', (err) => {
     socket.destroy();
