@@ -142,7 +142,7 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
       "Switch your operational mode. If any state-changing tool (draw_overlay, template_overlay, set_display_actor, ...) returns an error mentioning 'Passive mode', call this once with mode='assist' and then retry the blocked tool.",
     parameters: {
       type: 'object',
-      properties: { mode: { type: 'string', enum: ['passive', 'assist', 'autopilot', 'composing'] } },
+      properties: { mode: { type: 'string', enum: ['passive', 'assist', 'autopilot', 'composing', 'custom'] } },
       required: ['mode'],
     },
   },
@@ -351,6 +351,79 @@ export class InteriorChat {
     // provider's call id; '__call__' fallback when ids are omitted).
     const pendingTools = new Map<string, { id: string; name: string; rawArgs: string }>();
 
+    // Some models (Qwen via certain OpenRouter routes) ignore the native
+    // function-calling channel and emit Hermes-style <tool_call> XML inline in
+    // their reasoning/text. We: (a) stream user-visible output EXCLUDING those
+    // blocks using an incremental cursor, (b) convert them into real tool
+    // calls at finish if no native ones arrived.
+    let thinkingAcc = '';
+    let thinkingCursor = 0;
+    let textAcc = '';
+    let textCursor = 0;
+    let hermesUsed = false;
+
+    type HermesCall = { id: string; name: string; arguments: Record<string, unknown> };
+
+    function extractHermesCalls(): HermesCall[] {
+      const calls: HermesCall[] = [];
+      const re = /<tool_call>([\s\S]*?)<\/tool_call>/g;
+      for (const acc of [thinkingAcc, textAcc]) {
+        for (const m of acc.matchAll(re)) {
+          const inner = m[1].trim();
+          let name = '';
+          let args: Record<string, unknown> = {};
+          try {
+            const asJson = JSON.parse(inner) as Record<string, any>;
+            name = String(asJson.name ?? asJson?.function?.name ?? '');
+            args = asJson.arguments ?? asJson.parameters ?? asJson?.function?.arguments ?? {};
+          } catch { /* attribute syntax */ }
+          if (!name) {
+            const fn = /<function=([A-Za-z0-9_.-]+)>/.exec(inner);
+            name = fn?.[1] ?? '';
+            const b1 = inner.indexOf('{');
+            const b2 = inner.lastIndexOf('}');
+            if (b1 !== -1 && b2 > b1) {
+              try { args = JSON.parse(inner.slice(b1, b2 + 1)); } catch { args = {}; }
+            }
+          }
+          if (name) calls.push({ id: randomUUID(), name, arguments: (args && typeof args === 'object') ? args : {} });
+        }
+      }
+      return calls;
+    }
+
+    /**
+     * Incremental pass-through of `acc` from `cursor`, withholding anything
+     * inside (or partially opened as) a <tool_call> block. Returns the new
+     * cursor along with text that is safe to show right now.
+     */
+    function nextVisible(acc: string, cursor: number): { cursor: number; visible: string } {
+      let out = '';
+      let pos = cursor;
+      while (pos < acc.length) {
+        const open = acc.indexOf('<tool_call>', pos);
+        if (open === -1) {
+          // Hold back a trailing partial '<to', '<too' ... prefix of '<tool_call>'.
+          for (let k = Math.min(10, acc.length - pos); k > 0; k--) {
+            if ('<tool_call>'.startsWith(acc.slice(acc.length - k))) {
+              out += acc.slice(pos, acc.length - k);
+              return { cursor: acc.length - k, visible: out };
+            }
+          }
+          out += acc.slice(pos);
+          pos = acc.length;
+        } else if (open === pos) {
+          const close = acc.indexOf('</tool_call>', open + 11);
+          if (close === -1) break; // still open; stop streaming this channel
+          pos = close + 12;
+        } else {
+          out += acc.slice(pos, open);
+          pos = open;
+        }
+      }
+      return { cursor: pos, visible: out };
+    }
+
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -370,9 +443,17 @@ export class InteriorChat {
               // delta; forward it so the panel can render a collapsible
               // "thinking" block instead of losing it silently.
               if (choice?.delta?.reasoning) {
-                yield JSON.stringify({ __thinking: choice.delta.reasoning });
+                thinkingAcc += choice.delta.reasoning;
+                const r = nextVisible(thinkingAcc, thinkingCursor);
+                thinkingCursor = r.cursor;
+                if (r.visible) yield JSON.stringify({ __thinking: r.visible });
               }
-              if (choice?.delta?.content) yield choice.delta.content;
+              if (choice?.delta?.content) {
+                textAcc += choice.delta.content;
+                const r = nextVisible(textAcc, textCursor);
+                textCursor = r.cursor;
+                if (r.visible) yield r.visible;
+              }
               if (choice?.delta?.tool_calls) {
                 for (const tc of choice.delta.tool_calls) {
                   // Provider-streamed tool calls arrive as FRAGMENTS sharing
@@ -402,6 +483,13 @@ export class InteriorChat {
                   toolCalls.push({ id: staged.id || randomUUID(), name: staged.name, arguments: args });
                 }
                 pendingTools.clear();
+                if (toolCalls.length === 0 && !hermesUsed) {
+                  // Model bypassed the native channel; salvage inline blocks.
+                  for (const hc of extractHermesCalls()) {
+                    toolCalls.push({ id: hc.id, name: hc.name, arguments: hc.arguments });
+                  }
+                  hermesUsed = true;
+                }
                 if (toolCalls.length > 0) {
                   yield JSON.stringify({ __tool_calls: toolCalls });
                   toolCalls = [];
@@ -413,6 +501,12 @@ export class InteriorChat {
           }
         }
       }
+      const tailT = nextVisible(textAcc, textCursor);
+      textCursor = tailT.cursor;
+      if (tailT.visible) yield tailT.visible;
+      const tailK = nextVisible(thinkingAcc, thinkingCursor);
+      thinkingCursor = tailK.cursor;
+      if (tailK.visible) yield JSON.stringify({ __thinking: tailK.visible });
     } finally {
       reader.releaseLock();
     }

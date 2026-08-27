@@ -42,6 +42,31 @@ interface OverlayCommand {
   label?: string;
 }
 
+// Overlay shape as broadcast by the MCP server via the management WS relay.
+interface RemoteOverlay {
+  id: string | number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  bounds?: { x: number; y: number; width: number; height: number };
+  color?: string;
+  opacity?: number;
+  template?: string | null;
+}
+
+/** Accepts either a flat or C#-style bounds-nested overlay description. */
+function overlayGeometry(o: RemoteOverlay): { x: number; y: number; width: number; height: number } {
+  const b = o.bounds;
+  return b
+    ? { x: Number(b.x) || 0, y: Number(b.y) || 0, width: Number(b.width) || 0, height: Number(b.height) || 0 }
+    : { x: Number(o.x) || 0, y: Number(o.y) || 0, width: Number(o.width) || 0, height: Number(o.height) || 0 };
+}
+
+// Logical display size overlays are authored against (matches the VM's
+// resolution; get_display_info reports the same values).
+const OVERLAY_DISPLAY = { width: 1920, height: 1080 };
+
 interface ToastType {
   success: string;
   error: string;
@@ -701,6 +726,7 @@ class OverlayCompanionApp {
 
     overlayContainer.innerHTML = '';
     overlayContainer.appendChild(canvas);
+    window.addEventListener('resize', () => this.renderRemoteOverlays());
 
     // Setup WebSocket for overlay commands
     this.setupOverlayWebSocket();
@@ -723,10 +749,12 @@ class OverlayCompanionApp {
 
       this.websocket.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data) as OverlayCommand;
-          this.handleOverlayCommand(data);
+          const data = JSON.parse(event.data) as { type: string; payload?: Record<string, unknown> };
+          if (data.type === 'overlay_broadcast' && data.payload) {
+            this.handleRemoteOverlay(data.payload);
+          }
         } catch (error) {
-          console.error('Failed to parse overlay command:', error);
+          console.error('Failed to parse overlay message:', error);
         }
       };
 
@@ -745,22 +773,68 @@ class OverlayCompanionApp {
     }
   }
 
-  handleOverlayCommand(command: OverlayCommand): void {
+  // Current overlay set; redrawn on every change AND on window resize so
+  // annotations stay pinned to desktop coordinates while elements move.
+  private remoteOverlays: RemoteOverlay[] = [];
+
+  handleRemoteOverlay(payload: Record<string, unknown>): void {
+    const action = String(payload.action ?? '');
+    switch (action) {
+      case 'create':
+        if (payload.overlay) this.remoteOverlays.push(payload.overlay as unknown as RemoteOverlay);
+        break;
+      case 'remove':
+        this.remoteOverlays = this.remoteOverlays.filter((o) => String(o.id) !== String(payload.id));
+        break;
+      case 'clear':
+        this.remoteOverlays = [];
+        break;
+      case 'state':
+        this.remoteOverlays = (payload.overlays as unknown as RemoteOverlay[]) ?? [];
+        break;
+      default:
+        return;
+    }
+    this.renderRemoteOverlays();
+  }
+
+  renderRemoteOverlays(): void {
     const canvas = document.getElementById('overlay-canvas') as HTMLCanvasElement | null;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    switch (command.type) {
-      case 'create_overlay':
-        this.drawOverlay(ctx, command);
-        break;
-      case 'clear_overlays':
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        break;
-      default:
-        console.log('Unknown overlay command:', command.type);
+    // Size backing store to actual element pixels for crisp scaling.
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width));
+    canvas.height = Math.max(1, Math.floor(rect.height));
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const sx = canvas.width / OVERLAY_DISPLAY.width;
+    const sy = canvas.height / OVERLAY_DISPLAY.height;
+
+    for (const o of this.remoteOverlays) {
+      ctx.save();
+      ctx.fillStyle = o.color ?? '#ffff00';
+      ctx.globalAlpha = o.opacity ?? 0.5;
+      const g = overlayGeometry(o);
+      const isCircle = o.template === 'circle' ||
+        Math.abs(g.width - g.height) < Math.max(g.width, g.height) * 0.05 && g.width > 0;
+      const w = g.width * sx;
+      const h = g.height * sy;
+      const x = g.x * sx;
+      const y = g.y * sy;
+      if (isCircle) {
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+        ctx.lineWidth = Math.max(3, Math.min(w, h) * 0.08);
+        ctx.strokeStyle = o.color ?? '#ffff00';
+        ctx.stroke();
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, w, h);
+      }
+      ctx.restore();
     }
   }
 

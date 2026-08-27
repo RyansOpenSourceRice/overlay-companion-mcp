@@ -430,6 +430,9 @@ if (config.mcpWsEnabled) {
       }),
     );
 
+    // Late joiners must see overlays already on screen.
+    sendOverlayState(ws);
+
     // Handle messages from client
     ws.on('message', (data: WebSocket.RawData) => {
       try {
@@ -474,6 +477,88 @@ if (config.mcpWsEnabled) {
   });
 
   log.info(`WebSocket server enabled on path /ws`);
+}
+
+// --- MCP -> browser overlay relay -------------------------------------
+// The C# MCP server broadcasts overlay lifecycle events on its
+// /ws/overlays WebSocket. Until now nothing subscribed, so overlays that
+// reported success never reached any renderer. This client bridges those
+// events onto the browser-facing /ws channel and keeps a current-state list
+// so late-joining pages get an instant sync_state.
+let activeOverlays: Array<Record<string, unknown>> = [];
+let mcpOverlayWs: WebSocket | null = null;
+const MCP_OVERLAY_RECONNECT_MS = 3000;
+
+function pushToBrowsers(type: string, payload: Record<string, unknown>): void {
+  const message = JSON.stringify({ type, payload, timestamp: new Date().toISOString() });
+  for (const client of overlayClients) {
+    if (client.readyState === WebSocket.OPEN) client.send(message);
+  }
+}
+
+// Normalize the C# internal OverlayElement (nested bounds, camelCase) into
+// the flat snake_case shape the browser renderer expects.
+function normalizeOverlay(el: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!el) return el ?? {};
+  const b = (el.bounds ?? {}) as Record<string, unknown>;
+  return {
+    id: String(el.id ?? ''),
+    x: Number(b.x ?? el.x ?? 0),
+    y: Number(b.y ?? el.y ?? 0),
+    width: Number(b.width ?? el.width ?? 0),
+    height: Number(b.height ?? el.height ?? 0),
+    color: el.color ?? '#ffff00',
+    opacity: typeof el.opacity === 'number' ? el.opacity : 0.5,
+    template: el.template ?? null,
+  };
+}
+
+function startMcpOverlayBridge(mcpUrl: string): void {
+  if (!mcpUrl || mcpOverlayWs) return;
+  try {
+    mcpOverlayWs = new WebSocket(`${mcpUrl.replace(/\/$/, '')}/ws/overlays`);
+  } catch { mcpOverlayWs = null; return; }
+
+  const ws = mcpOverlayWs;
+  ws.on('open', () => log.info('Overlay bridge connected to MCP server'));
+  ws.on('message', (data: WebSocket.RawData) => {
+    let evt: Record<string, unknown>;
+    try { evt = JSON.parse(data.toString()) as Record<string, unknown>; } catch { return; }
+    switch (evt.type) {
+      case 'sync_state':
+        activeOverlays = ((evt.overlays as Array<Record<string, unknown>>) ?? []).map(normalizeOverlay);
+        break;
+      case 'overlay_created': {
+        const ov = normalizeOverlay(evt.overlay as Record<string, unknown>);
+        activeOverlays.push(ov);
+        pushToBrowsers('overlay_broadcast', { action: 'create', overlay: ov, total: activeOverlays.length });
+        break;
+      }
+      case 'overlay_removed': {
+        activeOverlays = activeOverlays.filter((o) => o.id !== evt.overlay_id);
+        pushToBrowsers('overlay_broadcast', { action: 'remove', id: evt.overlay_id });
+        break;
+      }
+      case 'clear_overlays':
+        activeOverlays = [];
+        pushToBrowsers('overlay_broadcast', { action: 'clear' });
+        break;
+    }
+  });
+  ws.on('close', () => {
+    mcpOverlayWs = null;
+    setTimeout(() => startMcpOverlayBridge(mcpUrl), MCP_OVERLAY_RECONNECT_MS);
+  });
+  ws.on('error', () => { /* close handler reconnects */ });
+}
+
+// A page connecting mid-session should immediately learn what is on screen.
+function sendOverlayState(ws: WebSocket): void {
+  ws.send(JSON.stringify({
+    type: 'overlay_broadcast',
+    payload: { action: 'state', overlays: activeOverlays },
+    timestamp: new Date().toISOString(),
+  }));
 }
 
 // Broadcast overlay command to all connected clients
@@ -1153,7 +1238,7 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
         `If the user asks for any overlay/drawing and either the owner below is not 'interior' or a tool errors mentioning Passive mode, do this first in order: set_mode {mode:"assist"}, set_display_actor {actor:"interior"}, then the draw call. Current display owner: ${activeActor}; you may switch ownership yourself via set_display_actor. Only retry an overlay once after fixing mode/ownership.`,
-        `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         role === 'admin'
           ? `You are an admin: set_config lets you change app settings via chat.`
@@ -1190,6 +1275,10 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
 
       if (toolCalls.length === 0) break;
 
+      if (turn === MAX_TOOL_TURNS - 1) {
+        res.write(`data: ${JSON.stringify({ error: 'Reached the per-message tool round limit before finishing the task.' })}\n\n`);
+        break;
+      }
       // Execute each tool, append the tool results as assistant + tool messages.
       const toolResults: Array<Record<string, unknown>> = [];
       for (const tc of toolCalls) {
@@ -1207,10 +1296,6 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
         }
         toolResults.push({ role: 'tool', tool_call_id: tc.id, content: result });
         res.write(`data: ${JSON.stringify({ tool: tc.name, result })}\n\n`);
-      }
-      if (turn === MAX_TOOL_TURNS - 1) {
-        res.write(`data: ${JSON.stringify({ error: 'Reached the per-message tool round limit before finishing the task.' })}\n\n`);
-        break;
       }
       currentMessages = [
         ...currentMessages,
@@ -2296,5 +2381,6 @@ server.listen(config.httpPort, config.bindAddress, () => {
   log.info(`📍 HTTP server: http://${config.bindAddress}:${config.httpPort}`);
   log.info(`🔌 WebSocket: ${config.mcpWsEnabled ? 'enabled' : 'disabled'} on /ws`);
   log.info(`🌍 Environment: ${config.nodeEnv}`);
+  startMcpOverlayBridge(config.mcpServerUrl);
   log.info(`📊 Health check: http://${config.bindAddress}:${config.httpPort}/health`);
 });

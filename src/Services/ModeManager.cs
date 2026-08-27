@@ -111,7 +111,9 @@ public class ModeManager : IModeManager
             "set_clipboard",
             "get_clipboard",
             "take_screenshot",
+            "batch_overlay",
             "draw_overlay",
+            "batch_overlay",
             "remove_overlay",
             "set_display_actor"
         };

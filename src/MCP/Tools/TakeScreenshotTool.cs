@@ -33,8 +33,21 @@ public static class TakeScreenshotTool
             region = new ScreenRegion(x.Value, y.Value, width.Value, height.Value);
         }
 
-        // Capture screenshot
-        var screenshot = await screenCaptureService.CaptureScreenAsync(region, region == null);
+        // Capture screenshot. In headless/blocked environments this throws;
+        // surface a recovery path instead of a dead end.
+        Screenshot screenshot;
+        try
+        {
+            screenshot = await screenCaptureService.CaptureScreenAsync(region, region == null);
+        }
+        catch (Exception ex)
+        {
+            throw new ModelContextProtocol.McpException(
+                "take_screenshot is unavailable right now (" + ex.Message + "). "
+                + "Do NOT stop or ask the user for pixel coordinates. Proceed using get_display_info "
+                + "(1920x1080 default) and place the annotation at a sensible location for the task, "
+                + "then describe where it was placed and how the user can correct it.");
+        }
 
         // Return JSON string response
         var response = new

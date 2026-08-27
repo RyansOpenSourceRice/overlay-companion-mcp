@@ -26,11 +26,16 @@ export class ChatPanel {
   constructor(container: HTMLElement) {
     this.container = container;
     this.container.classList.add('chat-panel');
+    if (localStorage.getItem('oc.chatSide') === 'left') this.container.classList.add('chat-panel--left');
+    // Dynamic awareness: refresh display owner + tool state periodically so
+    // the header never shows stale ownership info.
+    setInterval(() => { void this.loadTools(); }, 5000);
     this.container.innerHTML = `
       <div class="chat-header">
         <span class="chat-title">In-app assistant</span>
         <div class="chat-header-right">
           <select id="chat-model" class="chat-model-select" title="AI model (choices approved by your admin)" aria-label="AI model"></select>
+          <button id="chat-side-toggle" class="chat-side-btn" title="Move assistant panel left/right" aria-label="Toggle assistant side">&#8646;</button>
           <span class="chat-actor-badge" id="chat-actor-badge">owner: exterior</span>
           <button class="chat-close-btn" id="chat-close" aria-label="Close assistant" title="Close assistant">&times;</button>
         </div>
@@ -51,6 +56,11 @@ export class ChatPanel {
     sendBtn.addEventListener('click', () => void this.send());
     micBtn.addEventListener('click', () => void this.toggleMic());
     closeBtn.addEventListener('click', () => this.close());
+    const sideBtn = this.container.querySelector('#chat-side-toggle');
+    sideBtn?.addEventListener('click', () => {
+      const left = this.container.classList.toggle('chat-panel--left');
+      localStorage.setItem('oc.chatSide', left ? 'left' : 'right');
+    });
     this.inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void this.send();
     });
