@@ -1,0 +1,63 @@
+/**
+ * R13/R14 — Screen Mirror.
+ *
+ * The management container is headless: C# take_screenshot cannot capture a
+ * real desktop. But the desktop page runs the KasmVNC client in a same-origin
+ * iframe, so its framebuffer canvas is readable in JS. This store keeps the
+ * freshest downscaled JPEG frames captured by the page:
+ *
+ *   frame   – what the screen looked like at last capture (input-driven or
+ *             interval-driven; the page decides and tags it)
+ *   preview – a composed frame showing where a candidate overlay WOULD land
+ *             (ghost rendering) for the optional preview feature
+ *
+ * Frames are volatile memory with a tiny ring buffer so `see_screen` always
+ * returns something recent and cheap.
+ */
+
+export interface MirrorFrame {
+  dataUrl: string;         // image/jpeg base64 data URL
+  width: number;
+  height: number;
+  displayWidth: number;    // logical guest resolution at capture time
+  displayHeight: number;
+  trigger: 'interval' | 'input' | 'manual' | 'preview' | 'connect';
+  cadenceMs?: number;
+  capturedAt: number;      // epoch ms
+}
+
+const MAX_FRAMES = 12;
+
+const frames: MirrorFrame[] = [];
+let latestPreview: MirrorFrame | null = null;
+
+export function pushFrame(frame: MirrorFrame): void {
+  frames.push(frame);
+  if (frames.length > MAX_FRAMES) frames.shift();
+}
+
+export function latestFrame(): MirrorFrame | null {
+  return frames.length > 0 ? frames[frames.length - 1] : null;
+}
+
+export function frameAgeMs(): number | null {
+  const l = latestFrame();
+  return l ? Date.now() - l.capturedAt : null;
+}
+
+export function pushPreview(frame: MirrorFrame): void {
+  latestPreview = frame;
+}
+
+export function currentPreview(): MirrorFrame | null {
+  return latestPreview;
+}
+
+/**
+ * Control-channel hook. server.ts binds this to the browser-facing /ws
+ * broadcast so chat tools can retune page-side mirroring without importing
+ * socket internals here.
+ */
+export const mirrorControl: { send: ((payload: Record<string, unknown>) => void) | null } = {
+  send: null,
+};

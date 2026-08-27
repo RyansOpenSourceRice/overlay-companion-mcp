@@ -1,4 +1,5 @@
 import type { LibSqlStore } from './libsql-store.js';
+import { latestFrame, currentPreview, mirrorControl } from './screen-mirror.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -147,6 +148,43 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     },
   },
   {
+    // R14: the model controls its OWN view cadence — arbitrary milliseconds,
+    // not presets. Tighten while placing/moving overlays; relax afterwards.
+    name: 'set_screen_updates',
+    description:
+      'Change how often your screen view refreshes. cadenceMs in milliseconds (500..1800000), or 0 for input-triggered-only updates, or -1 to disable mirroring entirely. Strategy: use 1000-2000 while locating targets or verifying placements, then relax to 30000+ when idle so you always see current state without wasting context.',
+    parameters: {
+      type: 'object',
+      properties: { cadenceMs: { type: 'integer', description: 'Refresh interval in ms (500..1800000); 0 = only on user input; -1 = off' } },
+      required: ['cadenceMs'],
+    },
+  },
+  {
+    // Served locally: reads the browser-captured framebuffer (see
+    // screen-mirror.ts) and returns it as an image message so vision-capable
+    // models can actually SEE the user's screen.
+    name: 'see_screen',
+    description:
+      'Look at what is currently on the screen (real pixels, captured by the browser). Use this BEFORE placing overlays, to verify placement afterwards, or whenever asked what you can see. Returns an image plus metadata.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    // Served locally: composes a ghost preview over the mirrored frame so you
+    // can check a candidate annotation WITHOUT showing it to the user yet.
+    name: 'preview_overlay',
+    description:
+      "Ghost-preview where an overlay WOULD appear: renders your candidate coordinates semi-transparently on the last screen capture. Nothing reaches the user until you call template_overlay/draw_overlay. Use when unsure about placement.",
+    parameters: {
+      type: 'object',
+      properties: {
+        x: { type: 'integer' }, y: { type: 'integer' },
+        width: { type: 'integer' }, height: { type: 'integer' },
+        color: { type: 'string' },
+      },
+      required: ['x', 'y', 'width', 'height'],
+    },
+  },
+  {
     name: 'set_display_actor',
     description: 'Switch which agent owns the display for drawing overlays: interior (this assistant) or exterior (external MCP agent).',
     parameters: { type: 'object', properties: { actor: { type: 'string', enum: ['interior', 'exterior'] } }, required: ['actor'] },
@@ -155,6 +193,13 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     name: 'get_overlay_capabilities',
     description: 'List overlay engine capabilities and template catalog.',
     parameters: { type: 'object', properties: {} },
+  },
+  {
+    // R15 adjustability: annotations are editable — delete and redraw anywhere.
+    name: 'remove_overlay',
+    description:
+      'Remove one of YOUR existing overlays by id (from a previous template_overlay/draw_overlay result). Combine with a new draw call to MOVE or RESIZE an annotation. Never remove overlays you did not create.',
+    parameters: { type: 'object', properties: { overlayId: { type: 'string' } }, required: ['overlayId'] },
   },
   // Admin-only config tools (B3): the interior assistant can configure the app
   // via chat when the user is an admin. Server enforces the role, not the model.
@@ -206,6 +251,12 @@ const MCP_TOOL_ARG_MAP: Record<string, (args: Record<string, unknown>) => Record
   get_display_info: () => ({}),
   set_display_actor: (a) => ({ actor: a.actor }),
   set_mode: (a) => ({ mode: a.mode }),
+  remove_overlay: (a) => ({ overlay_id: a.overlayId ?? a.overlay_id }),
+  re_anchor_element: (a) => ({
+    overlay_id: a.overlayId ?? a.overlay_id,
+    anchor_selector: a.selector,
+    dx: a.dx, dy: a.dy,
+  }),
   get_overlay_capabilities: () => ({}),
 };
 
@@ -299,6 +350,8 @@ function parseMcpResult(raw: string): unknown {
 
 export class InteriorChat {
   private store: LibSqlStore;
+  /** Vision parts queued by see_screen / preview_overlay for this turn. */
+  pendingVision?: Array<Record<string, unknown>>;
 
   constructor(store: LibSqlStore) {
     this.store = store;
@@ -532,6 +585,79 @@ export class InteriorChat {
     }
     if (call.name === 'switch_ai_model') {
       return await this.switchModelLocal(opts, call.arguments);
+    }
+
+    if (call.name === 'see_screen') {
+      const f = latestFrame();
+      if (!f) {
+        return JSON.stringify({
+          error: 'no_capture_yet',
+          message:
+            'The screen mirror has not captured anything yet (feature disabled or desktop page never connected). Ask the user to enable screen mirroring, or proceed with estimated coordinates from get_display_info.',
+        });
+      }
+      const ageS = Math.round((Date.now() - f.capturedAt) / 1000);
+      // Attach the image as an extra user-side content part so vision models
+      // genuinely see it; text result explains what it is.
+      (this as unknown as { pendingVision?: Array<unknown> }).pendingVision =
+        [{ type: 'image_url', image_url: { url: f.dataUrl }, note: `screen@${ageS}s ago` }];
+      return JSON.stringify({
+        seen: true,
+        capturedSecondsAgo: ageS,
+        display: `${f.displayWidth}x${f.displayHeight}`,
+        trigger: f.trigger,
+        note:
+          "The attached image is the user's actual screen, captured recently. Use its layout directly; coordinates you output map onto this same view.",
+      });
+    }
+
+    if (call.name === 'set_screen_updates') {
+      const raw = Number(call.arguments.cadenceMs);
+      if (!Number.isFinite(raw)) {
+        return JSON.stringify({ error: 'invalid_cadence', message: 'cadenceMs must be an integer.' });
+      }
+      if (!mirrorControl.send) {
+        return JSON.stringify({ error: 'no_browser_channel', message: 'No desktop page is connected via WebSocket yet.' });
+      }
+      if (raw === -1) {
+        mirrorControl.send({ cadenceMs: 'off' });
+        return JSON.stringify({ ok: true, mode: 'off', note: 'Mirroring disabled. Re-enable with a positive cadenceMs before needing sight again.' });
+      }
+      if (raw === 0) {
+        mirrorControl.send({ cadenceMs: 'input' });
+        return JSON.stringify({ ok: true, mode: 'input', note: 'View refreshes on user input only (clicks, scrolls, keys).' });
+      }
+      const clamped = Math.min(1_800_000, Math.max(500, Math.round(raw)));
+      mirrorControl.send({ cadenceMs: clamped });
+      return JSON.stringify({
+        ok: true,
+        mode: 'interval',
+        cadenceMs: clamped,
+        appliedClamp: clamped !== raw,
+        note:
+          `Your view now refreshes every ${clamped} ms. Use see_screen for the latest frame. Relax it with a larger value (e.g. 30000) once finished.`,
+      });
+    }
+
+    if (call.name === 'preview_overlay') {
+      const prev = currentPreview();
+      if (!prev) {
+        return JSON.stringify({
+          error: 'no_preview_available',
+          message: 'Ghost previews require an active desktop page with mirror enabled. Reuse see_screen placement logic instead.',
+        });
+      }
+      const x = Number(call.arguments.x ?? 0), y = Number(call.arguments.y ?? 0);
+      const w = Number(call.arguments.width ?? 100), h = Number(call.arguments.height ?? 100);
+      (this as unknown as { pendingVision?: Array<unknown> }).pendingVision = [
+        { type: 'image_url', image_url: { url: prev.dataUrl }, previewSpec: { x, y, width: w, height: h } },
+      ];
+      return JSON.stringify({
+        previewed: true,
+        spec: { x, y, width: w, height: h },
+        note:
+          'The attached image shows the candidate rectangle ghosted over the last capture at exactly these logical coordinates. If it covers the wrong spot, adjust and re-run preview_overlay; only draw_overlay/template_overlay make it visible to the user.',
+      });
     }
 
     const session = await openMcpSession(opts.mcpServerUrl);

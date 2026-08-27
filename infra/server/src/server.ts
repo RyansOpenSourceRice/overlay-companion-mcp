@@ -583,6 +583,10 @@ function broadcastOverlay(payload: unknown): void {
   log.debug(`Broadcasted overlay command to ${broadcastCount} clients`, payload);
 }
 
+// Let the interior assistant retune page-side mirror cadence live (R14).
+mirrorControl.send = (payload: Record<string, unknown>): void =>
+  pushToBrowsers('mirror_control', payload);
+
 // Handle viewport updates
 function handleViewportUpdate(payload: unknown, clientId: string): void {
   log.debug(`Viewport update from ${clientId}:`, payload);
@@ -594,6 +598,7 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
 // MCP proxy). Admin knobs in libSQL (`limits.<surface>`), short block
 // windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
 import { AdaptiveLimits } from './adaptive-limits.js';
+import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl } from './screen-mirror.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
 const authLimiter = rateLimit({
@@ -1295,7 +1300,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
         `If the user asks for any overlay/drawing and either the owner below is not 'interior' or a tool errors mentioning Passive mode, do this first in order: set_mode {mode:"assist"}, set_display_actor {actor:"interior"}, then the draw call. Current display owner: ${activeActor}; you may switch ownership yourself via set_display_actor. Only retry an overlay once after fixing mode/ownership.`,
-        `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         role === 'admin'
           ? `You are an admin: set_config lets you change app settings via chat.`
@@ -1353,6 +1358,30 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         }
         toolResults.push({ role: 'tool', tool_call_id: tc.id, content: result });
         res.write(`data: ${JSON.stringify({ tool: tc.name, result })}\n\n`);
+        // Vision passthrough (R13): see_screen / preview_overlay attach an
+        // image the model must SEE; inject as a user-side multimodal part
+        // right after the tool result so providers render it in context.
+        const vision = chat.pendingVision;
+        if (vision?.length) {
+          for (const part of vision) {
+            if (part.type !== 'image_url') continue;
+            const meta = (part as { note?: string; previewSpec?: unknown }).note;
+            toolResults.push({
+              role: 'user',
+              content: [
+                part as unknown as Record<string, unknown>,
+                {
+                  type: 'text',
+                  text:
+                    (meta && !String(meta).startsWith('screen@')
+                      ? `Ghost preview of candidate overlay at logical coords ${JSON.stringify((part as { previewSpec?: unknown }).previewSpec)} over this capture.`
+                      : 'Screen capture referenced by the previous see_screen result.'),
+                },
+              ],
+            });
+          }
+          chat.pendingVision = undefined;
+        }
       }
       currentMessages = [
         ...currentMessages,
@@ -1374,6 +1403,70 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
 
 // GET /api/chat/tools — the bounded allowlist + active display actor, so the
 // panel can render what the assistant may do and who currently owns the canvas.
+// R12: authoritative display geometry (proxied from the MCP server).
+app.get('/api/display-state', requireBetterAuthSession, (async (_req: Request, res: Response) => {
+  try {
+    const upstream = await fetch(`${config.mcpServerUrl}/api/display-state`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!upstream.ok) { res.status(502).json({ error: 'upstream_display_state' }); return; }
+    res.status(200).json(await upstream.json());
+  } catch {
+    res.status(502).json({ error: 'display_state_unavailable' });
+  }
+}) as RequestHandler);
+
+// ---- Screen mirror (R13/R14) ---------------------------------------------
+
+// The desktop page captures the KasmVNC framebuffer canvas (same-origin via
+// the /vnc proxy) and uploads downscaled JPEG frames. The interior assistant
+// reads them back through see_screen so it can see what the user sees — even
+// in a headless deployment where native screenshot capture is impossible.
+
+interface MirrorBody {
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  displayWidth?: number;
+  displayHeight?: number;
+  trigger?: 'interval' | 'input' | 'manual' | 'preview' | 'connect';
+  cadenceMs?: number;
+}
+
+function storeMirror(body: MirrorBody, kind: 'preview' | 'frame'): void {
+  const f: import('./screen-mirror.js').MirrorFrame = {
+    dataUrl: String(body.dataUrl ?? '').slice(0, 900_000),
+    width: Number(body.width ?? 640),
+    height: Number(body.height ?? 360),
+    displayWidth: Number(body.displayWidth ?? 1920),
+    displayHeight: Number(body.displayHeight ?? 1080),
+    trigger: body.trigger ?? 'manual',
+    cadenceMs: body.cadenceMs,
+    capturedAt: Date.now(),
+  };
+  if (kind === 'preview') pushPreview(f); else pushFrame(f);
+}
+
+app.post('/api/screen-mirror/frame', makeLimitGuard('connections'), requireBetterAuthSession, ((req: Request, res: Response) => {
+  const body = req.body as MirrorBody;
+  if (!body?.dataUrl?.startsWith('data:image/')) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'dataUrl must be an image data URL.' } });
+    return;
+  }
+  storeMirror(body, 'frame');
+  res.json({ ok: true });
+}) as RequestHandler);
+
+app.post('/api/screen-mirror/preview', makeLimitGuard('connections'), requireBetterAuthSession, ((req: Request, res: Response) => {
+  const body = req.body as MirrorBody;
+  if (!body?.dataUrl?.startsWith('data:image/')) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'dataUrl must be an image data URL.' } });
+    return;
+  }
+  storeMirror({ ...body, trigger: 'preview' }, 'preview');
+  res.json({ ok: true });
+}) as RequestHandler);
+
 app.get('/api/chat/tools', makeLimitGuard('connections'), requireBetterAuthSession, (async (_req: Request, res: Response) => {
   const actorRaw = await libSqlStore.getConfig('general.activeActor');
   res.json({

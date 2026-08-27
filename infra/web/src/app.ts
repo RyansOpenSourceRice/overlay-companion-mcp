@@ -1,3 +1,10 @@
+
+// Screen-mirror capturer singleton (R13/R14). The iframe ref is resolved
+// lazily because the element is created per connection.
+const screenMirror = new ScreenMirror(() => {
+  const c = document.getElementById('kasmvnc-container');
+  return (c?.querySelector('iframe') as HTMLIFrameElement | null) ?? null;
+});
 /**
  * Overlay Companion MCP - Main Application
  *
@@ -11,6 +18,7 @@
 
 import type { CurrentUser } from './auth';
 import { ChatPanel } from './components/ChatPanel';
+import { ScreenMirror, type MirrorCadence } from './components/ScreenMirror';
 import { initTheme, setTheme, resolveTheme, getStoredTheme, type ThemeChoice } from './theme';
 import {
   listConnections,
@@ -379,8 +387,8 @@ class OverlayCompanionApp {
       return;
     }
     const rows = Object.entries(data.surfaces).map(([surf, v]) => `
-      <form class="config-card limit-form" data-surface="${surf}">
-        <h4>${surf} ${v.configured ? '' : '<small>(defaults)</small>'}</h4>
+      <form class="config-card limit-form" data-surface="${this.escapeHtml(surf)}">
+        <h4>${this.escapeHtml(surf)} ${v.configured ? '' : '<small>(defaults)</small>'}</h4>
         <label>Requests per window <input type="number" min="1" name="pointsPerWindow" value="${v.pointsPerWindow}" /></label>
         <label>Window ms <input type="number" min="1000" step="1000" name="windowMs" value="${v.windowMs}" /></label>
         <label>Cool-down ms <input type="number" min="0" step="500" name="blockDurationMs" value="${v.blockDurationMs}" /></label>
@@ -771,9 +779,30 @@ class OverlayCompanionApp {
 
     container.innerHTML = '';
     container.appendChild(iframe);
+    // Stamp guest resolution for the mirror capturer once the client reports it
+    iframe.addEventListener('load', () => {
+      setTimeout(() => { void this.refreshDisplayMeta(); }, 2500);
+    });
 
     // Initialize overlay system
     this.initializeOverlaySystem();
+    // Start mirror at last-used cadence (default: input-driven).
+    const saved = localStorage.getItem('oc.mirrorCadence') as MirrorCadence | null;
+    screenMirror.setCadence(saved ?? 'input');
+  }
+
+
+  private async refreshDisplayMeta(): Promise<void> {
+    try {
+      const res = await fetch('/api/display-state', { credentials: 'include' });
+      if (!res.ok) return;
+      const d = (await res.json()) as { width?: number; height?: number };
+      const iframe = document.querySelector('#kasmvnc-container iframe') as HTMLIFrameElement | null;
+      if (iframe && d.width && d.height) {
+        iframe.dataset.ocDisplayWidth = String(d.width);
+        iframe.dataset.ocDisplayHeight = String(d.height);
+      }
+    } catch { /* non-fatal */ }
   }
 
   initializeOverlaySystem(): void {
@@ -824,6 +853,13 @@ class OverlayCompanionApp {
           const data = JSON.parse(event.data) as { type: string; payload?: Record<string, unknown> };
           if (data.type === 'overlay_broadcast' && data.payload) {
             this.handleRemoteOverlay(data.payload);
+          }
+          // Model-driven mirror control (R14): the assistant tunes its own
+          // view cadence via the set_screen_updates tool.
+          if (data.type === 'mirror_control' && data.payload && typeof (data.payload as { cadenceMs?: unknown }).cadenceMs !== 'undefined') {
+            const c = (data.payload as { cadenceMs: number | 'input' | 'off' }).cadenceMs;
+            screenMirror.setCadence(c);
+            localStorage.setItem('oc.mirrorCadence', String(c));
           }
         } catch (error) {
           console.error('Failed to parse overlay message:', error);
@@ -882,8 +918,13 @@ class OverlayCompanionApp {
     canvas.height = Math.max(1, Math.floor(rect.height));
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const sx = canvas.width / OVERLAY_DISPLAY.width;
-    const sy = canvas.height / OVERLAY_DISPLAY.height;
+    // Authoritative guest resolution comes from screen-mirror captures
+    // (__ocDisplay, the real framebuffer size); fall back to the historical
+    // constant before the first frame exists.
+    const disp = (window as unknown as { __ocDisplay?: { width: number; height: number } }).__ocDisplay
+      ?? OVERLAY_DISPLAY;
+    const sx = canvas.width / disp.width;
+    const sy = canvas.height / disp.height;
 
     for (const o of this.remoteOverlays) {
       ctx.save();
@@ -940,6 +981,7 @@ class OverlayCompanionApp {
     // init); do not tear it down when leaving a VM — only clear the remote
     // desktop surface and navigate back.
 
+    screenMirror.setCadence('off');
     // Clear KasmVNC container
     const container = document.getElementById('kasmvnc-container');
     if (container) {

@@ -31,7 +31,8 @@ export class ChatPanel {
     // the header never shows stale ownership info.
     setInterval(() => { void this.loadTools(); }, 5000);
     this.container.innerHTML = `
-      <div class="chat-header">
+      <div class="chat-resize" title="Drag to resize"></div>
+        <div class="chat-header">
         <span class="chat-title">In-app assistant</span>
         <div class="chat-header-right">
           <select id="chat-model" class="chat-model-select" title="AI model (choices approved by your admin)" aria-label="AI model"></select>

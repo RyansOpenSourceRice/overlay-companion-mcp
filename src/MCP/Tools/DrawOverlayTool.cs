@@ -64,11 +64,23 @@ public static class DrawOverlayTool
             Bounds = bounds,
             Color = color,
             Label = id, // keep minimal metadata
-            TemporaryMs = opacity < 1.0 ? 5000 : 0,
+            TemporaryMs = 0,
             ClickThrough = true,
             Opacity = Math.Clamp(opacity, 0.0, 1.0),
             Actor = caller.ToKey()
         };
+        // R11 guardrail: keep the annotation on its display.
+        var mon = await screenCaptureService.GetMonitorInfoAsync(0);
+        if (mon != null)
+        {
+            var cx = Math.Max(mon.X, bounds.X); var cy = Math.Max(mon.Y, bounds.Y);
+            var cr = Math.Min(mon.X + mon.Width, bounds.X + bounds.Width);
+            var cb = Math.Min(mon.Y + mon.Height, bounds.Y + bounds.Height);
+            bounds = cr > cx && cb > cy ? new ScreenRegion(cx, cy, cr - cx, cb - cy)
+                : throw new ModelContextProtocol.McpException(
+                    $"Region is outside the {mon.Width}x{mon.Height} display. Stay within 0..{mon.Width},0..{mon.Height}.");
+            overlayElement.Bounds = bounds;
+        }
         var actualOverlayId = await overlayService.DrawOverlayAsync(overlayElement);
 
         // Return JSON string response

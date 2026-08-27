@@ -28,6 +28,17 @@ every accepted request; it is the contract for what the demo must do.
 
 ## Accepted, not yet built
 
+- **R11 Annotation bounds guardrail (SHIPPED):** template_overlay/draw_overlay clamp regions into
+  their target monitor and refuse fully-offscreen requests with actionable errors.
+- **R12 Dynamic display awareness:** `/api/display-state` exposes versioned geometry; the desktop page
+  stamps it onto mirror captures so overlays keep mapping correctly after resolution changes.
+- **R13 Screen mirror + see_screen (opt-in cadence):** browser captures the same-origin KasmVNC
+  framebuffer (input-driven debounced, or 1s/4s/10s interval), assistant sees real pixels via
+  `see_screen`, and `preview_overlay` ghost-renders candidates before anything shows to the user.
+- **R14 Update dynamicism:** mirror cadence selectable (off/on-input/1s/4s/10s) with instant capture on
+  click/scroll/keys (tab, enter, alt, esc included via outer-document hook).
+- **R15 Adjustable annotations:** remove_overlay exposed to chat for move/resize-by-redraw workflows.
+
 - **R7a Fit-to-window (SHIPPED default).** Decision: scale-to-fit first —
   the KasmVNC client requests `resize=scale` so the framebuffer fills all
   available space; per-connection `screenSizing: scale|remote|off` chooses
@@ -54,3 +65,9 @@ every accepted request; it is the contract for what the demo must do.
   set_config; admins bypass chat throttling (`limits.bypassAdmin`). Login/TOTP
   keep strict IP-based brute-force limits unchanged. Note: no personal skill
   file was available in this environment — library chosen on merit.
+
+## Round notes
+
+- User feedback round → R11–R15 (annotation width overshoot, stale display state, misplaced circles,
+  static behavior, non-adjustable overlays). Core pipeline shipped this round: clamps + mirror +
+  preview + cadence + adjustable-annotation tool exposure.

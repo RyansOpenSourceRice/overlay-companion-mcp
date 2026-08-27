@@ -246,6 +246,27 @@ public class Program
 
 
         // Simple test endpoint for CI/manual verification
+        // R12: authoritative display geometry for dynamic awareness. The
+        // page polls this to scale mirror captures; version increments when
+        // monitor count/resolution changes.
+        app.MapGet("/api/display-state", async (IScreenCaptureService cap) =>
+        {
+            var monitors = await cap.GetMonitorsAsync();
+            static string Sig(List<OverlayCompanion.Models.MonitorInfo> ms) => string.Join('|', ms.Select(m => $"{m.Index}:{m.Width}x{m.Height}@{m.X},{m.Y}"));
+            var sig = Sig(monitors);
+            if (sig != DisplayStateService.LastSig)
+            {
+                DisplayStateService.LastSig = sig;
+                DisplayStateService.Version++;
+            }
+            return Results.Json(new
+            {
+                version = DisplayStateService.Version,
+                displays = monitors,
+                primary = monitors.FirstOrDefault()
+            });
+        });
+
         app.MapPost("/api/test-overlay", async (IOverlayService overlaySvc) =>
         {
             var bounds = new OverlayCompanion.Models.ScreenRegion(50, 50, 200, 120);

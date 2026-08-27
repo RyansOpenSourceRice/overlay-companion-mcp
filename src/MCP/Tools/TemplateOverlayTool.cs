@@ -109,6 +109,25 @@ public static class TemplateOverlayTool
             Actor = caller.ToKey()
         };
 
+        // Guardrail (R11): annotations must never exceed the display they are
+        // placed on. Clamp the region into the target monitor; the response
+        // reports it so models can self-correct next time.
+        bool clamped = false;
+        var bx = Math.Max(monitor.X, overlay.Bounds.X);
+        var by = Math.Max(monitor.Y, overlay.Bounds.Y);
+        var br = Math.Min(monitor.X + monitor.Width, overlay.Bounds.X + overlay.Bounds.Width);
+        var bb = Math.Min(monitor.Y + monitor.Height, overlay.Bounds.Y + overlay.Bounds.Height);
+        if (br - bx > 0 && bb - by > 0 && (bx != overlay.Bounds.X || by != overlay.Bounds.Y || br != overlay.Bounds.X + overlay.Bounds.Width || bb != overlay.Bounds.Y + overlay.Bounds.Height))
+        {
+            clamped = true;
+            overlay.Bounds = new ScreenRegion(bx, by, br - bx, bb - by);
+        }
+        if ((overlay.Bounds.Width <= 0) || (overlay.Bounds.Height <= 0))
+        {
+            throw new ModelContextProtocol.McpException(
+                $"Requested overlay size {overlay.Bounds.Width}x{overlay.Bounds.Height} is outside the {monitor.Width}x{monitor.Height} display. Use coordinates inside 0..{monitor.Width},0..{monitor.Height}.");
+        }
+
         var overlayId = await overlayService.DrawOverlayAsync(overlay);
 
         // Mirror to KasmVNC web display when available.
@@ -149,6 +168,7 @@ public static class TemplateOverlayTool
         var response = new
         {
             success = true,
+            clamped_to_display = clamped,
             overlay_id = overlayId,
             template = def.Name,
             bounds = new { x = overlay.Bounds.X, y = overlay.Bounds.Y, width = overlay.Bounds.Width, height = overlay.Bounds.Height },

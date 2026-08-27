@@ -67,9 +67,19 @@ export class AdaptiveLimits {
 
   private async loadBypassFlag(): Promise<void> {
     try {
-      const raw = await this.store.getConfig('limits.bypassAdmin');
-      const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).value : raw;
-      this.bypassAdmin = value !== false;
+      // Persisted on the chat row by the Settings UI; fall back to the
+      // dedicated key for API-first administrators.
+      const cfg = await this.store.getConfig('limits.chat').catch(() => null);
+      const chatRow = (cfg && typeof cfg === 'object'
+        ? ((cfg as Record<string, unknown>).value ?? cfg) : null) as Record<string, unknown> | null;
+      const chatFlag = chatRow?.['bypassAdmin'];
+      if (chatFlag === undefined) {
+        const raw = await this.store.getConfig('limits.bypassAdmin').catch(() => null);
+        const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).value : raw;
+        this.bypassAdmin = value !== false;
+      } else {
+        this.bypassAdmin = chatFlag !== false;
+      }
     } catch { /* default stays true */ }
   }
 
