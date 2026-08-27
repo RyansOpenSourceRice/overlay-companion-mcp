@@ -1607,7 +1607,9 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 .chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .chat-msg { max-width: 92%; padding: 0.5rem 0.75rem; border-radius: 8px; white-space: pre-wrap; word-break: break-word; }
 .chat-msg--user { align-self: flex-end; background: var(--accent, #2563eb); color: #fff; }
-.chat-msg--assistant { align-self: flex-start; background: var(--muted-bg, #f1f3f5); }
+/* Assistant bubbles render markdown; block elements supply spacing, so
+   pre-wrap must not double it. */
+.chat-msg--assistant { align-self: flex-start; background: var(--muted-bg, #f1f3f5); white-space: normal; }
 /* Impact-focused tool feedback (Q3/Q4): outcome first, machinery collapsed.
    The row is display:block so opening <details> expands downward and the
    label never reflows onto a second line (feedback item 5). */
@@ -1663,8 +1665,11 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 /* ===== Chat textarea (Goal 1) ===== */
 #chat-input {
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   min-height: 38px;
   max-height: 140px;
   line-height: 1.35;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
 }

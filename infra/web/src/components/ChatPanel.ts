@@ -292,7 +292,7 @@ export class ChatPanel {
         this.appendMessage('assistant', `Error: ${err?.error?.message ?? res.status}`);
         return;
       }
-      if (!res.body) { this.appendMessage('assistant', 'No stream from server.'); return; }
+      if (!res.body) { this.hideWorking(); this.appendMessage('assistant', 'No stream from server.'); return; }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -365,6 +365,7 @@ export class ChatPanel {
       this.hideWorking();
       if (assistantText) this.history.push({ role: 'assistant', content: assistantText });
     } catch (err) {
+      this.hideWorking();
       this.appendMessage('assistant', `Network error: ${(err as Error).message}`);
     }
   }
