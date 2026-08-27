@@ -7,6 +7,8 @@
  * handled server-side for admin users (B3).
  */
 
+import { renderMarkdown } from '../markdown';
+
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -15,7 +17,7 @@ export interface ChatMessage {
 export class ChatPanel {
   private container: HTMLElement;
   private messagesEl: HTMLElement;
-  private inputEl: HTMLInputElement;
+  private inputEl: HTMLInputElement | HTMLTextAreaElement;
   private history: ChatMessage[] = [];
   private activeActor: string = 'exterior';
   private open = false;
@@ -44,12 +46,12 @@ export class ChatPanel {
       <div class="chat-messages" id="chat-messages"></div>
       <div class="chat-input-row">
         <button id="chat-mic" class="btn btn-secondary" title="Voice input (Phase C)" aria-label="Record voice input">🎤</button>
-        <input type="text" id="chat-input" placeholder="Ask the assistant to annotate the screen…" aria-label="Chat with the in-app assistant" />
+        <textarea id="chat-input" rows="1" placeholder="Ask the assistant to annotate the screen…" aria-label="Chat with the in-app assistant"></textarea>
         <button id="chat-send" class="btn btn-primary">Send</button>
       </div>
     `;
     this.messagesEl = this.container.querySelector('#chat-messages')!;
-    this.inputEl = this.container.querySelector('#chat-input')!;
+    this.inputEl = this.container.querySelector('#chat-input') as unknown as HTMLInputElement;
     const sendBtn = this.container.querySelector('#chat-send')!;
     const micBtn = this.container.querySelector('#chat-mic')!;
     const closeBtn = this.container.querySelector('#chat-close')!;
@@ -63,9 +65,12 @@ export class ChatPanel {
       localStorage.setItem('oc.chatSide', left ? 'left' : 'right');
       document.body.classList.toggle('chat-left', left);
     });
-    this.inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') void this.send();
-    });
+    this.inputEl.addEventListener('keydown', ((e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      if (e.shiftKey || e.isComposing) return; // newline / IME composition
+      e.preventDefault();
+      void this.send();
+    }) as EventListener);
 
     // Docked-panel resizing (R7): clamp 300-720px, persist preference.
     const handle = this.container.querySelector('.chat-resize');
@@ -96,6 +101,8 @@ export class ChatPanel {
       if (savedW) document.documentElement.style.setProperty('--chat-w', savedW.trim());
     }
 
+    this.inputEl.addEventListener('input', () => this.autosizeInput());
+    this.autosizeInput();
     void this.loadTools();
     void this.loadModels();
   }
@@ -141,17 +148,26 @@ export class ChatPanel {
     }
   }
 
-  /** Human "impact" phrasing per tool so users see outcomes, not plumbing. */
-  private static IMPACT: Record<string, string> = {
-    draw_overlay: 'Annotated your screen',
-    template_overlay: 'Annotated your screen',
-    take_screenshot: 'Looked at your screen',
-    get_display_info: 'Checked display layout',
-    set_display_actor: 'Switched who owns the canvas',
-    get_overlay_capabilities: 'Checked overlay support',
-    get_config: 'Read app configuration',
-    set_config: 'Updated app configuration',
-  };
+  /** Goal 7 — invisible system: one shimmering "working" indicator replaces
+   *  per-tool impact rows and payload details. Tool calls themselves are never
+   *  named or counted anywhere the user can see. */
+  private static WORKING_PILL: HTMLElement | null = null;
+
+  private showWorking(): void {
+    let pill = ChatPanel.WORKING_PILL;
+    if (!pill || !pill.isConnected) {
+      pill = document.createElement('div');
+      pill.className = 'chat-working';
+      this.messagesEl.appendChild(pill);
+      ChatPanel.WORKING_PILL = pill;
+    }
+    pill.style.display = '';
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+
+  private hideWorking(): void {
+    if (ChatPanel.WORKING_PILL) ChatPanel.WORKING_PILL.style.display = 'none';
+  }
 
   private async toggleMic(): Promise<void> {
     const micBtn = this.container.querySelector('#chat-mic') as HTMLButtonElement | null;
@@ -249,10 +265,18 @@ export class ChatPanel {
     if (badge) badge.textContent = `display owner: ${this.activeActor}`;
   }
 
+  /** Auto-grow textarea up to a cap so long prompts stay readable. */
+  private autosizeInput(): void {
+    const el = this.inputEl as HTMLTextAreaElement;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }
+
   async send(): Promise<void> {
     const text = this.inputEl.value.trim();
     if (!text) return;
     this.inputEl.value = '';
+    this.autosizeInput();
     this.history.push({ role: 'user', content: text });
     this.appendMessage('user', text);
 
@@ -294,29 +318,6 @@ export class ChatPanel {
         }
         return thinkingEl;
       };
-      /** One compact "✔ impact" row per tool call; raw payload stays collapsed.
-       *  Block layout keeps the label pinned to its line when <details> opens
-       *  (the payload grows downward, never sideways). */
-      const addImpact = (tool: string, resultJson: string) => {
-        const impact = ChatPanel.IMPACT[tool] ?? 'Applied your change';
-        const line = document.createElement('div');
-        line.className = 'chat-impact';
-        const label = document.createElement('span');
-        label.className = 'chat-impact-label';
-        label.textContent = `✔ ${impact}`;
-        const details = document.createElement('details');
-        details.className = 'chat-impact-details';
-        const summary = document.createElement('summary');
-        summary.textContent = 'details';
-        const pre = document.createElement('pre');
-        pre.textContent = resultJson.slice(0, 600);
-        details.appendChild(summary);
-        details.appendChild(pre);
-        line.appendChild(label);
-        line.appendChild(details);
-        this.messagesEl.appendChild(line);
-        this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
-      };
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -348,13 +349,12 @@ export class ChatPanel {
                   `Thinking (${Math.min(Math.round(thinkingText.length / 4), 999)} tokens)…`;
               } else if (parsed.text) {
                 assistantText += parsed.text;
-                ensureBubble().textContent = assistantText;
+                this.hideWorking();
+                ensureBubble().innerHTML = renderMarkdown(assistantText);
                 this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
               } else if (parsed.tool) {
-                // Issue #3/#4: show the effect, not the machinery. The raw
-                // result is one click away under 'details'.
-                const result = typeof parsed.result === 'string' ? parsed.result : JSON.stringify(parsed.result);
-                addImpact(parsed.tool, result ?? '');
+                // Invisible plumbing (Goal 7): only liveness is shown.
+                this.showWorking();
               }
             } catch {
               /* ignore non-JSON SSE */
@@ -362,6 +362,7 @@ export class ChatPanel {
           }
         }
       }
+      this.hideWorking();
       if (assistantText) this.history.push({ role: 'assistant', content: assistantText });
     } catch (err) {
       this.appendMessage('assistant', `Network error: ${(err as Error).message}`);
