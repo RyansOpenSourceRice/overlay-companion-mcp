@@ -1570,7 +1570,22 @@ textarea:focus {
 .save-flash { color: #27ae60; margin-left: 0.5rem; font-size: 0.85rem; }
 
 /* ---- In-app assistant chat panel (Phase B1) ---- */
-.chat-panel-host { position: fixed; top: 64px; right: 0; bottom: 0; z-index: 100; width: 380px; pointer-events: none; }
+/* R7: chat docks instead of floating. The host stays fixed (header offset),
+   but opening it SHRINKS main content via margin so the desktop is squeezed,
+   never covered. Width is user-resizable via --chat-w. */
+:root { --chat-w: 380px; }
+.chat-panel-host { position: fixed; top: 64px; right: 0; bottom: 0; z-index: 100; width: var(--chat-w); pointer-events: none; }
+.main-content { transition: margin 0.2s ease; }
+body.chat-open:not(.chat-left) .main-content { margin-right: var(--chat-w); }
+body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
+/* Drag handle to resize the docked panel (sits on its inner edge). */
+.chat-resize { position: absolute; top: 0; bottom: 0; width: 6px; cursor: col-resize; background: transparent; z-index: 2; }
+.chat-panel-host:not(.chat-panel--left) .chat-resize { left: -3px; }
+.chat-panel--left .chat-resize { right: -3px; left: auto !important; }
+@media (max-width: 900px) {
+  /* Small screens: fallback to overlay so the desktop remains usable. */
+  body.chat-open .main-content { margin-right: 0; margin-left: 0; }
+}
 /* .chat-panel is applied to the SAME element as .chat-panel-host (the ChatPanel
    constructor adds the class to #chat-panel-host). Do not set height:100% here:
    on a fixed-position element it resolves against the viewport, so the 64px

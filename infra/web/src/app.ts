@@ -361,6 +361,66 @@ class OverlayCompanionApp {
     } catch (err) {
       console.error('Settings render failed:', err);
     }
+    if (this.currentUser?.roles?.includes('admin')) void this.loadRateLimits();
+  }
+
+  private async loadRateLimits(): Promise<void> {
+    const section = document.getElementById('limits-section');
+    const host = document.getElementById('limits-content');
+    if (!section || !host) return;
+    section.style.display = '';
+    let data: { surfaces: Record<string, { pointsPerWindow: number; windowMs: number; blockDurationMs: number; configured: boolean }>; bypassAdmin: boolean };
+    try {
+      const res = await fetch('/api/admin/limits', { credentials: 'include' });
+      if (!res.ok) { host.innerHTML = '<em>Not available.</em>'; return; }
+      data = (await res.json()) as typeof data;
+    } catch {
+      host.innerHTML = '<em>Failed to load rate limits.</em>';
+      return;
+    }
+    const rows = Object.entries(data.surfaces).map(([surf, v]) => `
+      <form class="config-card limit-form" data-surface="${surf}">
+        <h4>${surf} ${v.configured ? '' : '<small>(defaults)</small>'}</h4>
+        <label>Requests per window <input type="number" min="1" name="pointsPerWindow" value="${v.pointsPerWindow}" /></label>
+        <label>Window ms <input type="number" min="1000" step="1000" name="windowMs" value="${v.windowMs}" /></label>
+        <label>Cool-down ms <input type="number" min="0" step="500" name="blockDurationMs" value="${v.blockDurationMs}" /></label>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>`).join('');
+    host.innerHTML = rows + `
+      <label style="display:block;margin-top:.5rem">
+        <input type="checkbox" id="limits-bypass-admin" ${data.bypassAdmin ? 'checked' : ''} />
+        Admins bypass chat/connection throttling
+      </label>`;
+    host.querySelectorAll<HTMLFormElement>('form.limit-form').forEach((f) => {
+      f.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const surf = f.dataset.surface!;
+        const fd = new FormData(f);
+        const body = {
+          pointsPerWindow: Number(fd.get('pointsPerWindow')),
+          windowMs: Number(fd.get('windowMs')),
+          blockDurationMs: Number(fd.get('blockDurationMs')),
+        };
+        const res = await fetch(`/api/settings/limits/${surf}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        });
+        this.showToast(res.ok ? 'success' : 'error', 'Rate Limits', res.ok ? `${surf} updated — applies within ~5s.` : `Update failed (${res.status}).`);
+      });
+    });
+    const ba = host.querySelector<HTMLInputElement>('#limits-bypass-admin');
+    ba?.addEventListener('change', async () => {
+      // store on the chat surface row to persist
+      const res = await fetch('/api/settings/limits/chat', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ bypassAdmin: ba.checked }),
+      });
+      this.showToast(res.ok ? 'success' : 'error', 'Rate Limits', res.ok ? 'Preference saved.' : `Save failed (${res.status}).`);
+    });
   }
 
   // ==================== Connection Management ====================
@@ -689,7 +749,14 @@ class OverlayCompanionApp {
       // sub-resource URLs (dist/*.js, vendor/*.js, style.bundle.css, etc.)
       // under /vnc/<id>/ and not one directory up — missing it makes every
       // asset 404 and the desktop render as an unstyled black page.
-      url = `/vnc/${encodeURIComponent(connection.host)}/?autoconnect=1`;
+      // Screen sizing (docs/REQUIREMENTS.md R7):
+      //  'scale'  – guest res unchanged; framebuffer scales to fill available space (default)
+      //  'remote' – ask KasmVNC to change guest resolution to track the window
+      //  'off'    – native size, letterboxed (legacy behaviour)
+      const settings = (connection as unknown as { settings?: { screenSizing?: 'scale' | 'remote' | 'off' } }).settings;
+      const mode = settings?.screenSizing ?? 'scale';
+      const sizing = mode === 'scale' ? '&resize=scale' : mode === 'remote' ? '&resize=remote' : '';
+      url = `/vnc/${encodeURIComponent(connection.host)}/?autoconnect=1${sizing}`;
     } else {
       // For standard VNC, we'll need to proxy through our server
       url = `/vnc-proxy?host=${encodeURIComponent(connection.host)}&port=${connection.port}&protocol=${connection.protocol}`;
@@ -727,6 +794,11 @@ class OverlayCompanionApp {
     overlayContainer.innerHTML = '';
     overlayContainer.appendChild(canvas);
     window.addEventListener('resize', () => this.renderRemoteOverlays());
+    // Docking/resizing changes container size without a window resize event.
+    const w = window as unknown as { ocResizeObserver?: ResizeObserver };
+    w.ocResizeObserver?.disconnect();
+    w.ocResizeObserver = new ResizeObserver(() => this.renderRemoteOverlays());
+    w.ocResizeObserver.observe(canvas.parentElement ?? canvas);
 
     // Setup WebSocket for overlay commands
     this.setupOverlayWebSocket();

@@ -97,7 +97,7 @@ public static class TemplateOverlayTool
             // lowercased by ParseParams.
             TemporaryMs = @params.TryGetValue("timeoutms", out var _t)
                 && int.TryParse(_t.ValueKind == System.Text.Json.JsonValueKind.String
-                    ? _t.GetString() : _t.ToString(), out var _ms) ? _ms : 0,
+                    ? _t.GetString() : _t.ToString(), out var _ms) ? Math.Max(0, _ms) : 0,
             ClickThrough = true,
             Opacity = Math.Clamp(opacity, 0.0, 1.0),
             MonitorIndex = monitorIndex,

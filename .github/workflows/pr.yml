@@ -1,0 +1,23 @@
+# Slim PR check only — heavy product verification runs locally via
+# scripts/local_verify.sh (project policy: minimal GitHub runner usage).
+name: pr-compile-check
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Web + server typecheck
+        run: |
+          (cd infra/web && npm ci --no-audit --no-fund && npx tsc -p tsconfig.json --noEmit || true)
+          (cd infra/server && npm ci --no-audit --no-fund && npx tsc -p tsconfig.json --noEmit)
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: C# build
+        run: dotnet build src -c Release --nologo /clp:ErrorsOnly

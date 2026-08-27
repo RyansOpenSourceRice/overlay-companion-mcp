@@ -484,11 +484,12 @@ export class InteriorChat {
                 }
                 pendingTools.clear();
                 if (toolCalls.length === 0 && !hermesUsed) {
-                  // Model bypassed the native channel; salvage inline blocks.
+                  // Model bypassed the native channel; salvage inline blocks
+                  // exactly once per response stream.
+                  hermesUsed = true;
                   for (const hc of extractHermesCalls()) {
                     toolCalls.push({ id: hc.id, name: hc.name, arguments: hc.arguments });
                   }
-                  hermesUsed = true;
                 }
                 if (toolCalls.length > 0) {
                   yield JSON.stringify({ __tool_calls: toolCalls });

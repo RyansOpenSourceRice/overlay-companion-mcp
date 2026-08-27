@@ -60,10 +60,40 @@ export class ChatPanel {
     sideBtn?.addEventListener('click', () => {
       const left = this.container.classList.toggle('chat-panel--left');
       localStorage.setItem('oc.chatSide', left ? 'left' : 'right');
+      document.body.classList.toggle('chat-left', left);
     });
     this.inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') void this.send();
     });
+
+    // Docked-panel resizing (R7): clamp 300-720px, persist preference.
+    const handle = this.container.querySelector('.chat-resize');
+    if (handle) {
+      let startX = 0, startW = 0;
+      const applyW = (px: number) => {
+        document.documentElement.style.setProperty('--chat-w', `${Math.min(720, Math.max(300, px))}px`);
+      };
+      handle.addEventListener('pointerdown', ((ev: PointerEvent) => {
+        startX = ev.clientX;
+        startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--chat-w') || '380', 10) || 380;
+        const move = (e: PointerEvent): void => {
+          // Squeezing outward from either dock side widens the panel.
+          const delta = this.container.classList.contains('chat-panel--left')
+            ? -(e.clientX - startX)
+            : (startX - e.clientX);
+          applyW(startW + delta);
+        };
+        const up = (): void => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          localStorage.setItem('oc.chatWidth', getComputedStyle(document.documentElement).getPropertyValue('--chat-w'));
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      }) as EventListener);
+      const savedW = localStorage.getItem('oc.chatWidth');
+      if (savedW) document.documentElement.style.setProperty('--chat-w', savedW.trim());
+    }
 
     void this.loadTools();
     void this.loadModels();
@@ -194,6 +224,8 @@ export class ChatPanel {
   private setOpen(open: boolean): void {
     this.open = open;
     this.container.classList.toggle('chat-panel--open', open);
+    document.body.classList.toggle('chat-open', open);
+    document.body.classList.toggle('chat-left', this.container.classList.contains('chat-panel--left'));
     // Keep the header "Assistant" toggle in sync with the panel's own state.
     const toggleBtn = document.getElementById('chat-toggle-btn');
     toggleBtn?.classList.toggle('active', open);

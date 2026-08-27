@@ -28,17 +28,29 @@ every accepted request; it is the contract for what the demo must do.
 
 ## Accepted, not yet built
 
-- **R7 Dynamic screen sizing (fit-to-window).** Two coordinated parts:
-  1. Browser side: noVNC/KasmVNC view scales to fill available space,
-     sidebar/panel aware, no forced centering; desktop takes all leftover
-     space (drop fixed 16:9 black-box centering).
-  2. VM side: optionally drive KasmVNC remote resolution so guest resolution
-     tracks the available viewport when the protocol supports it
-     (KasmVNC `resize=remote`), falling back gracefully where it doesn't.
+- **R7a Fit-to-window (SHIPPED default).** Decision: scale-to-fit first —
+  the KasmVNC client requests `resize=scale` so the framebuffer fills all
+  available space; per-connection `screenSizing: scale|remote|off` chooses
+  behaviour. Chat panel docking squeezes the desktop (margin shift), with a
+  drag handle clamped to 300–720 px, persisting both.
+- **R7b Remote-resolution follow-up.** Setting already passes
+  `resize=remote`; verifying guest-side auto-resize behaviour on each KasmVNC
+  target is pending.
 - **R8 Resolution-change awareness in chat:** when the display geometry
-  changes, in-app chat/UI must refresh cached display info (invalidate
-  get_display_info cache, re-broadcast displays over ws) so overlays stay
-  accurate.
-- **R9 CI job that exercises the product, not just the code:** run the
-  container stack nightly/on infra PRs; script login + a scripted prompt +
-  assert a drawn overlay exists (tool result + canvas pixel check).
+  changes, invalidate cached get_display_info and re-broadcast displays over
+  ws so overlays stay accurate.
+- **R9 Local-first verification (PARTIALLY SHIPPED):** `scripts/local_verify.sh`
+  exercises health/login/draw end-to-end locally; Playwright pixel check via
+  `infra/scripts/pixel-check.mjs`. GitHub runners limited to a slim PR
+  compile-check workflow — heavy verification stays local by project policy.
+
+## Shipped (this round)
+
+- **R10 Admin-managed adaptive rate limiting.** App surfaces (chat,
+  connections, MCP proxy) limit per IDENTITY (user id before IP fallback) via
+  rate-limiter-flexible; short block windows instead of long lockouts;
+  headers + Retry-After returned. All knobs live in `limits.<surface>` config
+  and are editable at runtime from Settings > Rate Limiting (admin) or chat
+  set_config; admins bypass chat throttling (`limits.bypassAdmin`). Login/TOTP
+  keep strict IP-based brute-force limits unchanged. Note: no personal skill
+  file was available in this environment — library chosen on merit.

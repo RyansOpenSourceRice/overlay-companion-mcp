@@ -136,6 +136,7 @@ const connectionManager = new ConnectionManager();
 // Failure to reach the DB is non-fatal at boot; routes that need it surface a
 // clear error. The schema is applied on boot (idempotent).
 const libSqlStore = new LibSqlStore();
+const adaptiveLimits = new AdaptiveLimits(libSqlStore);
 // Fine-grained authorization (D-017). OpenFGA is a separate service — never
 // embedded in the app — and the store here is the authorization boundary. It
 // is OPT-IN via GUI-first config (§9): disabled by default keeps the existing
@@ -535,7 +536,7 @@ function startMcpOverlayBridge(mcpUrl: string): void {
         break;
       }
       case 'overlay_removed': {
-        activeOverlays = activeOverlays.filter((o) => o.id !== evt.overlay_id);
+        activeOverlays = activeOverlays.filter((o) => String(o.id) !== String(evt.overlay_id));
         pushToBrowsers('overlay_broadcast', { action: 'remove', id: evt.overlay_id });
         break;
       }
@@ -553,6 +554,8 @@ function startMcpOverlayBridge(mcpUrl: string): void {
 }
 
 // A page connecting mid-session should immediately learn what is on screen.
+// Called after the connection is registered in overlayClients so no event
+// broadcast during the handshake is missed (state push arrives after 'add').
 function sendOverlayState(ws: WebSocket): void {
   ws.send(JSON.stringify({
     type: 'overlay_broadcast',
@@ -586,6 +589,11 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
   // Store viewport configuration for session management
   // This could be persisted to a database in production
 }
+
+// R10: adaptive per-identity limiting for app surfaces (chat, connections,
+// MCP proxy). Admin knobs in libSQL (`limits.<surface>`), short block
+// windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
+import { AdaptiveLimits } from './adaptive-limits.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
 const authLimiter = rateLimit({
@@ -633,6 +641,33 @@ const mcpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+type AuthedReq = Request & { authState?: { user: { id: string; role?: string | null } } };
+
+function makeLimitGuard(surface: 'chat' | 'connections' | 'mcpProxy', costArg?: (req: Request) => number) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const state = (req as AuthedReq).authState;
+    const decision = await adaptiveLimits.consume(surface, {
+      userId: state?.user?.id ?? null,
+      role: (state?.user as unknown as { roles?: string[] })?.roles?.includes('admin') ? 'admin' : (state?.user ? 'user' : null),
+      ip: req.ip ?? null,
+    }, costArg ? costArg(req) : 1);
+    if (!decision.allowed) {
+      res.setHeader('Retry-After', Math.ceil(decision.retryAfterMs / 1000));
+      res.status(429).json({
+        error: {
+          code: 'rate_limited',
+          message: `Rate limited. Retry after ${Math.ceil(decision.retryAfterMs / 1000)}s.`,
+        },
+        retryAfterMs: decision.retryAfterMs,
+      });
+      return;
+    }
+    res.setHeader('X-RateLimit-Limit', String(decision.limit));
+    res.setHeader('X-RateLimit-Remaining', Number.isFinite(decision.remaining) ? String(decision.remaining) : 'Infinity');
+    next();
+  };
+}
 
 // ---- Authentication routes (§7) -----------------------------------------
 // Real login experience on top of the OIDC middleware: session cookies backed
@@ -1027,6 +1062,27 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
 }) as RequestHandler);
 
+// GET /api/admin/limits — current adaptive-limit knobs (defaults when unset).
+app.get('/api/admin/limits', settingsLimiter, requireBetterAuthSession, requireAdmin(), (async (_req: Request, res: Response) => {
+  const surfaces = ['chat', 'connections', 'mcpProxy'] as const;
+  const defaults: Record<string, { pointsPerWindow: number; windowMs: number; blockDurationMs: number }> = {
+    chat: { pointsPerWindow: 60, windowMs: 60000, blockDurationMs: 15000 },
+    connections: { pointsPerWindow: 240, windowMs: 60000, blockDurationMs: 15000 },
+    mcpProxy: { pointsPerWindow: 600, windowMs: 60000, blockDurationMs: 15000 },
+  };
+  const out: Record<string, unknown> = {};
+  for (const surf of surfaces) {
+    const stored = await libSqlStore.getConfig(`limits.${surf}`);
+    const value = (stored && typeof stored === 'object'
+      ? ((stored as Record<string, unknown>).value ?? stored)
+      : null) as Record<string, unknown> | null;
+    out[surf] = { ...defaults[surf], ...(value ?? {}), configured: Boolean(value) };
+  }
+  const baRaw = await libSqlStore.getConfig('limits.bypassAdmin');
+  const baVal = baRaw && typeof baRaw === 'object' ? (baRaw as Record<string, unknown>).value : baRaw;
+  res.json({ surfaces: out, bypassAdmin: baVal !== false });
+}) as RequestHandler);
+
 // PUT /api/settings/:category/:key — create or update a setting. Admin only.
 // Requires CSRF. The body is the structured value object.
 app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSession, requireAdmin(), (async (req: Request, res: Response) => {
@@ -1043,6 +1099,7 @@ app.put('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   // placeholder string back over the real secret).
   const existing = await libSqlStore.getConfig(fullKey);
   await libSqlStore.setConfig(fullKey, mergePreservingSecrets(existing, value), category, state.user.id);
+  if (fullKey.startsWith('limits.')) void adaptiveLimits.refreshAll();
   // Better Auth auth config is env-driven (§9 GUI-first: env bootstrap); auth
   // settings saved here are stored but not hot-applied to the running auth.
   // TLS settings are hot-applied so the TlsManager and any generated
@@ -1100,7 +1157,7 @@ async function approvedModels(): Promise<ApprovedModel[]> {
 // GET /api/chat/models — any authenticated user may LIST the approved
 // combinations and see their current effective selection. Secrets are not part
 // of the response.
-app.get('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.get('/api/chat/models', makeLimitGuard('chat'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const [models, pref] = await Promise.all([
     approvedModels(),
@@ -1122,7 +1179,7 @@ app.get('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req: 
 
 // POST /api/chat/models/select {modelId} — choose among approved entries; the
 // id must exist or the choice is rejected rather than silently ignored.
-app.post('/api/chat/models/select', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/chat/models/select', makeLimitGuard('chat'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const { modelId } = (req.body ?? {}) as { modelId?: string };
   if (!modelId) {
@@ -1141,7 +1198,7 @@ app.post('/api/chat/models/select', chatLimiter, requireBetterAuthSession, (asyn
 }) as RequestHandler);
 
 // POST /api/chat/models — ADMIN curation: add/update/remove registry entries.
-app.post('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/chat/models', makeLimitGuard('chat'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!state.user.roles.includes('admin')) {
     res.status(403).json({ error: { code: 'forbidden', message: 'Admin role required to curate models.' } });
@@ -1178,7 +1235,7 @@ app.post('/api/chat/models', chatLimiter, requireBetterAuthSession, (async (req:
 // POST /api/chat — body { messages: OpenAI chat messages[], modelId? }. Streams assistant
 // text (SSE) and runs the tool loop server-side. Admin users may use config
 // tools (B3); role is enforced here, not by the model.
-app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const { messages } = (req.body ?? {}) as { messages?: Array<Record<string, unknown>> };
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -1317,7 +1374,7 @@ app.post('/api/chat', chatLimiter, requireBetterAuthSession, (async (req: Reques
 
 // GET /api/chat/tools — the bounded allowlist + active display actor, so the
 // panel can render what the assistant may do and who currently owns the canvas.
-app.get('/api/chat/tools', chatLimiter, requireBetterAuthSession, (async (_req: Request, res: Response) => {
+app.get('/api/chat/tools', makeLimitGuard('connections'), requireBetterAuthSession, (async (_req: Request, res: Response) => {
   const actorRaw = await libSqlStore.getConfig('general.activeActor');
   res.json({
     allowlist: [
@@ -1516,7 +1573,7 @@ function toConnectionDto(row: {
 // GET /api/connections — the connections the current user may view. When
 // OpenFGA is enabled (D-017) the authorization decision comes from OpenFGA
 // listObjects(viewer); otherwise the owner-scoped store query is used.
-app.get('/api/connections', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.get('/api/connections', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const viewable = await openfgaStore.listViewableConnectionIds(state.user.id);
   const rows = viewable !== null
@@ -1526,7 +1583,7 @@ app.get('/api/connections', connectionsLimiter, requireBetterAuthSession, (async
 }) as RequestHandler);
 
 // POST /api/connections — create a new saved connection.
-app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/connections', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const input = parseConnectionBody(req.body);
   if ('error' in input) {
@@ -1549,7 +1606,7 @@ app.post('/api/connections', connectionsLimiter, requireBetterAuthSession, (asyn
 }) as RequestHandler);
 
 // GET /api/connections/:id — one saved connection (viewer relation).
-app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.get('/api/connections/:id', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'viewer', req.params.id))) return;
   const row = await libSqlStore.getConnection(state.user.id, req.params.id);
@@ -1561,7 +1618,7 @@ app.get('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
 }) as RequestHandler);
 
 // PUT /api/connections/:id — update an existing saved connection (operator).
-app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.put('/api/connections/:id', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const existing = await libSqlStore.getConnection(state.user.id, req.params.id);
@@ -1591,7 +1648,7 @@ app.put('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (a
 }) as RequestHandler);
 
 // DELETE /api/connections/:id — remove a saved connection (owner only).
-app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.delete('/api/connections/:id', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'owner', req.params.id))) return;
   const deleted = await libSqlStore.deleteConnection(state.user.id, req.params.id);
@@ -1614,7 +1671,7 @@ app.delete('/api/connections/:id', connectionsLimiter, requireBetterAuthSession,
 
 // POST /api/connections/:id/touch — record a successful connect (server-authoritative
 // timestamp; clients cannot forge last_connected). Operator relation (D-017).
-app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/connections/:id/touch', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const row = await libSqlStore.getConnection(state.user.id, req.params.id);
@@ -1628,7 +1685,7 @@ app.post('/api/connections/:id/touch', connectionsLimiter, requireBetterAuthSess
 
 // POST /api/connections/:id/test — test a saved connection against its target.
 // Operator relation (D-017).
-app.post('/api/connections/:id/test', connectionsLimiter, requireBetterAuthSession, (async (req: Request, res: Response) => {
+app.post('/api/connections/:id/test', makeLimitGuard('connections'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   if (!(await requireConnectionRelation(req, res, 'operator', req.params.id))) return;
   const row = await libSqlStore.getConnection(state.user.id, req.params.id);
