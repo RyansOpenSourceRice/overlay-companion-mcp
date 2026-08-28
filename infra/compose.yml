@@ -108,7 +108,7 @@ services:
   # OpenFGA is enabled in Settings. In-memory datastore is fine for a
   # single-operator deployment; use postgres for HA (see OpenFGA docs).
   openfga:
-    image: openfga/openfga:v1.6.2
+    image: openfga/openfga:v1.19.0@sha256:78d1fa601d42340ecb131305d80d3767d0f254f9b1bc3646f9a557e11b24c63a
     command: ["run"]
     environment:
       OPENFGA_DATASTORE_ENGINE: memory
@@ -122,7 +122,7 @@ services:
       start_period: 10s
 
   keycloak:
-    image: quay.io/keycloak/keycloak:25.0.2
+    image: quay.io/keycloak/keycloak:25.0.6@sha256:82c5b7a110456dbd42b86ea572e728878549954cc8bd03cd65410d75328095d2
     command: ["start-dev", "--http-port=8080", "--hostname-strict=false"]
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
@@ -133,7 +133,7 @@ services:
       - "8085:8080"
 
   caddy:
-    image: caddy:2.8.4
+    image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
     ports:
       # Fully custom ports so they don't collide with other projects. HTTP on
       # 8080 by default (non-privileged); HTTPS on 8443 by default. Set to 80/443
@@ -157,7 +157,7 @@ services:
   # by the management server into infra/server/certs/traefik-dynamic.yml and
   # mounted read-only. Requires the docker provider socket.
   traefik:
-    image: traefik:v3.1
+    image: traefik:v3.7@sha256:ef751c695afd26e2be41009047f651153dc1e61ace03e6d13f299d8c4be842b8
     restart: unless-stopped
     command:
       - --configFile=/etc/traefik/traefik-static.yml
