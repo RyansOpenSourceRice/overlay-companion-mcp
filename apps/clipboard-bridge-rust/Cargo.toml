@@ -17,7 +17,7 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tower = "0.5"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.7.0", features = ["cors"] }
 which = "6"
 thiserror = "1"
 async-process = "2"
