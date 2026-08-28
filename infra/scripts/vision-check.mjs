@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-core';
 const b = await chromium.launch();
 try {
   const page = await b.newPage({ viewport: { width: 1600, height: 900 } });

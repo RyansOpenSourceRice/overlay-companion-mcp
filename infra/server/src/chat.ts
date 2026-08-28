@@ -160,6 +160,29 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     },
   },
   {
+    // A2: inventory + cleanup — kills the config-probing death spiral.
+    name: 'list_overlays',
+    description:
+      'List overlays currently on screen (id, type, color, bounds, owner, age). ALWAYS use this to discover existing annotations and their removable ids — never probe get_config for overlay state.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'get_overlay_stats',
+    description:
+      'Count active overlays by owner and by type (text vs non-text). Call before placing more annotations or whenever the user mentions clutter.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'clear_overlays',
+    description:
+      "Bulk-remove overlays. scope='self' removes only your own (safe default). scope='all' wipes the entire canvas and needs assist mode. Use when the user asks to clear/reset the screen.",
+    parameters: {
+      type: 'object',
+      properties: { scope: { type: 'string', enum: ['self', 'all'] } },
+      required: ['scope'],
+    },
+  },
+  {
     // Served locally: reads the browser-captured framebuffer (see
     // screen-mirror.ts) and returns it as an image message so vision-capable
     // models can actually SEE the user's screen.
@@ -198,7 +221,7 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     // R15 adjustability: annotations are editable — delete and redraw anywhere.
     name: 'remove_overlay',
     description:
-      'Remove one of YOUR existing overlays by id (from a previous template_overlay/draw_overlay result). Combine with a new draw call to MOVE or RESIZE an annotation. Never remove overlays you did not create.',
+      'Remove any overlay by id. Find ids with list_overlays. Combine with a new draw call to MOVE or RESIZE an annotation; use clear_overlays for bulk cleanup.',
     parameters: { type: 'object', properties: { overlayId: { type: 'string' } }, required: ['overlayId'] },
   },
   // Admin-only config tools (B3): the interior assistant can configure the app
@@ -252,6 +275,9 @@ const MCP_TOOL_ARG_MAP: Record<string, (args: Record<string, unknown>) => Record
   set_display_actor: (a) => ({ actor: a.actor }),
   set_mode: (a) => ({ mode: a.mode }),
   remove_overlay: (a) => ({ overlay_id: a.overlayId ?? a.overlay_id }),
+  list_overlays: () => ({}),
+  get_overlay_stats: () => ({}),
+  clear_overlays: (a) => ({ scope: a.scope ?? 'self' }),
   re_anchor_element: (a) => ({
     overlay_id: a.overlayId ?? a.overlay_id,
     anchor_selector: a.selector,
@@ -588,6 +614,16 @@ export class InteriorChat {
     }
 
     if (call.name === 'see_screen') {
+      // Ask the page for fresh pixels; serve the newest frame within 1.5s,
+      // honestly flagging staleness when the desktop page isn't connected.
+      if (mirrorControl.send) {
+        mirrorControl.send({ triggerNow: true });
+        for (let waited = 0; waited < 1500; waited += 200) {
+          const probe = latestFrame();
+          if (probe && Date.now() - probe.capturedAt < 1200) break;
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
       const f = latestFrame();
       if (!f) {
         return JSON.stringify({
@@ -597,6 +633,7 @@ export class InteriorChat {
         });
       }
       const ageS = Math.round((Date.now() - f.capturedAt) / 1000);
+      const stale = ageS >= 5;
       // Attach the image as an extra user-side content part so vision models
       // genuinely see it; text result explains what it is.
       (this as unknown as { pendingVision?: Array<unknown> }).pendingVision =
@@ -604,6 +641,7 @@ export class InteriorChat {
       return JSON.stringify({
         seen: true,
         capturedSecondsAgo: ageS,
+        stale, // true means the desktop page may be gone or mirroring disabled
         display: `${f.displayWidth}x${f.displayHeight}`,
         trigger: f.trigger,
         note:

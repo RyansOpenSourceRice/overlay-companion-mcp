@@ -84,6 +84,8 @@ public class ModeManager : IModeManager
         var viewOnlyActions = new HashSet<string>
         {
             "take_screenshot",
+            "list_overlays",
+            "get_overlay_stats",
             "get_clipboard",
             "subscribe_events",
             "unsubscribe_events"

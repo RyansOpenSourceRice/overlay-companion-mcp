@@ -1,6 +1,6 @@
 // R9 pixel check: connect to the demo desktop like a user, then sample the
 // overlay canvas to prove chat-drawn annotations actually render.
-import { chromium } from 'playwright';
+import { chromium } from 'playwright-core';
 
 const BASE = process.argv[2] ?? 'http://localhost:8080';
 const b = await chromium.launch();

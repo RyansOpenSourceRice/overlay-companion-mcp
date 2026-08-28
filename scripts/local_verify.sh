@@ -57,7 +57,7 @@ fi
 # Resolution order for the playwright module:
 #   1. plain import from repo-local infra/scripts/node_modules (symlink ok)
 #   2. $PLAYWRIGHT_MODULE/playwright (explicit override)
-if command -v node >/dev/null && { [ -d "infra/scripts/node_modules/playwright" ] || [ -d "${PLAYWRIGHT_MODULE:-}/playwright" ]; }; then
+if command -v node >/dev/null && { [ -d "infra/scripts/node_modules/playwright" ] || [ -d "infra/scripts/node_modules/playwright-core" ] || [ -d "${PLAYWRIGHT_MODULE:-}/playwright" ]; }; then
   export NODE_PATH="${PLAYWRIGHT_MODULE:-$PWD/infra/scripts/node_modules}"
   PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}" \
     node infra/scripts/pixel-check.mjs "$BASE" || fail "pixel check"

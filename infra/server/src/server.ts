@@ -487,6 +487,15 @@ if (config.mcpWsEnabled) {
 // events onto the browser-facing /ws channel and keeps a current-state list
 // so late-joining pages get an instant sync_state.
 let activeOverlays: Array<Record<string, unknown>> = [];
+export function getBridgeOverlays(): Array<Record<string, unknown>> {
+  return activeOverlays;
+}
+function overlayStatsLine(): string {
+  const n = activeOverlays.length;
+  if (n === 0) return 'No overlays are currently on screen.';
+  const interior = activeOverlays.filter((o) => o.actor === 'interior').length;
+  return `There ${n === 1 ? 'is 1 overlay' : `are ${n} overlays`} on screen right now (${interior} by you, ${n - interior} by an external agent). For clutter complaints use clear_overlays {scope:'self'} or remove_overlay with ids from list_overlays.`;
+}
 let mcpOverlayWs: WebSocket | null = null;
 const MCP_OVERLAY_RECONNECT_MS = 3000;
 
@@ -1300,7 +1309,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
         `If the user asks for any overlay/drawing and either the owner below is not 'interior' or a tool errors mentioning Passive mode, do this first in order: set_mode {mode:"assist"}, set_display_actor {actor:"interior"}, then the draw call. Current display owner: ${activeActor}; you may switch ownership yourself via set_display_actor. Only retry an overlay once after fixing mode/ownership.`,
-        `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + overlayStatsLine() + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         `Communication style (non-negotiable): your interface hides all mechanics from the user. Never mention tool names, JSON, IDs, error codes, screenshots as 'attachments', or that you called anything. Just describe what is now true on screen or what you did in plain words, like a helpful person standing behind the user's shoulder.`,
         role === 'admin'
@@ -1312,8 +1321,32 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     // prompts opted out of this snapshot by design.
     const hasSystem = messages.some((m) => m.role === 'system');
     let currentMessages: Array<Record<string, unknown>> = hasSystem ? messages : [{ role: 'system', content: sysContext }, ...messages];
+    // A5: read-only tools are free; only state-changing executions consume
+    // the budget. Hard iteration cap guards runaway read loops. Duplicate
+    // calls (same tool + args) are refused with guidance so models stop
+    // re-running failed probes verbatim.
     const MAX_TOOL_TURNS = 8;
-    for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    const MAX_ITERATIONS = 12;
+    const READ_ONLY_TOOLS = new Set([
+      'see_screen', 'list_overlays', 'get_overlay_stats', 'get_display_info',
+      'get_overlay_capabilities', 'get_config',
+    ]);
+    let executedTurns = 0;
+    let consecutiveDuplicates = 0;
+    let lastSignature = '';
+    const buildSalvage = (): string => {
+      const all = getBridgeOverlays();
+      const mineCount = all.filter((o) => o.actor === 'interior').length;
+      return [
+        'Stopped after reaching the tool round limit. Partial progress summary:',
+        `- Overlays on screen: ${all.length} total, ${mineCount} created by you.`,
+        'Recovery: call list_overlays for exact ids, then clear_overlays {scope:"self"} for one-call cleanup.',
+        'Tell the user what remains unfinished in one plain sentence.',
+      ].join('\n');
+    };
+
+    iterationLoop: for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+      const turn = iteration;
       const collected: Array<string> = [];
       let toolCalls: Array<import('./chat.js').ChatToolCall> = [];
 
@@ -1338,13 +1371,37 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
 
       if (toolCalls.length === 0) break;
 
-      if (turn === MAX_TOOL_TURNS - 1) {
-        res.write(`data: ${JSON.stringify({ error: 'Reached the per-message tool round limit before finishing the task.' })}\n\n`);
+      if (executedTurns >= MAX_TOOL_TURNS) {
+        res.write(`data: ${JSON.stringify({ error: buildSalvage() })}\n\n`);
         break;
       }
       // Execute each tool, append the tool results as assistant + tool messages.
       const toolResults: Array<Record<string, unknown>> = [];
       for (const tc of toolCalls) {
+        // Duplicate-call detector (A5): same tool + identical args twice in a
+        // row means the model is stuck; refuse with guidance, and bail out to
+        // salvage after three in a row.
+        const sig = `${tc.name}:${JSON.stringify(tc.arguments)}`;
+        if (sig === lastSignature) {
+          consecutiveDuplicates += 1;
+          if (consecutiveDuplicates >= 3) {
+            res.write(`data: ${JSON.stringify({ error: buildSalvage() })}\n\n`);
+            res.end();
+            return;
+          }
+          toolResults.push({
+            role: 'tool', tool_call_id: tc.id,
+            content: JSON.stringify({ error: 'duplicate_call', message: 'You already made this exact call and it returned the same result. Change your approach: call list_overlays, adjust the arguments, or ask the user a clarifying question in plain words.' }),
+          });
+          res.write(`data: ${JSON.stringify({ tool: tc.name, result: '{"error":"duplicate_call"}' })}\n\n`);
+          currentMessages = [...currentMessages, { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } }] }, ...toolResults];
+          toolCalls = [];
+          continue iterationLoop; // re-stream next iteration with guidance in context
+        }
+        lastSignature = sig;
+        consecutiveDuplicates = 0;
+        if (!READ_ONLY_TOOLS.has(tc.name)) executedTurns += 1;
+
         let result: string;
         try {
           result = await chat.runTool(opts, tc);
@@ -1447,6 +1504,18 @@ function storeMirror(body: MirrorBody, kind: 'preview' | 'frame'): void {
   };
   if (kind === 'preview') pushPreview(f); else pushFrame(f);
 }
+
+app.get('/api/screen-mirror/latest', makeLimitGuard('connections'), requireBetterAuthSession, ((_req: Request, res: Response) => {
+  const f = latestFrame();
+  if (!f) { res.status(404).json({ error: 'no_frames_yet' }); return; }
+  res.json({
+    width: f.width, height: f.height,
+    displayWidth: f.displayWidth, displayHeight: f.displayHeight,
+    trigger: f.trigger, capturedAt: f.capturedAt,
+    ageMs: Date.now() - f.capturedAt,
+    dataUrl: f.dataUrl,
+  });
+}) as RequestHandler);
 
 app.post('/api/screen-mirror/frame', makeLimitGuard('connections'), requireBetterAuthSession, ((req: Request, res: Response) => {
   const body = req.body as MirrorBody;

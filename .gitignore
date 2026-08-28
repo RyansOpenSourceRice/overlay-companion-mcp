@@ -156,3 +156,6 @@ rust-clipboard-bridge/.cargo/
 graphify-out/
 .graphify_*.json
 .ontology-hook-venv/
+
+# PRIVATE local plan — never upload
+docs/PLAN-private.md

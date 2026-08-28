@@ -196,6 +196,19 @@ export class ScreenMirror {
       return null;
     }
 
+    // COMPOSITE (A1): stamp the annotation layer on top so mirror frames show
+    // overlays exactly as the user sees them. Without this the assistant
+    // sees a pristine desktop while the user looks at a pile of circles —
+    // the root cause of the "screen is already clear" hallucinations.
+    // The overlay canvas is element-sized over the same screen rect, so a
+    // direct draw maps coordinates correctly.
+    const overlayCanvas = document.getElementById('overlay-canvas') as HTMLCanvasElement | null;
+    if (overlayCanvas && overlayCanvas.width > 0 && overlayCanvas.height > 0) {
+      try {
+        ctx.drawImage(overlayCanvas, 0, 0, out.width, out.height);
+      } catch { /* overlay layer absent/unreadable — desktop-only frame still useful */ }
+    }
+
     // Resolve guest logical resolution from the attribute set by the client
     // (falls back to the canvas backing size).
     const dw = Number(iframe?.dataset.ocDisplayWidth ?? vncCanvas.width);
@@ -229,6 +242,15 @@ export class ScreenMirror {
         }),
       });
     } catch { /* offline moments are fine */ }
+  }
+
+  /** A4: immediate capture+upload, used when see_screen requests fresh pixels. */
+  async captureNow(): Promise<void> {
+    const frame = await this.captureFrame();
+    if (frame?.canvasOut) {
+      this.lastSentAt = Date.now();
+      await this.send(frame.canvasOut, 'manual', frame, undefined);
+    }
   }
 
   public get cadence(): MirrorCadence { return this.currentCadence; }

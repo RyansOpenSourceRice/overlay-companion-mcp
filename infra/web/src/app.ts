@@ -856,10 +856,16 @@ class OverlayCompanionApp {
           }
           // Model-driven mirror control (R14): the assistant tunes its own
           // view cadence via the set_screen_updates tool.
-          if (data.type === 'mirror_control' && data.payload && typeof (data.payload as { cadenceMs?: unknown }).cadenceMs !== 'undefined') {
-            const c = (data.payload as { cadenceMs: number | 'input' | 'off' }).cadenceMs;
-            screenMirror.setCadence(c);
-            localStorage.setItem('oc.mirrorCadence', String(c));
+          if (data.type === 'mirror_control' && data.payload) {
+            const pl = data.payload as { cadenceMs?: number | 'input' | 'off'; triggerNow?: boolean };
+            if (pl.triggerNow) {
+              void screenMirror.captureNow();
+              return;
+            }
+            if (typeof pl.cadenceMs !== 'undefined') {
+              screenMirror.setCadence(pl.cadenceMs);
+              localStorage.setItem('oc.mirrorCadence', String(pl.cadenceMs));
+            }
           }
         } catch (error) {
           console.error('Failed to parse overlay message:', error);

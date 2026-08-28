@@ -115,3 +115,15 @@ public class DisplayActorGate : IDisplayActorGate
         return string.Equals(o.Actor, actor.ToKey(), System.StringComparison.OrdinalIgnoreCase);
     }
 }
+
+/// <summary>
+/// String-key helper for tool callers that pass actor as a plain string
+/// (MCP JSON args cannot express the enum directly).
+/// </summary>
+public static class ActorKeyExtensions
+{
+    public static string ToActorKey(this string key)
+        => string.Equals(key, "interior", StringComparison.OrdinalIgnoreCase) ? "interior"
+         : string.Equals(key, "exterior", StringComparison.OrdinalIgnoreCase) ? "exterior"
+         : key.Trim().ToLowerInvariant();
+}
