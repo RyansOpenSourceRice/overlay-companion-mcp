@@ -68,3 +68,21 @@ export const mirrorControl: { send: ((payload: Record<string, unknown>) => void)
  * overlays it no longer knows about (pre-restart ghosts).
  */
 export const overlayControl: { clear: (() => void) | null } = { clear: null };
+
+/**
+ * Phase 3: wait until a preview frame newer than `sinceMs` has been uploaded
+ * (the page composes ghosts asynchronously over the websocket control
+ * channel). Returns the fresh preview or null on timeout / no composer.
+ */
+export function waitForPreview(sinceMs: number, timeoutMs = 1500): Promise<ReturnType<typeof currentPreview>> {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = (): void => {
+      const p = currentPreview();
+      if (p && p.capturedAt > sinceMs) { resolve(p); return; }
+      if (Date.now() >= deadline) { resolve(p && p.capturedAt > sinceMs ? p : null); return; }
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}

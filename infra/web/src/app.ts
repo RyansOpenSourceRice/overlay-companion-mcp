@@ -370,6 +370,32 @@ class OverlayCompanionApp {
       console.error('Settings render failed:', err);
     }
     if (this.currentUser?.roles?.includes('admin')) void this.loadRateLimits();
+    void this.loadAssistantPrefs();
+  }
+
+  private async loadAssistantPrefs(): Promise<void> {
+    const section = document.getElementById('assistant-prefs-section');
+    const toggle = document.getElementById('pref-enforce-preview') as HTMLInputElement | null;
+    if (!section || !toggle) return;
+    section.style.display = '';
+    try {
+      const res = await fetch('/api/me/preferences', { credentials: 'include' });
+      if (!res.ok) { section.style.display = 'none'; return; }
+      const data = (await res.json()) as { enforcePreview: boolean };
+      toggle.checked = data.enforcePreview;
+    } catch {
+      section.style.display = 'none';
+      return;
+    }
+    toggle.onchange = async () => {
+      const res = await fetch('/api/me/preferences', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enforcePreview: toggle.checked }),
+      });
+      this.showToast(res.ok ? 'success' : 'error', 'Preferences', res.ok ? 'Saved.' : `Save failed (${res.status}).`);
+    };
   }
 
   private async loadRateLimits(): Promise<void> {
@@ -857,9 +883,14 @@ class OverlayCompanionApp {
           // Model-driven mirror control (R14): the assistant tunes its own
           // view cadence via the set_screen_updates tool.
           if (data.type === 'mirror_control' && data.payload) {
-            const pl = data.payload as { cadenceMs?: number | 'input' | 'off'; triggerNow?: boolean };
+            const pl = data.payload as { cadenceMs?: number | 'input' | 'off'; triggerNow?: boolean; previewSpec?: { x: number; y: number; width: number; height: number; color?: string } };
             if (pl.triggerNow) {
               void screenMirror.captureNow();
+              return;
+            }
+            // Phase 3: server asks the page to ghost-render a candidate spec.
+            if (pl.previewSpec && typeof pl.previewSpec === 'object') {
+              void screenMirror.composePreview(pl.previewSpec as { x: number; y: number; width: number; height: number; color?: string });
               return;
             }
             if (typeof pl.cadenceMs !== 'undefined') {

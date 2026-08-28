@@ -35,6 +35,13 @@ CODE="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -X POST "$BASE/auth/loc
 pass "login"
 
 # 3) scripted prompt -> overlay drawn -------------------------------------
+# Grounding (preview gate) needs a live desktop page to compose ghosts; the
+# curl-only path tests the default (gate-off) pipeline. The gated flow is
+# covered by infra/scripts/bench/ (b0-gated + gate-test with a real page).
+PREF_CODE="$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X PUT "$BASE/api/me/preferences" \
+  -H 'content-type: application/json' -d '{"enforcePreview":false}')"
+[ "$PREF_CODE" = "200" ] || fail "could not reset grounding pref (HTTP $PREF_CODE)"
+
 SSE="$(curl -sN -b "$JAR" -X POST "$BASE/api/chat" \
   -H 'content-type: application/json' -H 'accept: text/event-stream' \
   --max-time 150 \

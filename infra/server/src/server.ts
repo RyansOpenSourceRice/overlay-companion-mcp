@@ -623,6 +623,7 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
 // MCP proxy). Admin knobs in libSQL (`limits.<surface>`), short block
 // windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
 import { AdaptiveLimits } from './adaptive-limits.js';
+import type { ChatSessionOptions } from './chat.js';
 import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl } from './screen-mirror.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
@@ -1092,6 +1093,35 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
 }) as RequestHandler);
 
+// ---- Per-user assistant preferences (Phase 3) ----------------------------
+const USER_PREF_KEYS = new Set(['enforcePreview']);
+
+app.get('/api/me/preferences', requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const row = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
+  const value = ((row && typeof row === 'object' ? row.value ?? row : {}) ?? {}) as Record<string, unknown>;
+  res.json({
+    enforcePreview: value.enforcePreview === true,
+    markdownTables: (value as { markdownTables?: boolean }).markdownTables !== false,
+  });
+}) as RequestHandler);
+
+app.put('/api/me/preferences', requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const body = req.body as Record<string, unknown>;
+  if (!body || typeof body !== 'object') { res.status(400).json({ error: { code: 'invalid_request' } }); return; }
+  const key = `assistant.chat.user.${state.user.id}`;
+  const existing = ((await libSqlStore.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+  const next: Record<string, unknown> = { ...existing };
+  for (const [k, v] of Object.entries(body)) {
+    if (!USER_PREF_KEYS.has(k)) continue;
+    if (k === 'enforcePreview' && typeof v !== 'boolean') { res.status(400).json({ error: { code: 'invalid_request' } }); return; }
+    next[k] = v;
+  }
+  await libSqlStore.setConfig(key, next, 'assistant', state.user.id);
+  res.json({ ok: true, preferences: next });
+}) as RequestHandler);
+
 // GET /api/admin/limits — current adaptive-limit knobs (defaults when unset).
 app.get('/api/admin/limits', settingsLimiter, requireBetterAuthSession, requireAdmin(), (async (_req: Request, res: Response) => {
   const surfaces = ['chat', 'connections', 'mcpProxy'] as const;
@@ -1299,6 +1329,25 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  // Phase 3: per-user grounding preference (user row wins, then global
+  // admin default, then OFF).
+  let enforcePreview = false;
+  try {
+    const userRow = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
+    const userVal = userRow && typeof userRow === 'object'
+      ? ((userRow.value as Record<string, unknown> | undefined) ?? userRow)['enforcePreview']
+      : undefined;
+    if (typeof userVal === 'boolean') enforcePreview = userVal;
+    else {
+      const g = (await libSqlStore.getConfig('assistant.enforcePreview')) as Record<string, unknown> | null;
+      const gVal = g && typeof g === 'object' ? ((g.value as Record<string, unknown> | undefined) ?? g)['enforcePreview'] : undefined;
+      if (typeof gVal === 'boolean') enforcePreview = gVal;
+    }
+  } catch { /* default OFF */ }
+
+  // Phase 3 hygiene: gate state is per-request — concurrent users can never
+  // consume each other's previews, and approvals never leak across messages.
+  const gate: NonNullable<ChatSessionOptions['gate']> = {};
   const opts = {
     mcpServerUrl: config.mcpServerUrl,
     providerBaseUrl: selection?.baseUrl ?? DEFAULT_PROVIDER_BASE_URL,
@@ -1306,9 +1355,15 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     providerModel: selection?.model ?? DEFAULT_PROVIDER_MODEL,
     userRole: role,
     userId: state.user.id,
+    enforcePreview,
+    gate,
   };
 
   try {
+    // Phase 3 hygiene: gate state is per-request — concurrent users can never
+    // consume each other's previews, and approvals never leak across messages.
+
+
     if (!opts.providerApiKey) {
       res.write(`data: ${JSON.stringify({ error: 'Chat provider is not configured. Set the provider API key in Settings.' })}\n\n`);
       res.end();
@@ -1398,7 +1453,11 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         // row means the model is stuck; refuse with guidance, and bail out to
         // salvage after three in a row.
         const sig = `${tc.name}:${JSON.stringify(tc.arguments)}`;
-        if (sig === lastSignature) {
+        // The preview-commit repeat is the APPROVAL path, not a stuck loop.
+        if (sig === gate.awaitingCommitSig) {
+          lastSignature = '';
+          consecutiveDuplicates = 0;
+        } else if (sig === lastSignature) {
           consecutiveDuplicates += 1;
           if (consecutiveDuplicates >= 3) {
             res.write(`data: ${JSON.stringify({ error: buildSalvage() })}\n\n`);
@@ -1435,26 +1494,25 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         // Vision passthrough (R13): see_screen / preview_overlay attach an
         // image the model must SEE; inject as a user-side multimodal part
         // right after the tool result so providers render it in context.
-        const vision = chat.pendingVision;
+        const vision = gate.vision;
         if (vision?.length) {
           for (const part of vision) {
             if (part.type !== 'image_url') continue;
             const meta = (part as { note?: string; previewSpec?: unknown }).note;
+            const text = meta
+              ? (String(meta).startsWith('screen@')
+                ? 'Screen capture referenced by the previous see_screen result.'
+                : String(meta))
+              : 'Capture referenced by the previous tool result.';
             toolResults.push({
               role: 'user',
               content: [
                 part as unknown as Record<string, unknown>,
-                {
-                  type: 'text',
-                  text:
-                    (meta && !String(meta).startsWith('screen@')
-                      ? `Ghost preview of candidate overlay at logical coords ${JSON.stringify((part as { previewSpec?: unknown }).previewSpec)} over this capture.`
-                      : 'Screen capture referenced by the previous see_screen result.'),
-                },
+                { type: 'text', text },
               ],
             });
           }
-          chat.pendingVision = undefined;
+          gate.vision = undefined;
         }
       }
       currentMessages = [

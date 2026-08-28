@@ -70,7 +70,7 @@ export async function connectDesktop(page) {
 }
 
 /** Send a user message through the app; returns {text, annotations[], tools[]}. */
-export async function sendAsHuman(page, message, { timeoutMs = 120000 } = {}) {
+export async function sendAsHuman(page, message, { timeoutMs = 240000 } = {}) {
   const sse = await page.evaluate(async ({ message, timeoutMs }) => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -84,7 +84,7 @@ export async function sendAsHuman(page, message, { timeoutMs = 120000 } = {}) {
     } finally { clearTimeout(t); }
   }, { message, timeoutMs });
 
-  const out = { text: '', annotations: [], tools: [], errors: [] };
+  const out = { text: '', annotations: [], tools: [], errors: [], raw: [] };
   for (const line of sse.split('\n').filter((l) => l.startsWith('data:'))) {
     let j;
     try { j = JSON.parse(line.slice(5)); } catch { continue; }
@@ -93,6 +93,7 @@ export async function sendAsHuman(page, message, { timeoutMs = 120000 } = {}) {
       const rawR = typeof j.result === 'string' ? j.result : JSON.stringify(j.result ?? '');
       const isError = rawR.includes('isError\":true') || rawR.includes('error');
       out.tools.push(j.tool + (isError ? '(!)' : ''));
+      out.raw.push({ tool: j.tool, result: rawR.slice(0, 600) });
     }
     if (j.text && !j.thinking) out.text += j.text;
     // Annotation coordinates: bounds out of draw/template results.

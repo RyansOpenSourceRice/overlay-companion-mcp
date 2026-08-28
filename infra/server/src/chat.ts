@@ -1,5 +1,5 @@
 import type { LibSqlStore } from './libsql-store.js';
-import { latestFrame, currentPreview, mirrorControl, overlayControl } from './screen-mirror.js';
+import { latestFrame, currentPreview, mirrorControl, overlayControl, waitForPreview } from './screen-mirror.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -28,6 +28,20 @@ export interface ChatSessionOptions {
   userRole: string;
   /** Authenticated user id; required for per-user model persistence. */
   userId?: string;
+  /** Phase 3 gate: require a fresh matching preview before any marking. */
+  enforcePreview?: boolean;
+  /** Per-request gate state — request-scoped, never shared across users. */
+  gate?: {
+    pendingPreview?: {
+      token: string;
+      template: string;
+      color: string;
+      bounds: { x: number; y: number; width: number; height: number };
+      createdAt: number;
+    };
+    awaitingCommitSig?: string;
+    vision?: Array<Record<string, unknown>>;
+  };
 }
 
 // Centralized fallbacks so admin-curated defaults can never silently drift
@@ -180,6 +194,16 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
       type: 'object',
       properties: { scope: { type: 'string', enum: ['self', 'all'] } },
       required: ['scope'],
+    },
+  },
+  {
+    // Served locally: user-owned preferences (mirrors the Settings GUI).
+    name: 'set_my_preferences',
+    description:
+      "Read or change the user's assistant preferences. Call with NO arguments to read current settings; call with enforcePreview (boolean) to change them. enforcePreview=true means every screen marking is ghost-previewed to you for approval before the user sees it.",
+    parameters: {
+      type: 'object',
+      properties: { enforcePreview: { type: 'boolean' } },
     },
   },
   {
@@ -376,8 +400,8 @@ function parseMcpResult(raw: string): unknown {
 
 export class InteriorChat {
   private store: LibSqlStore;
+
   /** Vision parts queued by see_screen / preview_overlay for this turn. */
-  pendingVision?: Array<Record<string, unknown>>;
 
   constructor(store: LibSqlStore) {
     this.store = store;
@@ -596,6 +620,57 @@ export class InteriorChat {
    * Execute a single allowlisted tool via the C# MCP server (the same tools an
    * external client uses). Config tools are admin-only and served here.
    */
+  /** Phase 3: ask the page to ghost-render a candidate and wait for it. */
+  private async composePreview(spec: { x: number; y: number; width: number; height: number; color?: string }): Promise<ReturnType<typeof currentPreview>> {
+    if (!mirrorControl.send) return null;
+    const t = Date.now();
+    mirrorControl.send({ previewSpec: spec });
+    return waitForPreview(t, 1500);
+  }
+
+  private static normalizeSpec(name: string, args: Record<string, unknown>): { template: string; color: string; bounds: { x: number; y: number; width: number; height: number } } | null {
+    let template: string;
+    let raw: Record<string, unknown> = args;
+    if (name === 'draw_overlay') {
+      template = 'rectangle';
+    } else if (name === 'template_overlay') {
+      template = String(args.template ?? '').toLowerCase();
+      const tp = args.templateParams;
+      if (typeof tp === 'string') {
+        try { raw = { ...args, ...JSON.parse(tp) }; } catch { /* keep args */ }
+      } else if (tp && typeof tp === 'object') {
+        raw = { ...args, ...(tp as Record<string, unknown>) };
+      }
+    } else return null;
+    const num = (k: string): number => Math.round(Number(raw[k] ?? 0)) || 0;
+    // C# template semantics: circle takes a CENTER (x,y) + radius, not
+    // top-left bounds. Normalize to a bounding box so the gate and the ghost
+    // preview speak the same geometry the committed overlay will have.
+    const radius = Number(raw.radius ?? 0);
+    let bounds: { x: number; y: number; width: number; height: number };
+    if (template === 'circle' && radius > 0) {
+      const cx = num('x'), cy = num('y');
+      bounds = { x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2 };
+    } else if (template === 'text' && (raw.text || raw.label)) {
+      const size = num('size') || 18;
+      const text = String(raw.text ?? raw.label ?? '');
+      bounds = { x: num('x'), y: num('y'), width: Math.round(text.length * size * 0.6) || 40, height: Math.round(size * 1.5) };
+    } else {
+      bounds = { x: num('x'), y: num('y'), width: num('width'), height: num('height') };
+    }
+    if (bounds.width <= 0 || bounds.height <= 0) return null;
+    const color = String(raw.color ?? '#ff0000').toLowerCase();
+    return { template, color, bounds };
+  }
+
+  private static specMatches(a: { template: string; color: string; bounds: { x: number; y: number; width: number; height: number } }, b: { template: string; color: string; bounds: { x: number; y: number; width: number; height: number } }): boolean {
+    const near = (x: number, y: number): boolean => Math.abs(x - y) <= 4;
+    return a.template === b.template
+      && near(a.bounds.x, b.bounds.x) && near(a.bounds.y, b.bounds.y)
+      && near(a.bounds.width, b.bounds.width) && near(a.bounds.height, b.bounds.height)
+      && a.color === b.color;
+  }
+
   async runTool(opts: ChatSessionOptions, call: ChatToolCall): Promise<string> {
     if (!TOOL_ALLOWLIST.some((t) => t.name === call.name)) {
       return JSON.stringify({ error: `Tool ${call.name} is not in the chat allowlist.` });
@@ -636,7 +711,7 @@ export class InteriorChat {
       const stale = ageS >= 5;
       // Attach the image as an extra user-side content part so vision models
       // genuinely see it; text result explains what it is.
-      (this as unknown as { pendingVision?: Array<unknown> }).pendingVision =
+      (opts.gate ??= {}).vision =
         [{ type: 'image_url', image_url: { url: f.dataUrl }, note: `screen@${ageS}s ago` }];
       return JSON.stringify({
         seen: true,
@@ -690,6 +765,96 @@ export class InteriorChat {
     }
 
     if (call.name === 'preview_overlay') {
+      const x = Number(call.arguments.x ?? 0), y = Number(call.arguments.y ?? 0);
+      const w = Number(call.arguments.width ?? 100), h = Number(call.arguments.height ?? 100);
+      const color = String(call.arguments.color ?? '#ffff00').toLowerCase();
+      (opts.gate ??= {});
+      const prev = await this.composePreview({ x, y, width: w, height: h, color });
+      if (!prev) {
+        return JSON.stringify({
+          error: 'no_preview_available',
+          message: 'Ghost previews need an open desktop page with mirroring. Proceed with see_screen-based estimates, or ask the user to open the demo desktop.',
+        });
+      }
+      const token = randomUUID();
+      (opts.gate ??= {}).pendingPreview = { token, template: 'rectangle', color, bounds: { x, y, width: w, height: h }, createdAt: Date.now() };
+      opts.gate.awaitingCommitSig = undefined;
+      opts.gate.vision = [{
+        type: 'image_url',
+        image_url: { url: prev.dataUrl },
+        note:
+          `Ghost preview of the candidate at ${JSON.stringify({ x, y, width: w, height: h })}. ` +
+          'Judge placement against your intended target; adjust and re-run preview_overlay, or draw/template to commit.',
+      }];
+      return JSON.stringify({
+        previewed: true,
+        token,
+        spec: { x, y, width: w, height: h },
+        note: 'Nothing is on the user screen yet. The attached image ghost-renders your candidate.',
+      });
+    }
+
+    if (call.name === 'set_my_preferences') {
+      // Phase 3: user-owned assistant settings (GUI mirrors these).
+      // SECURITY: the model may ENABLE grounding but never disable it — a
+      // gated model unsetting its own gate defeats the entire feature. Only
+      // the user (GUI / PUT /api/me/preferences) can turn it off.
+      if (!opts.userId) return JSON.stringify({ error: 'no_user_context' });
+      const key = `assistant.chat.user.${opts.userId}`;
+      if (Object.keys(call.arguments).length === 0) {
+        const cur = (await this.store.getConfig(key)) as Record<string, unknown> | null;
+        const value = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+        return JSON.stringify({ enforcePreview: value.enforcePreview === true });
+      }
+      const enforce = call.arguments.enforcePreview;
+      if (typeof enforce !== 'boolean') {
+        return JSON.stringify({ error: 'invalid_args', message: 'enforcePreview must be true or false.' });
+      }
+      if (enforce === false) {
+        return JSON.stringify({
+          error: 'user_controlled_setting',
+          message:
+            'The user controls this setting; it cannot be disabled by you. If grounding blocks the task, work WITH it: call the tool again to commit after inspecting the ghost preview, or tell the user they can turn off "Preview before placing markings" in Settings.',
+        });
+      }
+      const cur = ((await this.store.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+      await this.store.setConfig(key, { ...cur, enforcePreview: true }, 'assistant', opts.userId);
+      return JSON.stringify({
+        ok: true,
+        enforcePreview: true,
+        note: 'Saved: every marking will be previewed to you first for approval.',
+      });
+    }
+
+    if (call.name === 'set_screen_updates') {
+      const raw = Number(call.arguments.cadenceMs);
+      if (!Number.isFinite(raw)) {
+        return JSON.stringify({ error: 'invalid_cadence', message: 'cadenceMs must be an integer.' });
+      }
+      if (!mirrorControl.send) {
+        return JSON.stringify({ error: 'no_browser_channel', message: 'No desktop page is connected via WebSocket yet.' });
+      }
+      if (raw === -1) {
+        mirrorControl.send({ cadenceMs: 'off' });
+        return JSON.stringify({ ok: true, mode: 'off', note: 'Mirroring disabled. Re-enable with a positive cadenceMs before needing sight again.' });
+      }
+      if (raw === 0) {
+        mirrorControl.send({ cadenceMs: 'input' });
+        return JSON.stringify({ ok: true, mode: 'input', note: 'View refreshes on user input only (clicks, scrolls, keys).' });
+      }
+      const clamped = Math.min(1_800_000, Math.max(500, Math.round(raw)));
+      mirrorControl.send({ cadenceMs: clamped });
+      return JSON.stringify({
+        ok: true,
+        mode: 'interval',
+        cadenceMs: clamped,
+        appliedClamp: clamped !== raw,
+        note:
+          `Your view now refreshes every ${clamped} ms. Use see_screen for the latest frame. Relax it with a larger value (e.g. 30000) once finished.`,
+      });
+    }
+
+    if (call.name === 'preview_overlay') {
       const prev = currentPreview();
       if (!prev) {
         return JSON.stringify({
@@ -699,7 +864,7 @@ export class InteriorChat {
       }
       const x = Number(call.arguments.x ?? 0), y = Number(call.arguments.y ?? 0);
       const w = Number(call.arguments.width ?? 100), h = Number(call.arguments.height ?? 100);
-      (this as unknown as { pendingVision?: Array<unknown> }).pendingVision = [
+      (opts.gate ??= {}).vision = [
         { type: 'image_url', image_url: { url: prev.dataUrl }, previewSpec: { x, y, width: w, height: h } },
       ];
       return JSON.stringify({
@@ -713,7 +878,91 @@ export class InteriorChat {
     const session = await openMcpSession(opts.mcpServerUrl);
     try {
       const args = MCP_TOOL_ARG_MAP[call.name] ? MCP_TOOL_ARG_MAP[call.name](call.arguments) : call.arguments;
+
+      // ---- Phase 3 gate: see-before-show --------------------------------
+      if (opts.enforcePreview && (call.name === 'draw_overlay' || call.name === 'template_overlay')) {
+        const spec = InteriorChat.normalizeSpec(call.name, call.arguments);
+        if (!spec) {
+          // Fail-closed: unparseable geometry must not bypass grounding.
+          return JSON.stringify({
+            error: 'preview_unparseable',
+            message:
+              'Grounding is enabled but the marking geometry could not be determined (missing x/y/width/height or radius). ' +
+              'Re-state the marking with explicit coordinates; a preview will be shown before anything is placed.',
+          });
+        }
+        {
+          const gate = (opts.gate ??= {});
+          const pending = gate.pendingPreview;
+          const fresh = pending && Date.now() - pending.createdAt < 45_000;
+          const matches = fresh
+            && InteriorChat.specMatches(spec, { template: pending!.template, color: pending!.color, bounds: pending!.bounds });
+          if (matches) {
+            gate.pendingPreview = undefined; // consume token
+            gate.awaitingCommitSig = undefined;
+          } else {
+            const preview = await this.composePreview({ ...spec.bounds, color: spec.color });
+            if (!preview) {
+              return JSON.stringify({
+                error: 'preview_unavailable',
+                message:
+                  'Grounding is enabled for this user, but no desktop page is connected to compose the preview. Ask the user to open the demo desktop (or disable the grounding preference). Nothing was placed on screen.',
+              });
+            }
+            const token = randomUUID();
+            gate.pendingPreview = { token, ...spec, createdAt: Date.now() };
+            gate.awaitingCommitSig = `${call.name}:${JSON.stringify(call.arguments)}`;
+            opts.gate.vision = [{
+              type: 'image_url',
+              image_url: { url: preview.dataUrl },
+              note:
+                `Ghost preview of your candidate at ${JSON.stringify(spec.bounds)} (${spec.template}, ${spec.color}). ` +
+                `Judge it against the target you intended to mark. ` +
+                `If it is correctly placed, repeat your ${call.name} call EXACTLY to commit it for the user. ` +
+                `If it is off-target, adjust the coordinates and preview again. Token: ${token}.`,
+            }];
+            return JSON.stringify({
+              status: 'preview_pending',
+              blocked: true,
+              token,
+              message:
+                'NOTHING has been placed on the user screen. The image you received is a GHOST PREVIEW only. ' +
+                'Do NOT tell the user the marking exists or is done. ' +
+                'Inspect the ghost: if it covers the intended target, repeat your ' + call.name + ' call with identical arguments to commit it. ' +
+                'If it is off-target, change the coordinates and call again for a new preview.',
+            });
+          }
+        }
+      }
+
       const result = await mcpCall(session, opts.mcpServerUrl, call.name, args);
+
+      // Post-commit verification (gate on): attach a fresh capture so the
+      // model sees the committed marker as the user now sees it.
+      if (opts.enforcePreview && (call.name === 'draw_overlay' || call.name === 'template_overlay')) {
+        const rawRes = typeof result === 'string' ? result : JSON.stringify(result);
+        let overlayId = '';
+        try {
+          const inner = JSON.parse(rawRes);
+          const payload = typeof inner.content?.[0]?.text === 'string' ? JSON.parse(inner.content[0].text) : inner;
+          overlayId = String(payload.overlay_id ?? '');
+        } catch { /* best effort */ }
+        if (mirrorControl.send) {
+          mirrorControl.send({ triggerNow: true });
+          await new Promise((r) => setTimeout(r, 900));
+          const f = latestFrame();
+          if (f) {
+            (opts.gate ??= {}).vision = [{
+              type: 'image_url',
+              image_url: { url: f.dataUrl },
+              note:
+                `Post-commit verification capture. Your ${call.name} marker${overlayId ? ` (id ${overlayId})` : ''} is now visible to the user. ` +
+                'Check it covers the intended target; if misplaced, remove_overlay the id and adjust.',
+            }];
+          }
+        }
+      }
+
       return JSON.stringify(result);
     } finally {
       if (session.sessionId) {
