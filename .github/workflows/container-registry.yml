@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -91,11 +91,11 @@ jobs:
           echo "Generated version: ${VERSION}"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Log in to Container Registry
         timeout-minutes: 3
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -104,7 +104,7 @@ jobs:
       - name: Extract metadata
         id: meta
         timeout-minutes: 3
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ matrix.image_env == 'IMAGE_NAME_MCP' && env.IMAGE_NAME_MCP || env.IMAGE_NAME_WEB }}
           tags: |
@@ -119,7 +119,7 @@ jobs:
 
       - name: Build and push Docker image
         timeout-minutes: 35
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -175,7 +175,7 @@ jobs:
 
     steps:
       - name: Delete old container versions
-        uses: actions/delete-package-versions@v5
+        uses: actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55 # v5
         with:
           package-name: ${{ github.repository }}/${{ matrix.image }}
           package-type: container
@@ -250,12 +250,12 @@ jobs:
         # Upload artifact so maintainers can see why Trivy was skipped
       - name: Upload Trivy-skip artifact
         if: steps.image-check.outputs.image_available == 'false'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: trivy-skip-${{ matrix.image }}-${{ steps.tag.outputs.tag }}
           path: trivy-skip.txt
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ toLower(github.repository) }}/${{ matrix.image }}:${{ steps.tag.outputs.tag }}
           format: 'sarif'
@@ -267,7 +267,7 @@ jobs:
           if [ -f trivy-results.sarif ]; then echo "sarif_exists=true" >> $GITHUB_OUTPUT; else echo "sarif_exists=false" >> $GITHUB_OUTPUT; fi
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         if: always() && steps.sarif-check.outputs.sarif_exists == 'true'
         with:
           sarif_file: 'trivy-results.sarif'
