@@ -42,7 +42,10 @@ COPY --from=web-builder /app/web/dist ./public
 # libSQL schema applied at boot (server resolves dist/../libsql/schema).
 COPY infra/libsql ./libsql
 # libSQL (Turso) database file lives on a mounted volume.
-RUN mkdir -p /data && chown -R appuser:appuser /app /data
+RUN mkdir -p /data /app/certs && chown -R appuser:appuser /app /data
+# The runtime uid is set by the deploy (1000:1000) so bind-mounted /data
+# matches the host directory owner; certs dir must stay writable for it too.
+RUN chown 1000:1000 /app/certs /data
 USER appuser
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

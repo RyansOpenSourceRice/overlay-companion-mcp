@@ -30,6 +30,7 @@ public static class OverlaysQueryTool
         var items = overlays.Select(o => new
         {
             id = o.Id,
+            template = string.IsNullOrWhiteSpace(o.Template) ? "rectangle" : o.Template,
             actor = o.Actor,
             color = o.Color,
             x = o.Bounds.X,
@@ -42,7 +43,8 @@ public static class OverlaysQueryTool
     }
 
     [McpServerTool, Description(
-        "Count active overlays by owner and type (text vs non-text). Cheap; call before placing more annotations or when a user mentions clutter.")]
+        "Count active overlays by owner and type (text vs non-text). Cheap; call before placing more annotations or when a user mentions clutter. " +
+        "text_ids/non_text_ids list removable ids (first 20 each) so a removal never needs a separate list call.")]
     [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed")]
     public static async Task<string> GetOverlayStats(
         IOverlayService overlayService,
@@ -52,15 +54,23 @@ public static class OverlaysQueryTool
         var overlays = await overlayService.GetActiveOverlaysAsync();
         var byActor = overlays.GroupBy(o => string.IsNullOrWhiteSpace(o.Actor) ? "unknown" : o.Actor)
             .ToDictionary(g => g.Key, g => g.Count());
-        var textCount = overlays.Count(o =>
-            string.Equals(o.Template, "text", StringComparison.OrdinalIgnoreCase) ||
-            !string.IsNullOrEmpty(o.Label));
+        // A text marking is a template_overlay with template "text" ONLY. The
+        // old heuristic (non-empty Label) misclassified every draw_overlay box
+        // as text because DrawOverlayTool stores the id in Label.
+        var textIds = overlays
+            .Where(o => string.Equals(o.Template, "text", StringComparison.OrdinalIgnoreCase))
+            .Select(o => o.Id).ToList();
+        var nonTextIds = overlays
+            .Where(o => !string.Equals(o.Template, "text", StringComparison.OrdinalIgnoreCase))
+            .Select(o => o.Id).ToList();
         return JsonSerializer.Serialize(new
         {
             total = overlays.Length,
-            text = textCount,
-            non_text = overlays.Length - textCount,
-            by_actor = byActor
+            text = textIds.Count,
+            non_text = nonTextIds.Count,
+            by_actor = byActor,
+            text_ids = textIds.Take(20).ToArray(),
+            non_text_ids = nonTextIds.Take(20).ToArray()
         });
     }
 

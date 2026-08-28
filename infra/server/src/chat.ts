@@ -49,6 +49,32 @@ export interface ChatSessionOptions {
 export const DEFAULT_PROVIDER_BASE_URL = 'https://openrouter.ai/api/v1';
 export const DEFAULT_PROVIDER_MODEL = 'deepseek/deepseek-chat-v3-0324';
 
+// ── Per-user marking limits (Phase 3.5, Goal 3) ─────────────────────────────
+// The user caps how many markings may sit on screen at once (total, all
+// actors). Defaults 2/2, range 0..8. The model may only TIGHTEN them; loosening
+// is refused so a cluttered model cannot raise its own ceiling (mirrors the
+// enforcePreview asymmetry).
+export const MARKING_LIMIT_DEFAULTS: MarkingLimits = { maxTextMarkings: 2, maxNonTextMarkings: 2 };
+export const MARKING_LIMIT_MIN = 0;
+export const MARKING_LIMIT_MAX = 8;
+export interface MarkingLimits { maxTextMarkings: number; maxNonTextMarkings: number }
+
+export async function readMarkingLimits(store: LibSqlStore, userId?: string): Promise<MarkingLimits> {
+  if (!userId) return { ...MARKING_LIMIT_DEFAULTS };
+  try {
+    const cur = (await store.getConfig(`assistant.chat.user.${userId}`)) as Record<string, unknown> | null;
+    const v = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+    const pick = (n: unknown, dflt: number): number => {
+      if (typeof n !== 'number' || !Number.isFinite(n)) return dflt;
+      return Math.min(MARKING_LIMIT_MAX, Math.max(MARKING_LIMIT_MIN, Math.round(n)));
+    };
+    return {
+      maxTextMarkings: pick(v.maxTextMarkings, MARKING_LIMIT_DEFAULTS.maxTextMarkings),
+      maxNonTextMarkings: pick(v.maxNonTextMarkings, MARKING_LIMIT_DEFAULTS.maxNonTextMarkings),
+    };
+  } catch { return { ...MARKING_LIMIT_DEFAULTS }; }
+}
+
 // ── Model-registry helpers shared by HTTP routes and the switch_ai_model tool ──
 // OpenRouter slugs carry routing VARIANT suffixes (:nitro = throughput-sorted
 // providers, :floor = cheapest, :free = free tier, :thinking = deeper
@@ -150,18 +176,10 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     parameters: { type: 'object', properties: {} },
   },
   {
-    // Ungated in C# even under Passive; the self-service unlock for blocked
-    // state-changing tools.
-    name: 'set_mode',
-    description:
-      "Switch your operational mode. If any state-changing tool (draw_overlay, template_overlay, set_display_actor, ...) returns an error mentioning 'Passive mode', call this once with mode='assist' and then retry the blocked tool.",
-    parameters: {
-      type: 'object',
-      properties: { mode: { type: 'string', enum: ['passive', 'assist', 'autopilot', 'composing', 'custom'] } },
-      required: ['mode'],
-    },
-  },
-  {
+    // Phase 3.5 A3: set_mode/set_display_actor are NO LONGER model tools —
+    // they burned entire turns (112s of pure inference in the wild) on setup.
+    // The server now runs them deterministically before any draw forward
+    // (see ensureDrawReady), so the model's first tool call can be the draw.
     // R14: the model controls its OWN view cadence — arbitrary milliseconds,
     // not presets. Tighten while placing/moving overlays; relax afterwards.
     name: 'set_screen_updates',
@@ -200,7 +218,10 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     // Served locally: user-owned preferences (mirrors the Settings GUI).
     name: 'set_my_preferences',
     description:
-      "Read or change the user's assistant preferences. Call with NO arguments to read current settings; call with enforcePreview (boolean) to change them. enforcePreview=true means every screen marking is ghost-previewed to you for approval before the user sees it.",
+      "Read or change the user's assistant preferences. Call with NO arguments to read all settings. " +
+      "enforcePreview (boolean): every screen marking is ghost-previewed to you for approval before the user sees it; you may enable it, never disable it. " +
+      "maxTextMarkings / maxNonTextMarkings (integers 0..8): cap how many text / non-text markings may be on screen at once. " +
+      "Only change these when the user explicitly asks (e.g. 'only 1 circle at a time'); you can tighten but never loosen them.",
     parameters: {
       type: 'object',
       properties: { enforcePreview: { type: 'boolean' } },
@@ -230,11 +251,6 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
       },
       required: ['x', 'y', 'width', 'height'],
     },
-  },
-  {
-    name: 'set_display_actor',
-    description: 'Switch which agent owns the display for drawing overlays: interior (this assistant) or exterior (external MCP agent).',
-    parameters: { type: 'object', properties: { actor: { type: 'string', enum: ['interior', 'exterior'] } }, required: ['actor'] },
   },
   {
     name: 'get_overlay_capabilities',
@@ -298,14 +314,15 @@ const MCP_TOOL_ARG_MAP: Record<string, (args: Record<string, unknown>) => Record
   get_display_info: () => ({}),
   set_display_actor: (a) => ({ actor: a.actor }),
   set_mode: (a) => ({ mode: a.mode }),
-  remove_overlay: (a) => ({ overlay_id: a.overlayId ?? a.overlay_id }),
+  remove_overlay: (a) => ({ overlayId: a.overlayId ?? a.overlay_id }),
   list_overlays: () => ({}),
   get_overlay_stats: () => ({}),
   clear_overlays: (a) => ({ scope: a.scope ?? 'self' }),
   re_anchor_element: (a) => ({
     overlay_id: a.overlayId ?? a.overlay_id,
-    anchor_selector: a.selector,
-    dx: a.dx, dy: a.dy,
+    x: a.x, y: a.y,
+    anchor_mode: a.anchorMode ?? a.anchor_mode,
+    monitor_index: a.monitorIndex ?? a.monitor_index,
   }),
   get_overlay_capabilities: () => ({}),
 };
@@ -423,7 +440,7 @@ export class InteriorChat {
    * against the C# MCP server and returns the final assistant text.
    * `messages` uses the OpenAI chat shape; the model may request tools.
    */
-  async *stream(opts: ChatSessionOptions, messages: Array<Record<string, unknown>>): AsyncGenerator<string> {
+  async *stream(opts: ChatSessionOptions, messages: Array<Record<string, unknown>>, toolDefs?: Array<{ name: string; description: string; parameters: Record<string, unknown> }>): AsyncGenerator<string> {
     if (!opts.providerApiKey) {
       yield 'The chat provider is not configured. Ask an admin to set the provider API key in Settings.';
       return;
@@ -432,7 +449,7 @@ export class InteriorChat {
       model: opts.providerModel,
       messages,
       stream: true,
-      tools: TOOL_ALLOWLIST.map((t) => ({ type: 'function', function: t })),
+      tools: (toolDefs ?? TOOL_ALLOWLIST).map((t) => ({ type: 'function', function: t })),
     };
     const res = await fetch(`${opts.providerBaseUrl}/chat/completions`, {
       method: 'POST',
@@ -671,6 +688,41 @@ export class InteriorChat {
       && a.color === b.color;
   }
 
+  /**
+   * Phase 3.5 A3: run the draw preconditions (assist mode + interior display
+   * owner) deterministically server-side. Models burned whole inference turns
+   * (112s+ observed) on set_mode/set_display_actor before their first draw;
+   * now their first tool call can be the draw itself. Cheap idempotent calls;
+   * best-effort — a failure surfaces through the draw's own error.
+   */
+  private static drawReadyDone = new Set<string>();
+  private async ensureDrawReady(mcpServerUrl: string): Promise<void> {
+    if (InteriorChat.drawReadyDone.has(mcpServerUrl)) return;
+    try {
+      const s = await openMcpSession(mcpServerUrl);
+      await mcpCall(s, mcpServerUrl, 'set_mode', { mode: 'assist' });
+      await mcpCall(s, mcpServerUrl, 'set_display_actor', { actor: 'interior' });
+      InteriorChat.drawReadyDone.add(mcpServerUrl);
+    } catch { /* forward will report the real blocker */ }
+  }
+
+  /** Total-marking counts from the C# registry (ground truth for limits). */
+  private async fetchMcpOverlayStats(mcpServerUrl: string): Promise<{ text: number; non_text: number; text_ids: string[]; non_text_ids: string[] } | null> {
+    try {
+      const s = await openMcpSession(mcpServerUrl);
+      const raw = await mcpCall(s, mcpServerUrl, 'get_overlay_stats', {});
+      const inner = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const payload = typeof inner?.content?.[0]?.text === 'string' ? JSON.parse(inner.content[0].text) : inner;
+      if (!payload || typeof payload.total !== 'number') return null;
+      return {
+        text: Number(payload.text ?? 0),
+        non_text: Number(payload.non_text ?? 0),
+        text_ids: Array.isArray(payload.text_ids) ? payload.text_ids.map(String) : [],
+        non_text_ids: Array.isArray(payload.non_text_ids) ? payload.non_text_ids.map(String) : [],
+      };
+    } catch { return null; }
+  }
+
   async runTool(opts: ChatSessionOptions, call: ChatToolCall): Promise<string> {
     if (!TOOL_ALLOWLIST.some((t) => t.name === call.name)) {
       return JSON.stringify({ error: `Tool ${call.name} is not in the chat allowlist.` });
@@ -796,19 +848,57 @@ export class InteriorChat {
 
     if (call.name === 'set_my_preferences') {
       // Phase 3: user-owned assistant settings (GUI mirrors these).
-      // SECURITY: the model may ENABLE grounding but never disable it — a
-      // gated model unsetting its own gate defeats the entire feature. Only
-      // the user (GUI / PUT /api/me/preferences) can turn it off.
+      // SECURITY: the model may ENABLE grounding but never disable it, and may
+      // only TIGHTEN marking limits — a gated/strained model unsetting its own
+      // guardrails defeats both features. Loosening is user-only (GUI / PUT).
       if (!opts.userId) return JSON.stringify({ error: 'no_user_context' });
       const key = `assistant.chat.user.${opts.userId}`;
       if (Object.keys(call.arguments).length === 0) {
+        const limits = await readMarkingLimits(this.store, opts.userId);
         const cur = (await this.store.getConfig(key)) as Record<string, unknown> | null;
         const value = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
-        return JSON.stringify({ enforcePreview: value.enforcePreview === true });
+        return JSON.stringify({
+          enforcePreview: value.enforcePreview === true,
+          ...limits,
+          note: 'maxTextMarkings/maxNonTextMarkings cap how many markings may be on screen at once. You can only lower them; raising them is a user-only Settings change.',
+        });
+      }
+      // Marking-limit keys first (tighten-only).
+      const limitUpdates: Partial<MarkingLimits> = {};
+      for (const field of ['maxTextMarkings', 'maxNonTextMarkings'] as const) {
+        if (call.arguments[field] === undefined) continue;
+        const n = Math.round(Number(call.arguments[field]));
+        if (!Number.isFinite(n) || n < MARKING_LIMIT_MIN || n > MARKING_LIMIT_MAX) {
+          return JSON.stringify({
+            error: 'invalid_args',
+            message: `${field} must be an integer between ${MARKING_LIMIT_MIN} and ${MARKING_LIMIT_MAX}.`,
+          });
+        }
+        limitUpdates[field] = n;
+      }
+      if (Object.keys(limitUpdates).length > 0) {
+        const cur = ((await this.store.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+        const current = await readMarkingLimits(this.store, opts.userId);
+        for (const [field, next] of Object.entries(limitUpdates) as Array<[keyof MarkingLimits, number]>) {
+          if (next > current[field]) {
+            return JSON.stringify({
+              error: 'user_controlled_setting',
+              message:
+                `${field} can only be lowered by you (tighten-only). Raising it is a user Settings change. ` +
+                `Current ${field}: ${current[field]}. If the task needs more markings, remove existing ones with remove_overlay first, or tell the user to raise the limit in Settings.`,
+            });
+          }
+        }
+        await this.store.setConfig(key, { ...cur, ...limitUpdates }, 'assistant', opts.userId);
+        const saved = await readMarkingLimits(this.store, opts.userId);
+        return JSON.stringify({
+          ok: true, ...saved,
+          note: 'Saved. These caps apply immediately to every draw you make.',
+        });
       }
       const enforce = call.arguments.enforcePreview;
       if (typeof enforce !== 'boolean') {
-        return JSON.stringify({ error: 'invalid_args', message: 'enforcePreview must be true or false.' });
+        return JSON.stringify({ error: 'invalid_args', message: 'Supported keys: enforcePreview (boolean), maxTextMarkings, maxNonTextMarkings (integers 0..8).' });
       }
       if (enforce === false) {
         return JSON.stringify({
@@ -879,6 +969,11 @@ export class InteriorChat {
     try {
       const args = MCP_TOOL_ARG_MAP[call.name] ? MCP_TOOL_ARG_MAP[call.name](call.arguments) : call.arguments;
 
+      // ---- Phase 3.5 A3: system-side draw setup (mode + display owner) ----
+      if (call.name === 'draw_overlay' || call.name === 'template_overlay') {
+        await this.ensureDrawReady(opts.mcpServerUrl);
+      }
+
       // ---- Phase 3 gate: see-before-show --------------------------------
       if (opts.enforcePreview && (call.name === 'draw_overlay' || call.name === 'template_overlay')) {
         const spec = InteriorChat.normalizeSpec(call.name, call.arguments);
@@ -933,6 +1028,38 @@ export class InteriorChat {
             });
           }
         }
+      }
+
+      // ---- Phase 3.5 B2: per-user marking limits (independent guardrail,
+      // enforced even with the preview gate off). Scope: TOTAL markings on
+      // screen, all actors — clutter is what the user sees. Refuse, never
+      // auto-remove: the model must name what goes. Previews never reach here
+      // (they place nothing); commits land only after the gate above passes.
+      if (call.name === 'draw_overlay' || call.name === 'template_overlay') {
+        const isText = call.name === 'template_overlay'
+          && String(call.arguments.template ?? '').toLowerCase() === 'text';
+        const limits = await readMarkingLimits(this.store, opts.userId);
+        const limit = isText ? limits.maxTextMarkings : limits.maxNonTextMarkings;
+        const stats = await this.fetchMcpOverlayStats(opts.mcpServerUrl);
+        if (stats) {
+          const current = isText ? stats.text : stats.non_text;
+          if (current >= limit) {
+            const removable = (isText ? stats.text_ids : stats.non_text_ids).slice(0, 10);
+            return JSON.stringify({
+              error: 'marking_limit',
+              type: isText ? 'text' : 'non_text',
+              limit,
+              current,
+              removable_ids: removable,
+              message:
+                `The user allows at most ${limit} ${isText ? 'text' : 'non-text'} marking${limit === 1 ? '' : 's'} on screen and there ${current === 1 ? 'is 1' : `are ${current}`} already. ` +
+                'Your task is NOT complete: first call remove_overlay with one of removable_ids (prefer one you created), then repeat this exact draw call. ' +
+                'Only after the replacement is placed, report to the user. Do not ask permission; do not report a limit error to them.',
+            });
+          }
+        }
+        // Stats unavailable (MCP down): fail open with a note rather than
+        // bricking all drawing — limits are clutter control, not a safety gate.
       }
 
       const result = await mcpCall(session, opts.mcpServerUrl, call.name, args);

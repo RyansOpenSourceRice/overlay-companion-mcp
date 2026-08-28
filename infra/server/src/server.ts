@@ -38,7 +38,8 @@ import { auth as betterAuth, ensureBetterAuthReady as ensureBetterAuthDb } from 
 import { LibSqlStore, ConnectionInput } from './libsql-store.js';
 import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-store.js';
 import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL, DEFAULT_APPROVED_MODELS,
-  findApprovedModel, userSelectionKey, type ApprovedModel } from './chat.js';
+  findApprovedModel, userSelectionKey, MARKING_LIMIT_MIN, MARKING_LIMIT_MAX, readMarkingLimits,
+  type ApprovedModel } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { seedDemo } from './seed.js';
 import { readFileSync } from 'fs';
@@ -490,11 +491,18 @@ let activeOverlays: Array<Record<string, unknown>> = [];
 export function getBridgeOverlays(): Array<Record<string, unknown>> {
   return activeOverlays;
 }
-function overlayStatsLine(): string {
+function overlayStatsLine(limits?: { maxTextMarkings: number; maxNonTextMarkings: number }): string {
   const n = activeOverlays.length;
-  if (n === 0) return 'No overlays are currently on screen.';
+  const text = activeOverlays.filter((o) => String(o.template ?? '') === 'text').length;
+  const nonText = n - text;
+  const limitLine = limits
+    ? ` You may keep at most ${limits.maxTextMarkings} text and ${limits.maxNonTextMarkings} non-text marking(s) on screen in total; currently ${text} text / ${nonText} non-text. If at a cap, remove one (remove_overlay) before adding another.`
+    : '';
+  if (n === 0) {
+    return `No overlays are currently on screen.${limitLine ? ` Limits:${limitLine}` : ''}`;
+  }
   const interior = activeOverlays.filter((o) => o.actor === 'interior').length;
-  return `There ${n === 1 ? 'is 1 overlay' : `are ${n} overlays`} on screen right now (${interior} by you, ${n - interior} by an external agent). For clutter complaints use clear_overlays {scope:'self'} or remove_overlay with ids from list_overlays.`;
+  return `There ${n === 1 ? 'is 1 overlay' : `are ${n} overlays`} on screen right now (${interior} by you, ${n - interior} by an external agent).${limitLine} For clutter complaints use clear_overlays {scope:'self'} or remove_overlay with ids from list_overlays.`;
 }
 let mcpOverlayWs: WebSocket | null = null;
 const MCP_OVERLAY_RECONNECT_MS = 3000;
@@ -547,8 +555,10 @@ function startMcpOverlayBridge(mcpUrl: string): void {
         break;
       }
       case 'overlay_removed': {
-        activeOverlays = activeOverlays.filter((o) => String(o.id) !== String(evt.overlay_id));
-        pushToBrowsers('overlay_broadcast', { action: 'remove', id: evt.overlay_id });
+        // Tolerate both wire spellings (hub historically emitted camelCase).
+        const removedId = String(evt.overlay_id ?? evt.overlayId ?? '');
+        activeOverlays = activeOverlays.filter((o) => String(o.id) !== removedId);
+        pushToBrowsers('overlay_broadcast', { action: 'remove', id: removedId });
         break;
       }
       case 'clear_overlays':
@@ -1093,16 +1103,19 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
 }) as RequestHandler);
 
-// ---- Per-user assistant preferences (Phase 3) ----------------------------
-const USER_PREF_KEYS = new Set(['enforcePreview']);
+// ---- Per-user assistant preferences (Phase 3 + 3.5) ----------------------
+const USER_PREF_KEYS = new Set(['enforcePreview', 'maxTextMarkings', 'maxNonTextMarkings']);
+const isMarkingLimitKey = (k: string): boolean => k === 'maxTextMarkings' || k === 'maxNonTextMarkings';
 
 app.get('/api/me/preferences', requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const row = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
   const value = ((row && typeof row === 'object' ? row.value ?? row : {}) ?? {}) as Record<string, unknown>;
+  const limits = await readMarkingLimits(libSqlStore, state.user.id);
   res.json({
     enforcePreview: value.enforcePreview === true,
     markdownTables: (value as { markdownTables?: boolean }).markdownTables !== false,
+    ...limits,
   });
 }) as RequestHandler);
 
@@ -1116,10 +1129,20 @@ app.put('/api/me/preferences', requireBetterAuthSession, (async (req: Request, r
   for (const [k, v] of Object.entries(body)) {
     if (!USER_PREF_KEYS.has(k)) continue;
     if (k === 'enforcePreview' && typeof v !== 'boolean') { res.status(400).json({ error: { code: 'invalid_request' } }); return; }
+    // Phase 3.5: marking limits are integers 0..8 at EVERY write path.
+    if (isMarkingLimitKey(k)) {
+      const n = Math.round(Number(v));
+      if (!Number.isFinite(n) || n < MARKING_LIMIT_MIN || n > MARKING_LIMIT_MAX) {
+        res.status(400).json({ error: { code: 'invalid_request', message: `${k} must be an integer between ${MARKING_LIMIT_MIN} and ${MARKING_LIMIT_MAX}.` } });
+        return;
+      }
+      next[k] = n;
+      continue;
+    }
     next[k] = v;
   }
   await libSqlStore.setConfig(key, next, 'assistant', state.user.id);
-  res.json({ ok: true, preferences: next });
+  res.json({ ok: true, preferences: { ...next, ...(await readMarkingLimits(libSqlStore, state.user.id)) } });
 }) as RequestHandler);
 
 // GET /api/admin/limits — current adaptive-limit knobs (defaults when unset).
@@ -1375,12 +1398,16 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     // message states what IS possible so they attempt the right tool first.
     const actorCfg = (await libSqlStore.getConfig('general.activeActor')) as Record<string, unknown> | null;
     const activeActor = String(actorCfg?.activeActor ?? actorCfg ?? 'exterior');
+    // Phase 3.5: draw preconditions (assist mode + interior owner) are now run
+    // server-side before any draw forwards — the model never spends a turn on setup.
+    const userLimits = await readMarkingLimits(libSqlStore, state.user.id);
     const sysContext =
       [
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
-        `If the user asks for any overlay/drawing and either the owner below is not 'interior' or a tool errors mentioning Passive mode, do this first in order: set_mode {mode:"assist"}, set_display_actor {actor:"interior"}, then the draw call. Current display owner: ${activeActor}; you may switch ownership yourself via set_display_actor. Only retry an overlay once after fixing mode/ownership.`,
-        `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + overlayStatsLine() + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        `Draw preconditions are handled for you: mode and display ownership are set server-side before your first overlay call, so go straight to drawing. Current display owner: ${activeActor}.`,
+        `ACT-FIRST (non-negotiable): between tool calls write at most ONE short sentence. Never narrate plans, never reason in prose — call the tool. If you need to look first, call see_screen; if you need ids, call list_overlays. Prose is for the final answer only.`,
+        `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + overlayStatsLine(userLimits) + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         `Communication style (non-negotiable): your interface hides all mechanics from the user. Never mention tool names, JSON, IDs, error codes, screenshots as 'attachments', or that you called anything. Just describe what is now true on screen or what you did in plain words, like a helpful person standing behind the user's shoulder.`,
         role === 'admin'
@@ -1408,12 +1435,36 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     const buildSalvage = (): string => {
       const all = getBridgeOverlays();
       const mineCount = all.filter((o) => o.actor === 'interior').length;
+      // MODEL-FACING ONLY: this never reaches the user's chat window. The user
+      // gets the model's own one-sentence wrap-up (see finishWithWrapUp).
       return [
-        'Stopped after reaching the tool round limit. Partial progress summary:',
+        'You have used every tool round allowed for this message. Do NOT call any more tools.',
         `- Overlays on screen: ${all.length} total, ${mineCount} created by you.`,
-        'Recovery: call list_overlays for exact ids, then clear_overlays {scope:"self"} for one-call cleanup.',
-        'Tell the user what remains unfinished in one plain sentence.',
+        'In ONE plain sentence tell the user what is done and what remains, and that they can ask you to continue or tidy up in the next message. No tool names, no error codes, no recovery instructions.',
       ].join('\n');
+    };
+    // Budget exhausted (or stuck loop): force one final, tool-less turn so the
+    // MODEL composes the plain-language wrap-up the user sees. The raw salvage
+    // instructions stay in model context only — leaking them into the chat was
+    // an invisible-UI violation.
+    const finishWithWrapUp = async (): Promise<void> => {
+      try {
+        const gen = chat.stream(opts, [...currentMessages, { role: 'system', content: buildSalvage() }], []);
+        for await (const chunk of gen) {
+          if (chunk.startsWith('{')) {
+            if (chunk.includes('__thinking')) {
+              try {
+                const thinking = JSON.parse(chunk).__thinking as string;
+                if (thinking) res.write(`data: ${JSON.stringify({ thinking })}\n\n`);
+              } catch { /* ignore malformed thinking marker */ }
+            }
+            continue; // '__tool_calls' can never execute here
+          }
+          res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        }
+      } catch {
+        res.write(`data: ${JSON.stringify({ error: 'I ran out of steps for this message. Ask me to continue and I will pick up where I left off.' })}\n\n`);
+      }
     };
 
     iterationLoop: for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
@@ -1443,7 +1494,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
       if (toolCalls.length === 0) break;
 
       if (executedTurns >= MAX_TOOL_TURNS) {
-        res.write(`data: ${JSON.stringify({ error: buildSalvage() })}\n\n`);
+        await finishWithWrapUp();
         break;
       }
       // Execute each tool, append the tool results as assistant + tool messages.
@@ -1460,7 +1511,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         } else if (sig === lastSignature) {
           consecutiveDuplicates += 1;
           if (consecutiveDuplicates >= 3) {
-            res.write(`data: ${JSON.stringify({ error: buildSalvage() })}\n\n`);
+            await finishWithWrapUp();
             res.end();
             return;
           }
@@ -1536,6 +1587,19 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
 // GET /api/chat/tools — the bounded allowlist + active display actor, so the
 // panel can render what the assistant may do and who currently owns the canvas.
 // R12: authoritative display geometry (proxied from the MCP server).
+// GET /api/overlays — read-only snapshot of the render layer (bridge cache).
+// Ground truth for bench harnesses and the GUI: what is ACTUALLY on screen,
+// not what the C# registry believes.
+app.get('/api/overlays', makeLimitGuard('connections'), requireBetterAuthSession, ((_req: Request, res: Response) => {
+  const overlays = getBridgeOverlays();
+  res.json({
+    count: overlays.length,
+    text: overlays.filter((o) => String(o.template ?? '') === 'text').length,
+    non_text: overlays.filter((o) => String(o.template ?? '') !== 'text').length,
+    overlays,
+  });
+}) as RequestHandler);
+
 app.get('/api/display-state', requireBetterAuthSession, (async (_req: Request, res: Response) => {
   try {
     const upstream = await fetch(`${config.mcpServerUrl}/api/display-state`, {
@@ -1616,7 +1680,7 @@ app.get('/api/chat/tools', makeLimitGuard('connections'), requireBetterAuthSessi
   res.json({
     allowlist: [
       'draw_overlay', 'template_overlay', 'take_screenshot', 'get_display_info',
-      'set_display_actor', 'get_overlay_capabilities',
+      'get_overlay_capabilities',
     ],
     configTools: ['get_config', 'set_config'],
     activeActor: actorRaw ?? 'exterior',

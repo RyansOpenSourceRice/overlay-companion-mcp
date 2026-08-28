@@ -1610,6 +1610,10 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 /* Assistant bubbles render markdown; block elements supply spacing, so
    pre-wrap must not double it. */
 .chat-msg--assistant { align-self: flex-start; background: var(--muted-bg, #f1f3f5); white-space: normal; }
+/* Phase 3.5 A5: interim narration between tool calls — muted, compact. */
+.chat-msg--note { align-self: flex-start; background: transparent; color: var(--text-dim, #666); font-size: 0.82rem; padding: 0.15rem 0.75rem; }
+/* Phase 3.5: per-user marking-limit inputs in Assistant preferences. */
+.pref-limit-input { max-width: 7rem; }
 /* Impact-focused tool feedback (Q3/Q4): outcome first, machinery collapsed.
    The row is display:block so opening <details> expands downward and the
    label never reflows onto a second line (feedback item 5). */

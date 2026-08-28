@@ -22,9 +22,12 @@ public class OverlayWebSocketHub : IDisposable
         _overlayService = overlayService;
         _screenCaptureService = screenCaptureService;
 
-        // Subscribe to overlay events
+        // Subscribe to overlay events. Wire shape uses snake_case ids
+        // (overlay_id) to match the MCP-facing event contract — a camelCase
+        // `overlayId` here was silently dropped by the server-side bridge,
+        // leaving removed overlays as permanent ghosts in the render layer.
         _overlayService.OverlayCreated += async (_, overlay) => await BroadcastAsync(new { type = "overlay_created", overlay });
-        _overlayService.OverlayRemoved += async (_, overlayId) => await BroadcastAsync(new { type = "overlay_removed", overlayId });
+        _overlayService.OverlayRemoved += async (_, overlayId) => await BroadcastAsync(new { type = "overlay_removed", overlay_id = overlayId });
         _overlayService.OverlayUpdated += async (_, overlay) => await BroadcastAsync(new { type = "overlay_updated", overlay });
     }
 

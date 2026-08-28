@@ -355,6 +355,21 @@ export class ChatPanel {
               } else if (parsed.tool) {
                 // Invisible plumbing (Goal 7): only liveness is shown.
                 this.showWorking();
+                // Phase 3.5 A5: prose streamed before a tool call is interim
+                // narration, not the answer — demote it to a muted one-liner
+                // and start a fresh bubble for whatever follows.
+                if (assistantText) {
+                  // TS can't track the ensureBubble() assignment through the
+                  // closure, so read the current bubble via a function call.
+                  const interimBubble = ((): HTMLElement | null => bubble)();
+                  if (interimBubble) {
+                    const interim = assistantText.trim().replace(/\s+/g, ' ');
+                    interimBubble.className = 'chat-msg chat-msg--note';
+                    interimBubble.textContent = interim.length > 160 ? `${interim.slice(0, 159)}…` : interim;
+                  }
+                  assistantText = '';
+                  bubble = null;
+                }
               }
             } catch {
               /* ignore non-JSON SSE */

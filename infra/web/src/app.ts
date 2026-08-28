@@ -376,26 +376,47 @@ class OverlayCompanionApp {
   private async loadAssistantPrefs(): Promise<void> {
     const section = document.getElementById('assistant-prefs-section');
     const toggle = document.getElementById('pref-enforce-preview') as HTMLInputElement | null;
+    const maxText = document.getElementById('pref-max-text') as HTMLInputElement | null;
+    const maxNonText = document.getElementById('pref-max-nontext') as HTMLInputElement | null;
     if (!section || !toggle) return;
     section.style.display = '';
+    // Keep in sync with MARKING_LIMIT_MIN/MAX/DEFAULTS in infra/server/src/chat.ts —
+    // no shared module exists between web and server packages.
+    const PREF_LIMIT_MIN = 0, PREF_LIMIT_MAX = 8, PREF_LIMIT_DEFAULT = 2;
     try {
       const res = await fetch('/api/me/preferences', { credentials: 'include' });
       if (!res.ok) { section.style.display = 'none'; return; }
-      const data = (await res.json()) as { enforcePreview: boolean };
+      const data = (await res.json()) as { enforcePreview: boolean; maxTextMarkings?: number; maxNonTextMarkings?: number };
       toggle.checked = data.enforcePreview;
+      if (maxText) maxText.value = String(data.maxTextMarkings ?? PREF_LIMIT_DEFAULT);
+      if (maxNonText) maxNonText.value = String(data.maxNonTextMarkings ?? PREF_LIMIT_DEFAULT);
     } catch {
       section.style.display = 'none';
       return;
     }
-    toggle.onchange = async () => {
+    const savePrefs = async (patch: Record<string, unknown>): Promise<void> => {
       const res = await fetch('/api/me/preferences', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ enforcePreview: toggle.checked }),
+        body: JSON.stringify(patch),
       });
       this.showToast(res.ok ? 'success' : 'error', 'Preferences', res.ok ? 'Saved.' : `Save failed (${res.status}).`);
     };
+    toggle.onchange = async () => { await savePrefs({ enforcePreview: toggle.checked }); };
+    const clampLimit = (el: HTMLInputElement): number | null => {
+      const raw = el.value.trim();
+      // Number('') === 0: an emptied field must NOT silently save a 0 cap.
+      if (raw === '' || !Number.isFinite(Math.round(Number(raw)))) {
+        this.showToast('error', 'Preferences', 'Marking limits must be a whole number 0–8.');
+        return null;
+      }
+      const n = Math.round(Number(raw));
+      if (n < PREF_LIMIT_MIN || n > PREF_LIMIT_MAX) { this.showToast('error', 'Preferences', 'Marking limits must be 0–8.'); return null; }
+      return n;
+    };
+    if (maxText) maxText.onchange = async () => { const n = clampLimit(maxText); if (n !== null) await savePrefs({ maxTextMarkings: n }); };
+    if (maxNonText) maxNonText.onchange = async () => { const n = clampLimit(maxNonText); if (n !== null) await savePrefs({ maxNonTextMarkings: n }); };
   }
 
   private async loadRateLimits(): Promise<void> {

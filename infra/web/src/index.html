@@ -307,6 +307,16 @@
                                 </label>
                                 <small class="form-help">The assistant shows you a ghost preview and must verify it before anything appears on screen.</small>
                             </div>
+                            <div class="setting-item">
+                                <label for="pref-max-text">Max text markings on screen</label>
+                                <input type="number" id="pref-max-text" min="0" max="8" step="1" class="pref-limit-input">
+                                <small class="form-help">0–8. The assistant must remove an existing marking before adding another when a cap is reached. It can lower this via chat, never raise it.</small>
+                            </div>
+                            <div class="setting-item">
+                                <label for="pref-max-nontext">Max non-text markings (boxes, circles…)</label>
+                                <input type="number" id="pref-max-nontext" min="0" max="8" step="1" class="pref-limit-input">
+                                <small class="form-help">0–8. Counts ALL markings on screen, including ones placed by external agents.</small>
+                            </div>
                         </div>
                     </div>
 
