@@ -2,7 +2,7 @@
 # and MCP-powered icons on the display
 
 # Stage 1: Build web frontend
-FROM node:20-alpine AS web-builder
+FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS web-builder
 
 WORKDIR /app/web
 
@@ -22,7 +22,7 @@ COPY infra/web/ ./
 RUN npm run build
 
 # Stage 2: Production web server
-FROM node:20-alpine
+FROM node:24.20.0-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf
 
 # Install system dependencies
 RUN apk add --no-cache \
