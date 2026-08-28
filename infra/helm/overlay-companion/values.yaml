@@ -25,7 +25,7 @@ config:
 # use an external instance and point config at it via an existing Secret.
 surrealdb:
   enabled: true
-  image: surrealdb/surrealdb:v2.2.1
+  image: surrealdb/surrealdb:v3.2.4
   namespace: overlay
   database: companion
   username: root
