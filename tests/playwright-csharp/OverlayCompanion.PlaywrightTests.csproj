@@ -15,11 +15,11 @@
          browser product, first-class FireFox support, trace viewer for CI).
          C# is the implementation language (preferences §9). FireFox is the
          tested engine; headless on the test host. -->
-    <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
-    <PackageReference Include="Microsoft.Playwright.MSTest" Version="1.48.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-    <PackageReference Include="MSTest.TestFramework" Version="3.4.3" />
-    <PackageReference Include="MSTest.TestAdapter" Version="3.4.3" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+    <PackageReference Include="Microsoft.Playwright.MSTest" Version="1.62.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.3.3" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.3.3" />
   </ItemGroup>
 
 </Project>
