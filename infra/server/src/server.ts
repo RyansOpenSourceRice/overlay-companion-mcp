@@ -537,6 +537,8 @@ function startMcpOverlayBridge(mcpUrl: string): void {
     switch (evt.type) {
       case 'sync_state':
         activeOverlays = ((evt.overlays as Array<Record<string, unknown>>) ?? []).map(normalizeOverlay);
+        // Reconcile open pages: C# truth wins (restarts invalidate ghosts).
+        pushToBrowsers('overlay_broadcast', { action: 'state', overlays: activeOverlays });
         break;
       case 'overlay_created': {
         const ov = normalizeOverlay(evt.overlay as Record<string, unknown>);
@@ -559,7 +561,14 @@ function startMcpOverlayBridge(mcpUrl: string): void {
     mcpOverlayWs = null;
     setTimeout(() => startMcpOverlayBridge(mcpUrl), MCP_OVERLAY_RECONNECT_MS);
   });
-  ws.on('error', () => { /* close handler reconnects */ });
+  // A zombie socket can error WITHOUT closing (SIGKILL'd peer, RST races),
+  // freezing the cache with ghost overlays that re-seed every new page and
+  // that no C# tool can remove. Treat error as fatal for this socket.
+  ws.on('error', () => {
+    try { ws.terminate(); } catch { /* already dead */ }
+    mcpOverlayWs = null;
+    setTimeout(() => startMcpOverlayBridge(mcpUrl), MCP_OVERLAY_RECONNECT_MS);
+  });
 }
 
 // A page connecting mid-session should immediately learn what is on screen.
@@ -596,6 +605,13 @@ function broadcastOverlay(payload: unknown): void {
 mirrorControl.send = (payload: Record<string, unknown>): void =>
   pushToBrowsers('mirror_control', payload);
 
+// clear_overlays served partially client-side: the bridge cache + every
+// browser canvas are wiped immediately, covering overlays C# no longer tracks.
+overlayControl.clear = (): void => {
+  activeOverlays = [];
+  pushToBrowsers('overlay_broadcast', { action: 'clear' });
+};
+
 // Handle viewport updates
 function handleViewportUpdate(payload: unknown, clientId: string): void {
   log.debug(`Viewport update from ${clientId}:`, payload);
@@ -607,7 +623,7 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
 // MCP proxy). Admin knobs in libSQL (`limits.<surface>`), short block
 // windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
 import { AdaptiveLimits } from './adaptive-limits.js';
-import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl } from './screen-mirror.js';
+import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl } from './screen-mirror.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
 const authLimiter = rateLimit({

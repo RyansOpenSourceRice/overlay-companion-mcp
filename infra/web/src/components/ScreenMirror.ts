@@ -38,7 +38,12 @@ export class ScreenMirror {
   private currentCadence: MirrorCadence = 'off';
   private canvas: HTMLCanvasElement | null = null;
 
-  constructor(private iframeGetter: () => HTMLIFrameElement | null) {}
+  uploadStats = { attempts: 0, sent: 0, lastError: '' };
+
+  constructor(private iframeGetter: () => HTMLIFrameElement | null) {
+    // Bench/e2e introspection hook.
+    (window as unknown as Record<string, unknown>).__ocMirror = this;
+  }
 
   setCadence(mode: MirrorCadence): void {
     if (this.currentCadence === mode) return;
@@ -153,9 +158,19 @@ export class ScreenMirror {
         const minGap = trigger === 'interval' && !allowLowFreq ? 250 : 1200;
         if (Date.now() - this.lastSentAt < minGap) { resolve(); return; }
         this.lastSentAt = Date.now();
+        this.uploadStats.attempts++;
         const frame = await this.captureFrame();
-        if (!frame?.canvasOut) { resolve(); return; }
-        await this.send(frame.canvasOut, trigger, frame, frame.cadenceMs, trigger !== 'connect');
+        if (!frame?.canvasOut) {
+          this.uploadStats.lastError = 'captureFrame null';
+          console.warn('[mirror] captureFrame returned nothing for', trigger);
+          resolve(); return;
+        }
+        this.uploadStats.sent++;
+        try {
+          await this.send(frame.canvasOut, trigger, frame, frame.cadenceMs, trigger !== 'connect');
+        } catch (e) {
+          console.warn('[mirror] send failed', String(e).slice(0, 80));
+        }
         resolve();
       })();
     });
@@ -215,7 +230,14 @@ export class ScreenMirror {
     const dh = Number(iframe?.dataset.ocDisplayHeight ?? vncCanvas.height);
 
     const meta = { displayWidth: dw || vncCanvas.width, displayHeight: dh || vncCanvas.height };
-    return { img: await loadImage(out.toDataURL('image/jpeg', 0.62)), canvasOut: out, ...meta, cadenceMs: this.currentCadence === 'input' ? 0 : Number(this.currentCadence) };
+    let dataUrl: string;
+    try {
+      dataUrl = out.toDataURL('image/jpeg', 0.62);
+    } catch (e) {
+      console.warn('[mirror] toDataURL failed (tainted canvas?)', String(e).slice(0, 80));
+      return null;
+    }
+    return { img: await loadImage(dataUrl), canvasOut: out, ...meta, cadenceMs: this.currentCadence === 'input' ? 0 : Number(this.currentCadence) };
   }
 
   private async send(

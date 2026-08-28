@@ -61,3 +61,10 @@ export function currentPreview(): MirrorFrame | null {
 export const mirrorControl: { send: ((payload: Record<string, unknown>) => void) | null } = {
   send: null,
 };
+
+/**
+ * Overlay-layer control (A-fix): lets chat tools wipe the bridge cache and
+ * every connected browser canvas without a C# round-trip — C# cannot remove
+ * overlays it no longer knows about (pre-restart ghosts).
+ */
+export const overlayControl: { clear: (() => void) | null } = { clear: null };

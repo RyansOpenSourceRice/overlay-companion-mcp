@@ -1,5 +1,5 @@
 import type { LibSqlStore } from './libsql-store.js';
-import { latestFrame, currentPreview, mirrorControl } from './screen-mirror.js';
+import { latestFrame, currentPreview, mirrorControl, overlayControl } from './screen-mirror.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -647,6 +647,18 @@ export class InteriorChat {
         note:
           "The attached image is the user's actual screen, captured recently. Use its layout directly; coordinates you output map onto this same view.",
       });
+    }
+
+    if (call.name === 'clear_overlays') {
+      // 1) Wipe the render layer (bridge cache + browser canvases) — covers
+      // overlays C# no longer tracks (post-restart ghosts).
+      overlayControl.clear?.();
+      // 2) Best-effort: sync the C# registry too.
+      try {
+        await mcpCall(await openMcpSession(opts.mcpServerUrl), opts.mcpServerUrl,
+          'clear_overlays', { scope: String(call.arguments.scope ?? 'all') });
+      } catch { /* registry may be empty already; render layer is the truth users see */ }
+      return JSON.stringify({ ok: true, cleared: 'all', note: 'Canvas wiped on the user\'s screen.' });
     }
 
     if (call.name === 'set_screen_updates') {

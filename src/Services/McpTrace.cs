@@ -61,26 +61,14 @@ public sealed class McpRpcTraceMiddleware
             return;
         }
 
-        var method = "unknown";
+        // NOTE: we deliberately do NOT read/rewind the request body here.
+        // Draining it desyncs Kestrel's PipeReader from StreamableHttpServerTransport
+        // (MinRequestBodyDataRate 408s, tool calls intermittently dead). Tool-level
+        // spans and tags still arrive via the SDK's ModelContextProtocol* sources;
+        // this middleware only owns the request-level span + error marking, and
+        // derives what it can from the response head.
+        var method = "request";
         string? toolName = null;
-        try
-        {
-            // Peek-and-rewind so downstream handlers still read the raw body.
-            context.Request.EnableBuffering();
-            string body;
-            using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8,
-                detectEncodingFromByteOrderMarks: false, bufferSize: 8192, leaveOpen: true))
-            {
-                body = await reader.ReadToEndAsync().ConfigureAwait(false);
-            }
-            context.Request.Body.Position = 0;
-
-            (method, toolName) = TryExtractRpc(body);
-        }
-        catch
-        {
-            // Body peek is best-effort; never interfere with request handling.
-        }
 
         using var activity = McpTrace.Source.StartActivity($"mcp.{method}");
         activity?.SetTag("rpc.system", "jsonrpc");
