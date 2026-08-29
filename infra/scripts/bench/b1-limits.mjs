@@ -14,8 +14,7 @@
  * Ground truth is the render layer (/api/overlays) — the /mcp page proxy
  * currently 408s (separate issue), so no direct MCP calls from the page.
  */
-import { chromium } from 'playwright-core';
-import { ensureShell, connectDesktop, sendAsHuman, grabFrame } from './bench-lib.mjs';
+import { ensureShell, connectDesktop, sendAsHuman, grabFrame, launchBrowser } from './bench-lib.mjs';
 
 const overlayTruth = (page) => page.evaluate(async () => {
   const r = await fetch('/api/overlays', { credentials: 'include' });
@@ -29,7 +28,7 @@ const setPrefs = (page, patch) => page.evaluate(async (patch) => {
   });
 }, patch);
 
-const b = await chromium.launch();
+const b = await launchBrowser();
 const scores = { pass: 0, fail: 0 };
 const check = (name, ok, detail = '') => {
   scores[ok ? 'pass' : 'fail']++;

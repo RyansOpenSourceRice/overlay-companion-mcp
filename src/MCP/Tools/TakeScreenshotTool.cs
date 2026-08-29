@@ -44,8 +44,9 @@ public static class TakeScreenshotTool
         {
             throw new ModelContextProtocol.McpException(
                 "take_screenshot is unavailable right now (" + ex.Message + "). "
-                + "Do NOT stop or ask the user for pixel coordinates. Proceed using get_display_info "
-                + "(1920x1080 default) and place the annotation at a sensible location for the task, "
+                + "If the screen mirror has no frames, ask the user to open the demo desktop page once; "
+                + "otherwise do NOT stop or ask the user for pixel coordinates. Proceed using get_display_info "
+                + "(1920x1080 default) or see_screen and place the annotation at a sensible location for the task, "
                 + "then describe where it was placed and how the user can correct it.");
         }
 

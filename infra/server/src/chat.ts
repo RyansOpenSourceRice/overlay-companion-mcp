@@ -30,6 +30,12 @@ export interface ChatSessionOptions {
   userId?: string;
   /** Phase 3 gate: require a fresh matching preview before any marking. */
   enforcePreview?: boolean;
+  /**
+   * Phase 4 extensions: third-party MCP servers the admin registered. Their
+   * tools are offered to the model as ext_<extid>_<tool> and routed to the
+   * extension's own session — the core overlay allowlist stays untouched.
+   */
+  extensions?: ExtensionBinding[];
   /** Per-request gate state — request-scoped, never shared across users. */
   gate?: {
     pendingPreview?: {
@@ -42,6 +48,91 @@ export interface ChatSessionOptions {
     awaitingCommitSig?: string;
     vision?: Array<Record<string, unknown>>;
   };
+}
+
+export interface ExtensionConfig {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+}
+
+export interface ExtensionBinding {
+  config: ExtensionConfig;
+  /** Open MCP session id for this request. */
+  sessionId: string;
+  /** Raw tool names exposed by the extension. */
+  tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+}
+
+/** Prefixed name used to expose an extension tool to the model. */
+export function extensionToolName(extId: string, toolName: string): string {
+  return `ext_${extId}_${toolName}`;
+}
+
+/** Safety rails for third-party tool surfaces. */
+export const EXTENSION_LIMITS = { maxServers: 3, maxToolsPerServer: 12, timeoutMs: 15_000 };
+
+/**
+ * Connect to every enabled extension and enumerate its tools. Failures are
+ * isolated: one broken extension never blocks the chat — it is skipped with
+ * a note. Sessions are left open; closeExtensionSessions reaps them.
+ */
+export async function bindExtensions(store: LibSqlStore, userId?: string): Promise<{ bindings: ExtensionBinding[]; notes: string[] }> {
+  const bindings: ExtensionBinding[] = [];
+  const notes: string[] = [];
+  if (!userId) return { bindings, notes };
+  let configs: ExtensionConfig[] = [];
+  try {
+    const cfg = (await store.getConfig(`extensions.mcp.user.${userId}`)) as { value?: ExtensionConfig[] } | ExtensionConfig[] | null;
+    const v = Array.isArray(cfg) ? cfg : (cfg?.value ?? []);
+    if (Array.isArray(v)) configs = v.filter((e) => e && typeof e.url === 'string');
+  } catch { return { bindings, notes }; }
+  for (const cfg of configs.filter((c) => c.enabled).slice(0, EXTENSION_LIMITS.maxServers)) {
+    try {
+      const session = await openMcpSession(cfg.url);
+      const raw = await mcpRaw(session, cfg.url, 'tools/list', {});
+      const inner = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const tools = (inner?.tools ?? []) as Array<{ name?: string; description?: string; inputSchema?: Record<string, unknown> }>;
+      const defs = tools
+        .filter((t) => typeof t.name === 'string')
+        .slice(0, EXTENSION_LIMITS.maxToolsPerServer)
+        .map((t) => ({
+          name: t.name as string,
+          description: String(t.description ?? ''),
+          parameters: (t.inputSchema && typeof t.inputSchema === 'object' ? t.inputSchema : { type: 'object', properties: {} }) as Record<string, unknown>,
+        }));
+      if (defs.length === 0) {
+        notes.push(`Extension "${cfg.name}" exposes no tools; skipped.`);
+        continue;
+      }
+      bindings.push({ config: cfg, sessionId: session.sessionId, tools: defs });
+    } catch (err) {
+      notes.push(`Extension "${cfg.name}" unreachable (${err instanceof Error ? err.message : String(err)}); skipped.`);
+    }
+  }
+  return { bindings, notes };
+}
+
+/** Close every extension session opened for a chat request. */
+export async function closeExtensionSessions(bindings: ExtensionBinding[] | undefined): Promise<void> {
+  if (!bindings?.length) return;
+  await Promise.allSettled(bindings.map((b) =>
+    fetch(`${b.config.url}/mcp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Mcp-Session-Id': b.sessionId },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: {} }),
+    }).catch(() => undefined)));
+}
+
+/** Model-facing tool defs for all bound extensions. */
+export function extensionToolDefs(bindings: ExtensionBinding[] | undefined): Array<{ name: string; description: string; parameters: Record<string, unknown> }> {
+  if (!bindings?.length) return [];
+  return bindings.flatMap((b) => b.tools.map((t) => ({
+    name: extensionToolName(b.config.id, t.name),
+    description: `[extension:${b.config.name}] ${t.description}`,
+    parameters: t.parameters,
+  })));
 }
 
 // Centralized fallbacks so admin-curated defaults can never silently drift
@@ -298,6 +389,11 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
   },
 ];
 
+/** Snapshot of the core tool defs (for merging with extension tools). */
+export function coreToolDefs(): Array<{ name: string; description: string; parameters: Record<string, unknown> }> {
+  return TOOL_ALLOWLIST.map((t) => ({ ...t }));
+}
+
 const MCP_TOOL_ARG_MAP: Record<string, (args: Record<string, unknown>) => Record<string, unknown>> = {
   draw_overlay: (a) => ({
     x: a.x, y: a.y, width: a.width, height: a.height,
@@ -366,15 +462,20 @@ async function openMcpSession(mcpServerUrl: string): Promise<McpSession> {
 }
 
 async function mcpCall(session: McpSession, mcpServerUrl: string, name: string, args: Record<string, unknown>): Promise<unknown> {
+  return mcpRaw(session, mcpServerUrl, 'tools/call', { name, arguments: args });
+}
+
+/** Generic JSON-RPC MCP request (initialize follow-ups like tools/list). */
+async function mcpRaw(session: McpSession, mcpServerUrl: string, method: string, params: Record<string, unknown>): Promise<unknown> {
   const id = session.nextId++;
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
   if (session.sessionId) headers['Mcp-Session-Id'] = session.sessionId;
   const res = await fetch(`${mcpServerUrl}/mcp`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } }),
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
   });
-  if (!res.ok) throw new Error(`MCP tools/call ${name} failed: ${res.status}`);
+  if (!res.ok) throw new Error(`MCP ${method} failed: ${res.status}`);
   const body = await readBody(res);
   if (res.headers.get('mcp-session-id')) session.sessionId = res.headers.get('mcp-session-id')!;
   return parseMcpResult(body);
@@ -724,6 +825,37 @@ export class InteriorChat {
   }
 
   async runTool(opts: ChatSessionOptions, call: ChatToolCall): Promise<string> {
+    // Phase 4 extensions: prefixed calls route to their own MCP session.
+    // The core overlay allowlist deliberately does NOT cover these.
+    if (call.name.startsWith('ext_')) {
+      const binding = opts.extensions?.find((b) => call.name.startsWith(`ext_${b.config.id}_`));
+      if (!binding) {
+        return JSON.stringify({ error: 'extension_unbound', message: 'No extension session is bound for this tool. It may have failed to connect.' });
+      }
+      const toolName = call.name.slice(`ext_${binding.config.id}_`.length);
+      const owned = binding.tools.some((t) => t.name === toolName);
+      if (!owned) {
+        return JSON.stringify({ error: 'not_in_allowlist', message: `Tool ${toolName} is not exposed by extension ${binding.config.name}.` });
+      }
+      try {
+        const raw = await Promise.race([
+          mcpCall(
+            { sessionId: binding.sessionId, nextId: 0 },
+            binding.config.url, toolName, call.arguments ?? {},
+          ),
+          new Promise((_, reject) => setTimeout(
+            () => reject(new Error(`extension tool timed out after ${EXTENSION_LIMITS.timeoutMs}ms`)),
+            EXTENSION_LIMITS.timeoutMs,
+          )),
+        ]);
+        return JSON.stringify(raw);
+      } catch (err) {
+        return JSON.stringify({
+          error: 'extension_error',
+          message: `Extension ${binding.config.name} tool ${toolName} failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
     if (!TOOL_ALLOWLIST.some((t) => t.name === call.name)) {
       return JSON.stringify({ error: `Tool ${call.name} is not in the chat allowlist.` });
     }

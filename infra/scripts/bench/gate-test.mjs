@@ -1,6 +1,5 @@
-import { chromium } from 'playwright-core';
-import { ensureShell, connectDesktop, sendAsHuman, grabFrame } from './bench-lib.mjs';
-const b = await chromium.launch();
+import { ensureShell, connectDesktop, sendAsHuman, grabFrame, launchBrowser } from './bench-lib.mjs';
+const b = await launchBrowser();
 try {
   const page = await (await b.newContext()).newPage();
   await ensureShell(page);

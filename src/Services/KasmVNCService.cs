@@ -112,6 +112,17 @@ public class KasmVNCService : IKasmVNCService
             _cancellationTokenSource = new CancellationTokenSource();
             _webSocket = new ClientWebSocket();
 
+            // Deployments commonly run KasmVNC with a self-signed cert; the
+            // overlay relay is service-to-service on a private network, so an
+            // explicit opt-in env disables TLS validation for this socket only.
+            if (string.Equals(
+                    Environment.GetEnvironmentVariable("KASMVNC_ALLOW_INSECURE"),
+                    "true", StringComparison.OrdinalIgnoreCase))
+            {
+                _webSocket.Options.RemoteCertificateValidationCallback =
+                    (_, _, _, _) => true;
+            }
+
             try
             {
                 var uri = new Uri(_options.WebSocketUrl);

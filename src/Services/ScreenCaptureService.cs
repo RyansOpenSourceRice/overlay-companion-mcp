@@ -33,6 +33,73 @@ public class ScreenCaptureService : IScreenCaptureService
     private readonly ISleepGate? _sleepGate;
     private Screenshot? _lastScreenshot;
 
+    // Mirror fallback (Phase 3.6): in containerized/headless deployments the
+    // local capture tools (grim/scrot/…) do not exist and the X server lives
+    // in another container. The management server already holds fresh
+    // composite frames (desktop + overlays — exactly what the user sees) via
+    // its screen-mirror; fetch them over a token-guarded internal endpoint.
+    // Configure with INTERNAL_MIRROR_URL + INTERNAL_MIRROR_TOKEN.
+    private static readonly HttpClient MirrorHttp = CreateMirrorClient();
+    // NOTE: read via Environment inside CreateMirrorClient — static field
+    // initializers run in declaration order, so MirrorToken is still null
+    // while MirrorHttp is being built.
+    private static readonly string? MirrorUrl =
+        Environment.GetEnvironmentVariable("INTERNAL_MIRROR_URL");
+
+    private static HttpClient CreateMirrorClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+        var token = Environment.GetEnvironmentVariable("INTERNAL_MIRROR_TOKEN");
+        if (!string.IsNullOrEmpty(token))
+        {
+            client.DefaultRequestHeaders.Add("X-Internal-Token", token);
+        }
+        return client;
+    }
+
+    private static bool MirrorConfigured =>
+        !string.IsNullOrEmpty(MirrorUrl);
+
+    /// <summary>
+    /// Fetch the newest mirror frame from the management server. Returns null
+    /// when not configured, unreachable, or the desktop page has not captured
+    /// anything yet — callers fall back to the normal error path.
+    /// </summary>
+    private async Task<Screenshot?> TryCaptureFromMirrorAsync(ScreenRegion? region)
+    {
+        if (!MirrorConfigured) return null;
+        try
+        {
+            using var resp = await MirrorHttp.GetAsync(MirrorUrl);
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = await resp.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var dataUrl = root.TryGetProperty("dataUrl", out var du) ? du.GetString() : null;
+            if (string.IsNullOrEmpty(dataUrl)) return null;
+            var comma = dataUrl.IndexOf(',');
+            if (comma < 0 || !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+            var bytes = Convert.FromBase64String(dataUrl[(comma + 1)..]);
+            var width = root.TryGetProperty("width", out var w) ? w.GetInt32() : 0;
+            var height = root.TryGetProperty("height", out var h) ? h.GetInt32() : 0;
+            if (bytes.Length == 0 || width <= 0 || height <= 0) return null;
+            return new Screenshot
+            {
+                ImageData = bytes,
+                Width = width,
+                Height = height,
+                MonitorIndex = region != null ? await DetectMonitorIndexAsync(region) : 0,
+                DisplayScale = 1.0,
+                CaptureRegion = region,
+            };
+        }
+        catch
+        {
+            // Mirror unavailable (app down, no frames yet) — fall through.
+            return null;
+        }
+    }
+
     // The gate is optional in DI so tests / alternate hosts can construct the
     // service without power management.
     public ScreenCaptureService(ISleepGate? sleepGate = null)
@@ -79,6 +146,15 @@ public class ScreenCaptureService : IScreenCaptureService
         }
         catch (Exception ex)
         {
+            // Local capture tools missing (headless containers): fall back to
+            // the management server's screen-mirror frame before giving up.
+            var mirrored = await TryCaptureFromMirrorAsync(region);
+            if (mirrored != null)
+            {
+                _lastScreenshot = mirrored;
+                ScreenCaptured?.Invoke(this, mirrored);
+                return mirrored;
+            }
             throw new InvalidOperationException($"Failed to capture screen: {ex.Message}", ex);
         }
     }

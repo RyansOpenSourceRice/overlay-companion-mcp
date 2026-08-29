@@ -72,6 +72,15 @@ services:
     environment:
       <<: *common_env
       ASPNETCORE_URLS: http://0.0.0.0:3000
+      # take_screenshot fallback in headless containers: fetch the management
+      # server's composite screen-mirror frames (token-guarded, see
+      # /internal/screen-mirror/latest in the app). Shared token both sides.
+      INTERNAL_MIRROR_URL: ${INTERNAL_MIRROR_URL:-http://app:8080/internal/screen-mirror/latest}
+      INTERNAL_MIRROR_TOKEN: ${INTERNAL_MIRROR_TOKEN:-}
+      # Overlay relay target (self-signed cert is normal on this network).
+      KASMVNC_URL: ${KASMVNC_URL:-http://kasmvnc:6901}
+      KASMVNC_WS_URL: ${KASMVNC_WS_URL:-wss://kasmvnc:6901/websockify}
+      KASMVNC_ALLOW_INSECURE: ${KASMVNC_ALLOW_INSECURE:-true}
     expose:
       - "3000"
 

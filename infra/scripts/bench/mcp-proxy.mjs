@@ -14,10 +14,9 @@
  *      data: payload end to end.
  * Exit code 0 only if all pass.
  */
-import { chromium } from 'playwright-core';
-import { ensureShell } from './bench-lib.mjs';
+import { ensureShell, launchBrowser } from './bench-lib.mjs';
 
-const b = await chromium.launch();
+const b = await launchBrowser();
 let failures = 0;
 const check = (name, ok, detail = '') => {
   if (!ok) failures++;

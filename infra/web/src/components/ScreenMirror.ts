@@ -37,16 +37,60 @@ export class ScreenMirror {
   private lastSentAt = 0;
   private currentCadence: MirrorCadence = 'off';
   private canvas: HTMLCanvasElement | null = null;
+  // Phase 4 focus-sleep: the cadence the user/model chose, and whether the
+  // page is currently dimmed (tab hidden or window unfocused for >5s). While
+  // dimmed the mirror idles at a 60s heartbeat; the assistant can still
+  // captureNow (explicit request always wakes one frame).
+  private userCadence: MirrorCadence = 'off';
+  private focusSuspended = false;
+  private suspendTimer: number | null = null;
 
   uploadStats = { attempts: 0, sent: 0, lastError: '' };
 
   constructor(private iframeGetter: () => HTMLIFrameElement | null) {
     // Bench/e2e introspection hook.
     (window as unknown as Record<string, unknown>).__ocMirror = this;
+    this.hookFocusSleep();
   }
 
+  /** Phase 4: idle the mirror when the user is not looking at the page. */
+  private hookFocusSleep(): void {
+    const suspendSoon = (): void => {
+      if (this.suspendTimer !== null) return;
+      this.suspendTimer = window.setTimeout(() => {
+        this.suspendTimer = null;
+        if (!this.focusSuspended) {
+          this.focusSuspended = true;
+          this.applyCadence();
+        }
+      }, 5000);
+    };
+    const wake = (): void => {
+      if (this.suspendTimer !== null) {
+        window.clearTimeout(this.suspendTimer);
+        this.suspendTimer = null;
+      }
+      if (this.focusSuspended) {
+        this.focusSuspended = false;
+        this.applyCadence();
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) suspendSoon(); else wake();
+    });
+    window.addEventListener('blur', suspendSoon);
+    window.addEventListener('focus', wake);
+  }
+
+  public get isFocusSuspended(): boolean { return this.focusSuspended; }
+
   setCadence(mode: MirrorCadence): void {
-    if (this.currentCadence === mode) return;
+    this.userCadence = mode;
+    this.applyCadence();
+  }
+
+  private applyCadence(): void {
+    const mode: MirrorCadence = this.userCadence;
     this.currentCadence = mode;
     this.stopTimer();
     this.unhookInput();
@@ -55,14 +99,18 @@ export class ScreenMirror {
     void this.upload('manual', true);
     if (mode !== 'input') {
       const raw = Number(mode);
-      const ms = Math.min(MAX_CADENCE_MS, Math.max(MIN_CADENCE_MS, raw));
-      this.currentCadence = ms;
+      const ms = this.focusSuspended
+        ? 60_000
+        : Math.min(MAX_CADENCE_MS, Math.max(MIN_CADENCE_MS, raw));
+      this.currentCadence = this.focusSuspended ? mode : ms;
       this.timer = window.setInterval(() => void this.upload('interval'), ms);
     } else {
       this.currentCadence = 'input';
-      // Input-driven: hook events; 10s heartbeat so idle-but-changing content
-      // still lands eventually.
-      this.timer = window.setInterval(() => void this.upload('interval', false), 10_000);
+      // Input-driven: hook events; heartbeat so idle-but-changing content
+      // still lands eventually. While focus-suspended the heartbeat idles
+      // at 60s instead of 10s — nothing is watching, and the assistant can
+      // always captureNow for an on-demand frame.
+      this.timer = window.setInterval(() => void this.upload('interval', !this.focusSuspended), this.focusSuspended ? 60_000 : 10_000);
     }
     // First-frame guarantee: captureFrame can fail while the VNC client is
     // still connecting (no painted canvas yet). Retry aggressively until we

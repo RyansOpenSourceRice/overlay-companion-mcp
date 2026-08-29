@@ -13,6 +13,21 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 export const BASE = 'http://localhost:8080';
 mkdirSync('/tmp/bench', { recursive: true });
 
+/** Launch Playwright browser; PW_BROWSER=firefox|chromium (default chromium). */
+export async function launchBrowser() {
+  const { chromium, firefox } = await import('playwright-core');
+  const browserName = (process.env.PW_BROWSER ?? 'chromium').toLowerCase();
+  const launcher = browserName === 'firefox' ? firefox : chromium;
+  return launcher.launch();
+}
+
+/** Launch a page in the configured browser with a fresh context. */
+export async function launchPage() {
+  const b = await launchBrowser();
+  const page = await (await b.newContext()).newPage();
+  return { browser: b, page };
+}
+
 export function xdotool(args) {
   return execSync(`podman exec overlay-companion-kasmvnc xdotool ${args}`, { encoding: 'utf8' }).trim();
 }

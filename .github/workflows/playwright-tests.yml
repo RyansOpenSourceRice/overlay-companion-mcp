@@ -127,6 +127,15 @@ jobs:
           export OTEL_ENABLED=true
           export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
           export OTEL_SERVICE_NAME="overlay-companion-server"
+          # Demo identity for the JS e2e suites (ci-suite, bench/*) + internal
+          # mirror token for the MCP take_screenshot fallback.
+          export SEED_DEMO=true
+          export DEMO_EMAIL="demo@overlay.local"
+          export DEMO_PASSWORD="demo-password-1234" # pragma: allowlist secret (test fixture)
+          export INTERNAL_MIRROR_TOKEN="ci-internal-mirror-token" # pragma: allowlist secret (test fixture)
+          if [ -n "$PROVIDER_API_KEY" ]; then
+            export PROVIDER_API_KEY
+          fi
           PORT=8080 \
           NODE_ENV=production \
           MCP_SERVER_URL=http://127.0.0.1:3000 \
@@ -134,7 +143,10 @@ jobs:
           echo $! > /tmp/oc-server.pid
 
           cd ../../src
-          ASPNETCORE_URLS=http://0.0.0.0:3000 nohup dotnet run --configuration Release --no-build -- --http > /tmp/oc-mcp.log 2>&1 &
+          ASPNETCORE_URLS=http://0.0.0.0:3000 \
+          INTERNAL_MIRROR_URL=http://127.0.0.1:8080/internal/screen-mirror/latest \
+          INTERNAL_MIRROR_TOKEN="ci-internal-mirror-token" \
+          nohup dotnet run --configuration Release --no-build -- --http > /tmp/oc-mcp.log 2>&1 &
           echo $! > /tmp/oc-mcp.pid
 
           for i in $(seq 1 30); do
@@ -144,6 +156,8 @@ jobs:
             fi
             sleep 1
           done
+        env:
+          PROVIDER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       - name: Run Playwright tests (FireFox)
         timeout-minutes: 10
@@ -157,6 +171,44 @@ jobs:
         run: |
           cd tests/playwright-csharp
           dotnet test --configuration Release --logger "trx;LogFileName=playwright-results.trx" --verbosity normal
+
+      # JS e2e suites in Firefox (playwright-core 1.48.2, same engine family
+      # as the local benches): the /mcp page-proxy regression probe and the
+      # no-API-key surface (auth/shell, preferences + marking-limit
+      # validation, ground-truth APIs). These are HARD gates — unlike the C#
+      # suite above they never provision-skip.
+      - name: Run JS e2e suites (FireFox)
+        timeout-minutes: 8
+        env:
+          PW_BROWSER: firefox
+          BASE_URL: http://localhost:8080
+        run: |
+          cd infra/scripts
+          npm install --no-audit --no-fund
+          node node_modules/playwright-core/cli.js install --with-deps firefox
+          node bench/mcp-proxy.mjs
+          node ci-suite.mjs
+
+      # Chat-dependent mission (marking limits): needs an OpenRouter key.
+      # Skips cleanly when the secret is absent so keyless forks stay green.
+      - name: Run marking-limits mission (FireFox, chat)
+        if: ${{ env.RUN_CHAT_E2E == '1' }}
+        timeout-minutes: 10
+        env:
+          PW_BROWSER: firefox
+          BASE_URL: http://localhost:8080
+        run: |
+          cd infra/scripts
+          node bench/b1-limits.mjs
+
+      - name: Gate chat mission on key presence
+        if: always()
+        run: |
+          if [ -n "$PROVIDER_API_KEY" ]; then
+            echo "RUN_CHAT_E2E=1" >> "$GITHUB_ENV"
+          fi
+        env:
+          PROVIDER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
       # Never let a skip be silent: if the suite did not actually execute
       # (no TRX), emit an explicit annotation so a green run can never be
