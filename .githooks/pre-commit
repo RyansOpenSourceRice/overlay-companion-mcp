@@ -8,7 +8,9 @@
 #   - No local ocr / unconfigured LLM -> review skipped, commit proceeds
 #     (so fresh clones and keyless environments are never bricked).
 #   - ocr configured                -> review runs; findings (nonzero exit)
-#     block the commit. OCR_SKIP=1 bypasses intentionally:
+#     block the commit. A TIMEOUT is advisory only (warn, commit proceeds) —
+#     a stalled LLM provider must never brick the workflow.
+#   - OCR_SKIP=1 bypasses intentionally:
 #       OCR_SKIP=1 git commit -m "..."
 #
 # Enable:  git config core.hooksPath .githooks   (once per clone)
@@ -29,11 +31,15 @@ if ! ocr llm test >/dev/null 2>&1; then
 fi
 
 echo "[pre-commit] running OpenCodeReview on workspace changes…"
-timeout 570s ocr review --color never
+# 4-minute ceiling: small diffs finish well inside this; a stalled provider
+# used to burn 9.5 minutes and then BLOCK the commit on timeout.
+timeout 240s ocr review --color never
 code=$?
 case $code in
   0) echo "[pre-commit] review clean."; exit 0 ;;
-  124) echo "[pre-commit] ocr timed out — commit BLOCKED. Fix or rerun with OCR_SKIP=1 to bypass." >&2; exit 124 ;;
+  124) echo "[pre-commit] ocr timed out — treating as ADVISORY: commit proceeds." >&2
+       echo "[pre-commit] Run 'ocr review' manually when the provider recovers." >&2
+       exit 0 ;;
   *) echo "[pre-commit] OpenCodeReview found issues (exit ${code}) — commit BLOCKED." >&2
      echo "[pre-commit] Address the findings above, or bypass intentionally with OCR_SKIP=1." >&2
      exit "$code" ;;

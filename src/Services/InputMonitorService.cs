@@ -136,17 +136,27 @@ public class InputMonitorService : IInputMonitorService
         try
         {
             // Wayland-first: try wev/wtype utilities or ydotool (root)
+            // NOTE: with UseShellExecute=false, .NET does NO shell parsing — the
+            // Arguments string reaches sh verbatim. The old inline-quoted form
+            // ("-lc 'command -v …'") delivered literal quotes as the script,
+            // producing ~0.4 shell-syntax errors/second in the container logs.
+            // ArgumentList passes the script as ONE real argument, no quoting.
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = "sh",
-                    Arguments = "-lc 'command -v wlrctl >/dev/null 2>&1 && wlrctl pointer location || command -v hyprctl >/dev/null 2>&1 && hyprctl -j cursorpos || command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_seats'",
-                    UseShellExecute = false,
+                    FileName = "/bin/sh",
                     RedirectStandardOutput = true,
-                    CreateNoWindow = true
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
                 }
             };
+            process.StartInfo.ArgumentList.Add("-lc");
+            process.StartInfo.ArgumentList.Add(
+                "command -v wlrctl >/dev/null 2>&1 && wlrctl pointer location || " +
+                "command -v hyprctl >/dev/null 2>&1 && hyprctl -j cursorpos || " +
+                "command -v swaymsg >/dev/null 2>&1 && swaymsg -t get_seats");
 
             process.Start();
             var output = process.StandardOutput.ReadToEnd();
@@ -244,14 +254,15 @@ public class InputMonitorService : IInputMonitorService
                 {
                     StartInfo = new ProcessStartInfo
                     {
-                        FileName = "sh",
-                        Arguments = "-lc 'command -v ydotool'",
+                        FileName = "/bin/sh",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     }
                 };
+                whichYdt.StartInfo.ArgumentList.Add("-lc");
+                whichYdt.StartInfo.ArgumentList.Add("command -v ydotool");
                 whichYdt.Start();
                 whichYdt.WaitForExit();
                 if (whichYdt.ExitCode == 0)

@@ -271,8 +271,17 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
 }
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsers skip /mcp: http-proxy streams the raw request through, and a
+// globally-consumed body makes the C# MCP server wait forever for JSON that
+// already drained — Kestrel answers 408 on every initialize (the same
+// consumed-body desync class as the old C# request-peek bug).
+app.use(((req, res, next) => {
+  if (req.path === '/mcp' || req.path.startsWith('/mcp/')) return next();
+  return express.json({ limit: '10mb' })(req, res, (err) => {
+    if (err) return next(err);
+    express.urlencoded({ extended: true, limit: '10mb' })(req, res, next);
+  });
+}) as RequestHandler);
 // Cookie parsing enables session cookies. CSRF is enforced by the global
 // state-changing-method middleware below (and per-route checks on
 // delete-account/settings). GET routes are idempotent and sameSite=lax blocks
@@ -2210,9 +2219,8 @@ function bootstrapAudioSettings(): Record<string, unknown> {
 const mcpProxyOptions: ProxyOptions = {
   target: config.mcpServerUrl,
   changeOrigin: true,
-  pathRewrite: {
-    '^/mcp': '', // Remove /mcp prefix when forwarding
-  },
+  // No pathRewrite: forward /mcp verbatim (the C# server maps MCP at both
+  // / and /mcp; verbatim keeps proxy logs aligned with upstream paths).
   onError: (err, _req, res) => {
     log.error('MCP server proxy error:', (err as Error).message);
     (res as Response).status(503).json({
