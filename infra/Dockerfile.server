@@ -9,7 +9,7 @@
 # Run:    see infra/compose.minimal.yml
 
 # Stage 1: build the web frontend
-FROM node:20-alpine AS web-builder
+FROM node:20.20.2-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS web-builder
 WORKDIR /app/web
 COPY infra/web/package.json ./
 RUN npm install --no-audit --no-fund
@@ -17,7 +17,7 @@ COPY infra/web/ ./
 RUN npm run build
 
 # Stage 2: build the TypeScript management server
-FROM node:20-alpine AS server-builder
+FROM node:20.20.2-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS server-builder
 # argon2 is a native module; alpine needs python3 + build tools for node-gyp.
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/server
@@ -29,7 +29,7 @@ RUN npm run build
 RUN npm prune --omit=dev --legacy-peer-deps
 
 # Stage 3: runtime
-FROM node:20-alpine
+FROM node:20.20.2-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 ENV NODE_ENV=production
 WORKDIR /app
 # Non-root user

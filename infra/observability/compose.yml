@@ -39,7 +39,7 @@ services:
 
   # 2. SigNoz (traces + metrics + logs, self-hosted).
   signoz:
-    image: signoz/signoz:latest
+    image: signoz/signoz:latest@sha256:c5b31f85497ceb469e419b620e09f16625d4ce9ac2071892624e9a50bd3faaaf
     command: ['-mode', 'clickhouse']
     restart: unless-stopped
     depends_on:
@@ -55,7 +55,7 @@ services:
 
   # 3. Grafana LGTM (Tempo traces) + Alloy (OTLP intake).
   alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:latest@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
     restart: unless-stopped
     volumes:
       - ./alloy.alloy:/etc/alloy/config.alloy:ro
@@ -68,7 +68,7 @@ services:
       - obs-network
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:latest@sha256:1ce31d6d7ffab62189685e8c47881d4a561c5d38bd0dbd66e40ca83cef07923d
     restart: unless-stopped
     command: ['-config.file=/etc/tempo.yml']
     volumes:
@@ -77,7 +77,7 @@ services:
       - obs-network
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:latest@sha256:3fd54ae1214669f8355f065ec9f6445d5279a3d77095ab048ca045685272429b
     restart: unless-stopped
     depends_on:
       - tempo
@@ -88,7 +88,7 @@ services:
 
   # 4. Langfuse (LLM tracing / evals / cost tracking, self-hosted).
   langfuse:
-    image: langfuse/langfuse:latest
+    image: langfuse/langfuse:latest@sha256:d9be058ee32564854bf54ff24a46603701bef96badecd95dab89c17b1d62171b
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse}@postgres:5432/langfuse
@@ -105,7 +105,7 @@ services:
       - obs-network
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     restart: unless-stopped
     environment:
       POSTGRES_USER: langfuse
