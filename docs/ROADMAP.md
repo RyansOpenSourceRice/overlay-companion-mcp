@@ -6,6 +6,17 @@
 
 ## 🎯 Current Status (v1.0.0)
 
+### 🔜 **PLANNED - Phase 7: concealed advocate agent + agent interop (2026-08-30 design)**
+- **Two-agent system**: primary annotator + concealed simulated end-user
+  advocate (always-on, read-only, own model selection, disable in Settings).
+- **Standards over frameworks**: MCP for tools (already spoken), A2A
+  (`a2a-js`/`a2a-dotnet`/`a2a-go`) for agent-to-agent interop. Advocate is
+  framework-free TS in-process; exposed as an A2A agent endpoint so any
+  future C#/Go/external agent can take over via one setting. Full plan:
+  `docs/PLANS/multi-agent-architecture.md`.
+- **Click-aware markings**: clicks (with display-space coordinates) reach
+  the primary agent; AI owns removal of markings whose target was clicked.
+
 ### ✅ **COMPLETED - Phase 6: scale & attention (feedback 2026-08-30)**
 - **Adjustable compaction at long scales**: per-user `contextBudgetChars`
   (default 48k; 4k–100M range) via Settings AND AI chat (approval chip);
