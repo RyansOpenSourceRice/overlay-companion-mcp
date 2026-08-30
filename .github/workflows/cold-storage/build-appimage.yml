@@ -31,12 +31,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
         fetch-depth: 0  # Needed for version calculation
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -123,7 +123,7 @@ jobs:
         ./scripts/validate-appimage.sh "$APPIMAGE_PATH"
 
     - name: Upload AppImage artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: ${{ steps.version.outputs.appimage-name }}
         path: build/${{ steps.version.outputs.appimage-name }}
@@ -131,7 +131,7 @@ jobs:
 
     - name: Upload build logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: build-logs-${{ steps.version.outputs.version }}
         path: |
@@ -155,10 +155,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Download AppImage artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./release/
@@ -318,7 +318,7 @@ jobs:
 
     - name: Create GitHub Release
       continue-on-error: true
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
       with:
         tag_name: ${{ needs.build-appimage.outputs.version }}
         name: "Overlay Companion MCP v${{ needs.build-appimage.outputs.version }}"
@@ -345,10 +345,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
     - name: Download AppImage artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
       with:
         name: ${{ needs.build-appimage.outputs.appimage-name }}
         path: ./test/
@@ -460,7 +460,7 @@ jobs:
 
     - name: Upload smoke logs (always)
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: appimage-smoke-logs
         path: |
