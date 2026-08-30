@@ -4,6 +4,25 @@
 
 ## 🎯 Current Status (v1.0.0)
 
+### ✅ **COMPLETED - Phase 5: interaction quality (feedback 2026-08-28)**
+- **Marking opacity policy**: per-marking cap (default 40%) + pairwise
+  overlapping composition cap (default 75%); GUI + AI-chat configurable, AI
+  changes require user approval (panel Approve/Deny chip).
+- **Stepwise guidance**: `set_step_mode` auto-clears the previous tutorial
+  marking as each new one commits — 1-at-a-time UX with one marking on screen.
+- **Plan/Act checklist**: `set_task_plan`/`update_task_step` with fluid
+  statuses; panel checklist with a Go approval gate; compact per-turn context
+  injection (context-rot minimizer).
+- **Sleep indicators + wake wire**: `sleep_state` broadcast → panel badge and
+  wake pulse; chat sends and real VM input (throttled ws relay) both wake the
+  power gate (the container input monitor is blind — this wire was dead).
+- **Rolling context compaction**: 24k-char budget, extractive digest, panel
+  context meter.
+- **Thinking dots**: reasoning never floods the chat; 3-dot shimmer + opt-in
+  collapsed text.
+- **Display truth**: mirror resolution is the only coordinate space; phantom
+  1920x1080 draws are rescaled into true space.
+
 ### ✅ **COMPLETED - Core Functionality**
 - **MCP Protocol**: Full HTTP transport implementation (primary) with 13 working tools
 - **Transport Layer**: Native HTTP transport with image support, multi-client capability

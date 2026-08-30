@@ -39,6 +39,52 @@ every accepted request; it is the contract for what the demo must do.
   click/scroll/keys (tab, enter, alt, esc included via outer-document hook).
 - **R15 Adjustable annotations:** remove_overlay exposed to chat for move/resize-by-redraw workflows.
 
+## Accepted, not yet built (Phase 5 — feedback 2026-08-28)
+
+- **R16 Opacity policy (SHIPPED):** markings stay translucent — per-user
+  `maxSingularOpacity` (default 40%) caps any single marking and pairwise
+  composition `1-(1-a)(1-b)` over overlapping highlights caps at
+  `maxOverallOpacity` (default 75%). Enforced server-side at draw time
+  (reduced or refused with a plain-language explanation). Both caps are
+  configurable via GUI AND AI chat — AI changes in EITHER direction require
+  explicit user approval (panel Approve/Deny chip; Settings GUI shows the
+  same pending change). Validation `singular <= overall` at every write path.
+- **R17 Stepwise auto-clear (SHIPPED):** `set_step_mode {enabled}` makes the
+  server auto-remove the previous step's marking as each new one commits —
+  exactly one tutorial marking on screen in "1 at a time" guidance. The
+  outgoing marking is exempt from the marking-limit count while being
+  replaced (no deadlock at the cap).
+- **R18 Task persistence (SHIPPED):** anti-lazy system policy — a multi-step
+  task is complete only when its checklist is complete; never end a turn
+  waiting for the user unless input is genuinely required. Auto-sleep stays
+  purely mouse-idle based (waste prevention) and never gates on the
+  checklist; mouse movement always disengages it.
+- **R19 Plan/Act checklist (SHIPPED):** OpenCode-style. `set_task_plan`
+  (≤12 steps) renders a checklist with a Go button; the model pauses until
+  the user approves. `update_task_step` uses fluid statuses
+  (pending/in_progress/done/skipped/blocked) — out-of-order and skipped
+  steps are first-class. Checklist state injects as a compact one-line
+  context each turn (context-rot minimization).
+- **R20 Sleep indicators (SHIPPED):** `SleepGate.StateChanged` broadcasts
+  `sleep_state` (C# hub → bridge → panel): a fixed badge explains why the
+  assistant went quiet; a brief green pulse marks wake. Chat sends always
+  wake the gate (a slept-through done-state never blocks re-engagement), and
+  real VM input reaches the gate via a throttled `user_activity` ws signal
+  (the MCP container's own input monitor is blind in containers — that dead
+  wire was why wake felt impossible).
+- **R21 Context compaction (SHIPPED):** rolling window — past a 24k-char
+  budget beyond the last 8 turns, older messages collapse into a
+  deterministic extractive digest (role, gist, tools used); images stripped.
+  The panel shows a context meter so compaction is visible, not magic.
+- **R22 Thinking dots (SHIPPED):** streamed reasoning never floods the chat —
+  a 3-dot shimmer signals liveness; raw text is opt-in behind a collapsed
+  toggle; token counting removed.
+- **R23 Display truth (SHIPPED):** mirror-reported resolution is the ONLY
+  coordinate space. System context states it unarguably; draws landing
+  outside the real display are rescaled from the known phantom layout
+  (1920x1080) into true space when that yields in-bounds geometry (the OSM
+  session's phantom-1920 failure mode).
+
 - **R7a Fit-to-window (SHIPPED default).** Decision: scale-to-fit first —
   the KasmVNC client requests `resize=scale` so the framebuffer fills all
   available space; per-connection `screenSizing: scale|remote|off` chooses

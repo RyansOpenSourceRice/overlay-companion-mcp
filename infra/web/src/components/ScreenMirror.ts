@@ -47,6 +47,13 @@ export class ScreenMirror {
 
   uploadStats = { attempts: 0, sent: 0, lastError: '' };
 
+  /**
+   * Phase 5 item 3: fired on real user input inside the VNC iframe (throttled
+   * by the consumer). The management server relays this to the C# power gate
+   * as a wake signal — the gate's own input monitor is blind in containers.
+   */
+  public onUserActivity: (() => void) | null = null;
+
   constructor(private iframeGetter: () => HTMLIFrameElement | null) {
     // Bench/e2e introspection hook.
     (window as unknown as Record<string, unknown>).__ocMirror = this;
@@ -192,6 +199,8 @@ export class ScreenMirror {
   }
 
   private onInput = (): void => {
+    // Phase 5 item 3: real VM user input = wake signal (consumer throttles).
+    try { this.onUserActivity?.(); } catch { /* never break the mirror */ }
     if (this.currentCadence === 'off') return;
     if (this.debounceTimer !== null) return;
     this.debounceTimer = window.setTimeout(() => {

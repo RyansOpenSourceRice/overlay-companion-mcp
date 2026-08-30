@@ -1612,8 +1612,30 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 .chat-msg--assistant { align-self: flex-start; background: var(--muted-bg, #f1f3f5); white-space: normal; }
 /* Phase 3.5 A5: interim narration between tool calls — muted, compact. */
 .chat-msg--note { align-self: flex-start; background: transparent; color: var(--text-dim, #666); font-size: 0.82rem; padding: 0.15rem 0.75rem; }
+/* Phase 5 item 6: context meter (compaction visibility). */
+.chat-context-meter { align-self: flex-start; font-size: 0.7rem; color: var(--text-dim, #666); opacity: 0.7; padding: 0.1rem 0.75rem; }
 /* Phase 3.5: per-user marking-limit inputs in Assistant preferences. */
 .pref-limit-input { max-width: 7rem; }
+/* Phase 5: pending AI-requested preference change (approve/deny chip). */
+.pref-approval { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text, #222); background: var(--muted-bg, #f1f3f5); border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 0.5rem 0.75rem; }
+.pref-approval strong { color: var(--accent, #2563eb); }
+.chat-pref-approval { display: flex; align-items: center; gap: 0.5rem; max-width: 92%; font-size: 0.85rem; background: var(--muted-bg, #f1f3f5); border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 0.45rem 0.7rem; }
+.chat-pref-approval-btn { padding: 0.2rem 0.6rem; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border, #ccc); background: #fff; cursor: pointer; }
+.chat-pref-approval-btn:hover { border-color: var(--accent, #2563eb); color: var(--accent, #2563eb); }
+/* Phase 5 item 5: Plan/Act checklist. */
+.chat-plan { max-width: 92%; align-self: flex-start; background: var(--muted-bg, #f1f3f5); border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+.chat-plan-title { font-weight: 600; margin-bottom: 0.25rem; }
+.chat-plan ol { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 0.2rem; }
+.chat-plan-step--done { color: var(--text-dim, #666); text-decoration: line-through; }
+.chat-plan-step--in_progress { font-weight: 600; }
+.chat-plan-step--skipped { color: var(--text-dim, #666); }
+.chat-plan-step--blocked { color: #b45309; }
+.chat-plan-go { margin-top: 0.4rem; padding: 0.3rem 0.9rem; border-radius: 6px; border: none; background: var(--accent, #2563eb); color: #fff; cursor: pointer; font-weight: 600; }
+.chat-plan-done { margin-top: 0.4rem; color: #15803d; font-weight: 600; }
+/* Phase 5 item 3: sleep-state indicator. */
+.sleep-badge { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 2200; background: rgba(30, 30, 40, 0.85); color: #fff; font-size: 0.8rem; padding: 0.35rem 0.9rem; border-radius: 999px; pointer-events: none; transition: opacity 0.4s; }
+.sleep-badge--wake { background: rgba(21, 128, 61, 0.9); animation: sleep-wake-pulse 0.9s ease-out 1; }
+@keyframes sleep-wake-pulse { 0% { transform: translateX(-50%) scale(0.85); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateX(-50%); opacity: 1; } }
 /* Impact-focused tool feedback (Q3/Q4): outcome first, machinery collapsed.
    The row is display:block so opening <details> expands downward and the
    label never reflows onto a second line (feedback item 5). */
@@ -1627,6 +1649,13 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 .chat-thinking { align-self: flex-start; max-width: 92%; font-size: 0.82rem; color: var(--text-dim, #666); border: 1px dashed var(--border, #ddd); border-radius: 8px; padding: 0.25rem 0.6rem; background: transparent; }
 .chat-thinking summary { cursor: pointer; user-select: none; }
 .chat-thinking pre { margin: 0.4rem 0 0.2rem; white-space: pre-wrap; word-break: break-word; max-height: 14rem; overflow: auto; }
+/* Phase 5 item 7: three animated dots instead of streamed thinking text. */
+.chat-thinking-dots { display: inline-flex; gap: 4px; align-items: center; padding: 2px 0; }
+.chat-thinking-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim, #666); opacity: 0.4; animation: chat-think-bounce 1.2s infinite ease-in-out; }
+.chat-thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
+.chat-thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes chat-think-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-3px); opacity: 1; } }
+.chat-thinking:not([open]) .chat-thinking pre { display: none !important; }
 /* Header model picker (admin-delegated AI models). */
 .chat-model-select { border: 1px solid var(--border, #ddd); border-radius: 6px; background: transparent; color: inherit; font-size: 0.75rem; max-width: 11rem; padding: 2px 4px; }
 .chat-input-row { display: flex; gap: 0.5rem; padding: 0.75rem 1rem; border-top: 1px solid var(--border, #ddd); }

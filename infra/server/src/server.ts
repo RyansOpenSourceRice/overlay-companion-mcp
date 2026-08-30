@@ -40,7 +40,8 @@ import { OpenFgaStore, ConnectionRelation, OpenFgaOptions } from './openfga-stor
 import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL, DEFAULT_APPROVED_MODELS,
   findApprovedModel, userSelectionKey, MARKING_LIMIT_MIN, MARKING_LIMIT_MAX, readMarkingLimits,
   bindExtensions, closeExtensionSessions, extensionToolDefs as extensionToolDefsOf, coreToolDefs,
-  EXTENSION_LIMITS, type ApprovedModel } from './chat.js';
+  EXTENSION_LIMITS, OPACITY_MIN, OPACITY_MAX, readOpacityLimits, readPendingPrefs,
+  readTaskPlan, taskPlanLine, wakeMcp, type ApprovedModel } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { seedDemo } from './seed.js';
 import { readFileSync } from 'fs';
@@ -410,6 +411,8 @@ const authMiddleware = requireBetterAuthSessionOrBearer;
 // WebSocket server for MCP overlay broadcasting
 let wss: WebSocketServer | null = null;
 const overlayClients = new Set<WebSocket>();
+// Per-client wake throttle for user_activity (Phase 5 item 3).
+const lastWakeAt = new Map<string, number>();
 
 if (config.mcpWsEnabled) {
   // noServer mode: the WSS must NOT attach its own `server.on('upgrade')`
@@ -467,6 +470,21 @@ if (config.mcpWsEnabled) {
             handleViewportUpdate(message.payload, clientId);
             break;
 
+          case 'user_activity': {
+            // Phase 5 item 3: the VM's mouse/keys never reach the MCP
+            // container's own input monitor, so wake-on-input is dead in
+            // containerized deployments. The desktop page forwards real user
+            // input (throttled client-side); here we re-throttle and wake the
+            // power gate — mouse movement must always disengage sleep.
+            const now = Date.now();
+            const last = (lastWakeAt.get(clientId) ?? 0);
+            if (now - last > 5000) {
+              lastWakeAt.set(clientId, now);
+              void wakeMcp(config.mcpServerUrl);
+            }
+            break;
+          }
+
           default:
             log.warn(`Unknown message type from ${clientId}:`, message.type);
         }
@@ -478,6 +496,7 @@ if (config.mcpWsEnabled) {
     // Handle client disconnect
     ws.on('close', (code: number, reason: Buffer) => {
       overlayClients.delete(ws);
+      lastWakeAt.delete(clientId); // OCR: unbounded map growth otherwise
       log.info(`WebSocket client disconnected: ${clientId}`, { code, reason: reason.toString() });
     });
 
@@ -497,13 +516,18 @@ if (config.mcpWsEnabled) {
 // reported success never reached any renderer. This client bridges those
 // events onto the browser-facing /ws channel and keeps a current-state list
 // so late-joining pages get an instant sync_state.
-let activeOverlays: Array<Record<string, unknown>> = [];
-export function getBridgeOverlays(): Array<Record<string, unknown>> {
-  return activeOverlays;
+// The render-layer overlay cache now lives in screen-mirror.ts (shared with
+// chat.ts for opacity policy without a circular import).
+/** P0: the REAL guest resolution from the mirror — the only space draw
+ *  coordinates live in. Injected as an unarguable system fact. */
+function displayTruthLine(): string {
+  const f = latestFrame();
+  if (!f) return '';
+  return `DISPLAY TRUTH: the user's real screen is ${f.displayWidth}x${f.displayHeight} pixels, origin top-left. Every coordinate you output is in THIS space. If get_display_info reports anything else, it is a phantom default — ignore it.`;
 }
-function overlayStatsLine(limits?: { maxTextMarkings: number; maxNonTextMarkings: number }): string {
-  const n = activeOverlays.length;
-  const text = activeOverlays.filter((o) => String(o.template ?? '') === 'text').length;
+
+function overlayStatsLine(limits?: { maxTextMarkings: number; maxNonTextMarkings: number }): string {  const n = getBridgeOverlays().length;
+  const text = getBridgeOverlays().filter((o) => String(o.template ?? '') === 'text').length;
   const nonText = n - text;
   const limitLine = limits
     ? ` You may keep at most ${limits.maxTextMarkings} text and ${limits.maxNonTextMarkings} non-text marking(s) on screen in total; currently ${text} text / ${nonText} non-text. If at a cap, remove one (remove_overlay) before adding another.`
@@ -511,7 +535,7 @@ function overlayStatsLine(limits?: { maxTextMarkings: number; maxNonTextMarkings
   if (n === 0) {
     return `No overlays are currently on screen.${limitLine ? ` Limits:${limitLine}` : ''}`;
   }
-  const interior = activeOverlays.filter((o) => o.actor === 'interior').length;
+  const interior = getBridgeOverlays().filter((o) => o.actor === 'interior').length;
   return `There ${n === 1 ? 'is 1 overlay' : `are ${n} overlays`} on screen right now (${interior} by you, ${n - interior} by an external agent).${limitLine} For clutter complaints use clear_overlays {scope:'self'} or remove_overlay with ids from list_overlays.`;
 }
 let mcpOverlayWs: WebSocket | null = null;
@@ -538,6 +562,7 @@ function normalizeOverlay(el: Record<string, unknown> | undefined): Record<strin
     color: el.color ?? '#ffff00',
     opacity: typeof el.opacity === 'number' ? el.opacity : 0.5,
     template: el.template ?? null,
+    actor: el.actor ?? el.Actor ?? null,
   };
 }
 
@@ -554,26 +579,33 @@ function startMcpOverlayBridge(mcpUrl: string): void {
     try { evt = JSON.parse(data.toString()) as Record<string, unknown>; } catch { return; }
     switch (evt.type) {
       case 'sync_state':
-        activeOverlays = ((evt.overlays as Array<Record<string, unknown>>) ?? []).map(normalizeOverlay);
+        setBridgeOverlays(((evt.overlays as Array<Record<string, unknown>>) ?? []).map(normalizeOverlay));
         // Reconcile open pages: C# truth wins (restarts invalidate ghosts).
-        pushToBrowsers('overlay_broadcast', { action: 'state', overlays: activeOverlays });
+        pushToBrowsers('overlay_broadcast', { action: 'state', overlays: getBridgeOverlays() });
         break;
       case 'overlay_created': {
         const ov = normalizeOverlay(evt.overlay as Record<string, unknown>);
-        activeOverlays.push(ov);
-        pushToBrowsers('overlay_broadcast', { action: 'create', overlay: ov, total: activeOverlays.length });
+        getBridgeOverlays().push(ov);
+        pushToBrowsers('overlay_broadcast', { action: 'create', overlay: ov, total: getBridgeOverlays().length });
         break;
       }
       case 'overlay_removed': {
         // Tolerate both wire spellings (hub historically emitted camelCase).
         const removedId = String(evt.overlay_id ?? evt.overlayId ?? '');
-        activeOverlays = activeOverlays.filter((o) => String(o.id) !== removedId);
+        setBridgeOverlays(getBridgeOverlays().filter((o) => String(o.id) !== removedId));
         pushToBrowsers('overlay_broadcast', { action: 'remove', id: removedId });
         break;
       }
       case 'clear_overlays':
-        activeOverlays = [];
+        setBridgeOverlays([]);
         pushToBrowsers('overlay_broadcast', { action: 'clear' });
+        break;
+      case 'sleep_state':
+        // Phase 5 item 3: C# power gate state → every page's badge/pulse.
+        pushToBrowsers('sleep_state', {
+          asleep: evt.asleep === true,
+          reason: String(evt.reason ?? ''),
+        });
         break;
     }
   });
@@ -597,7 +629,7 @@ function startMcpOverlayBridge(mcpUrl: string): void {
 function sendOverlayState(ws: WebSocket): void {
   ws.send(JSON.stringify({
     type: 'overlay_broadcast',
-    payload: { action: 'state', overlays: activeOverlays },
+    payload: { action: 'state', overlays: getBridgeOverlays() },
     timestamp: new Date().toISOString(),
   }));
 }
@@ -628,7 +660,7 @@ mirrorControl.send = (payload: Record<string, unknown>): void =>
 // clear_overlays served partially client-side: the bridge cache + every
 // browser canvas are wiped immediately, covering overlays C# no longer tracks.
 overlayControl.clear = (): void => {
-  activeOverlays = [];
+  setBridgeOverlays([]);
   pushToBrowsers('overlay_broadcast', { action: 'clear' });
 };
 
@@ -644,7 +676,7 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
 // windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
 import { AdaptiveLimits } from './adaptive-limits.js';
 import type { ChatSessionOptions } from './chat.js';
-import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl } from './screen-mirror.js';
+import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl, getBridgeOverlays, setBridgeOverlays } from './screen-mirror.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
 const authLimiter = rateLimit({
@@ -1113,19 +1145,24 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
 }) as RequestHandler);
 
-// ---- Per-user assistant preferences (Phase 3 + 3.5) ----------------------
-const USER_PREF_KEYS = new Set(['enforcePreview', 'maxTextMarkings', 'maxNonTextMarkings']);
+// ---- Per-user assistant preferences (Phase 3 + 3.5 + 5) -------------------
+const USER_PREF_KEYS = new Set(['enforcePreview', 'maxTextMarkings', 'maxNonTextMarkings', 'maxSingularOpacity', 'maxOverallOpacity']);
 const isMarkingLimitKey = (k: string): boolean => k === 'maxTextMarkings' || k === 'maxNonTextMarkings';
+const isOpacityKey = (k: string): boolean => k === 'maxSingularOpacity' || k === 'maxOverallOpacity';
 
 app.get('/api/me/preferences', requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
   const row = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
   const value = ((row && typeof row === 'object' ? row.value ?? row : {}) ?? {}) as Record<string, unknown>;
   const limits = await readMarkingLimits(libSqlStore, state.user.id);
+  const caps = await readOpacityLimits(libSqlStore, state.user.id);
+  const pending = await readPendingPrefs(libSqlStore, state.user.id);
   res.json({
     enforcePreview: value.enforcePreview === true,
     markdownTables: (value as { markdownTables?: boolean }).markdownTables !== false,
     ...limits,
+    ...caps,
+    ...(Object.keys(pending).length > 0 ? { pending_approval: pending } : {}),
   });
 }) as RequestHandler);
 
@@ -1149,10 +1186,64 @@ app.put('/api/me/preferences', requireBetterAuthSession, (async (req: Request, r
       next[k] = n;
       continue;
     }
+    // Phase 5: opacity caps are numbers 0.05..1.0 with singular <= overall.
+    if (isOpacityKey(k)) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < OPACITY_MIN || n > OPACITY_MAX) {
+        res.status(400).json({ error: { code: 'invalid_request', message: `${k} must be a number between ${OPACITY_MIN} and ${OPACITY_MAX}.` } });
+        return;
+      }
+      next[k] = Math.round(n * 1000) / 1000;
+      continue;
+    }
     next[k] = v;
   }
+  // Invariant against the merged set (both keys may arrive in one request).
+  const s = Number(next.maxSingularOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxSingularOpacity);
+  const o = Number(next.maxOverallOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxOverallOpacity);
+  if (Number.isFinite(s) && Number.isFinite(o) && s > o) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'maxSingularOpacity must be <= maxOverallOpacity.' } });
+    return;
+  }
   await libSqlStore.setConfig(key, next, 'assistant', state.user.id);
-  res.json({ ok: true, preferences: { ...next, ...(await readMarkingLimits(libSqlStore, state.user.id)) } });
+  res.json({ ok: true, preferences: { ...next, ...(await readMarkingLimits(libSqlStore, state.user.id)), ...(await readOpacityLimits(libSqlStore, state.user.id)) } });
+}) as RequestHandler);
+
+// POST /api/me/preferences/approve { approve: boolean }
+// Resolves pending AI-requested preference changes (opacity caps). The AI
+// writes pendingPrefs; the user confirms here. Deny simply clears.
+app.post('/api/me/preferences/approve', requireBetterAuthSession, (async (req: Request, res: Response) => {
+  const state = (req as Request & { authState?: AuthState }).authState!;
+  const body = req.body as { approve?: boolean };
+  const key = `assistant.chat.user.${state.user.id}`;
+  const existing = ((await libSqlStore.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+  const pending = (existing.pendingPrefs && typeof existing.pendingPrefs === 'object' ? existing.pendingPrefs : {}) as Record<string, unknown>;
+  if (Object.keys(pending).length === 0) { res.status(404).json({ error: { code: 'not_found', message: 'No pending preference changes.' } }); return; }
+  if (body.approve !== true) {
+    await libSqlStore.setConfig(key, { ...existing, pendingPrefs: {} }, 'assistant', state.user.id);
+    res.json({ ok: true, approved: false, cleared: pending });
+    return;
+  }
+  // Validate the pending set against the merged preference set.
+  const merged: Record<string, unknown> = { ...existing };
+  delete merged.pendingPrefs;
+  for (const [k, v] of Object.entries(pending)) {
+    if (!USER_PREF_KEYS.has(k)) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < OPACITY_MIN || n > OPACITY_MAX) {
+      res.status(400).json({ error: { code: 'invalid_request', message: `pending ${k} out of range.` } });
+      return;
+    }
+    merged[k] = Math.round(n * 1000) / 1000;
+  }
+  const s = Number(merged.maxSingularOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxSingularOpacity);
+  const o = Number(merged.maxOverallOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxOverallOpacity);
+  if (Number.isFinite(s) && Number.isFinite(o) && s > o) {
+    res.status(400).json({ error: { code: 'invalid_request', message: 'Approved set violates singular <= overall.' } });
+    return;
+  }
+  await libSqlStore.setConfig(key, merged, 'assistant', state.user.id);
+  res.json({ ok: true, approved: true, applied: pending });
 }) as RequestHandler);
 
 // ---- Phase 4: extension MCP servers (admin-managed) ----------------------
@@ -1418,6 +1509,23 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
   // Phase 3 hygiene: gate state is per-request — concurrent users can never
   // consume each other's previews, and approvals never leak across messages.
   const gate: NonNullable<ChatSessionOptions['gate']> = {};
+  // Phase 5: stepwise mode persists across messages (user pref); the
+  // per-message stepMarkingId starts fresh but is repaired from the render
+  // layer when the newest interior marking is identifiable.
+  let stepModePersisted = false;
+  try {
+    const prefRow = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
+    const prefVal = ((prefRow && typeof prefRow === 'object' ? prefRow.value ?? prefRow : {}) ?? {}) as Record<string, unknown>;
+    stepModePersisted = prefVal.stepMode === true;
+  } catch { /* default off */ }
+  gate.stepMode = stepModePersisted;
+  if (gate.stepMode) {
+    // Repair the step pointer across messages: the most recent interior
+    // marking in the render layer is the previous step's marker.
+    const interiorMarks = getBridgeOverlays().filter((o) => o.actor === 'interior');
+    const last = interiorMarks.at(-1);
+    if (last) gate.stepMarkingId = String(last.id ?? '');
+  }
   const opts = {
     mcpServerUrl: config.mcpServerUrl,
     providerBaseUrl: selection?.baseUrl ?? DEFAULT_PROVIDER_BASE_URL,
@@ -1433,6 +1541,11 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
   try {
     // Phase 3 hygiene: gate state is per-request — concurrent users can never
     // consume each other's previews, and approvals never leak across messages.
+
+    // Phase 5 item 3: a chat send always wakes the power gate — a slept-through
+    // done-state must never block re-engagement. Fire-and-forget; the chat
+    // itself does not depend on the MCP call completing first.
+    if (config.mcpServerUrl) void wakeMcp(config.mcpServerUrl);
 
     // Phase 4 extensions: bind enabled extension MCP servers for this request.
     // Failures are isolated (skipped with a note); sessions are reaped below.
@@ -1454,13 +1567,21 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     // Phase 3.5: draw preconditions (assist mode + interior owner) are now run
     // server-side before any draw forwards — the model never spends a turn on setup.
     const userLimits = await readMarkingLimits(libSqlStore, state.user.id);
+    const opCaps = await readOpacityLimits(libSqlStore, state.user.id);
+    const pendingPrefs = await readPendingPrefs(libSqlStore, state.user.id);
     const sysContext =
       [
         `You are the interior assistant of Overlay Companion MCP.`,
         `Effective model this turn: ${opts.providerModel}.`,
         `Draw preconditions are handled for you: mode and display ownership are set server-side before your first overlay call, so go straight to drawing. Current display owner: ${activeActor}.`,
         `ACT-FIRST (non-negotiable): between tool calls write at most ONE short sentence. Never narrate plans, never reason in prose — call the tool. If you need to look first, call see_screen; if you need ids, call list_overlays. Prose is for the final answer only.`,
+        `PERSISTENCE (non-negotiable): a multi-step task is complete only when every step is done. NEVER end your turn early to wait for the user unless you genuinely need their input or a page state only they can reach. If blocked, say in one short sentence what you need and stop — do not restate the plan, do not re-ask. When the user reports a result, continue the task without being re-asked.`,
+        `STEPWISE GUIDANCE: when the user wants to be shown actions one at a time, call set_step_mode {enabled:true} once — each marking you commit then auto-removes the previous step's marking, so exactly ONE instruction stays on screen. Narrate only the current step and what to click; never dump the whole tutorial again.`,
         `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + overlayStatsLine(userLimits) + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
+        displayTruthLine(),
+        taskPlanLine(await readTaskPlan(libSqlStore, state.user.id)),
+        `OPACITY POLICY: markings stay translucent — at most ${Math.round(opCaps.maxSingularOpacity * 100)}% opacity per marking, and overlapping highlights compose so the combined result never exceeds ${Math.round(opCaps.maxOverallOpacity * 100)}%. The server enforces this; do not claim markings are more solid than allowed.`,
+        ...(Object.keys(pendingPrefs).length > 0 ? [`A pending preference change awaits the user's approval in the panel: ${JSON.stringify(pendingPrefs)}. Remind them once if relevant; do not nag.`] : []),
         `If a tool errors, read its error detail; do NOT tell the user a capability is missing unless it appears absent from your tool list.`,
         `Communication style (non-negotiable): your interface hides all mechanics from the user. Never mention tool names, JSON, IDs, error codes, screenshots as 'attachments', or that you called anything. Just describe what is now true on screen or what you did in plain words, like a helpful person standing behind the user's shoulder.`,
         role === 'admin'
@@ -1474,6 +1595,62 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     // prompts opted out of this snapshot by design.
     const hasSystem = messages.some((m) => m.role === 'system');
     let currentMessages: Array<Record<string, unknown>> = hasSystem ? messages : [{ role: 'system', content: sysContext }, ...messages];
+
+    // ---- Phase 5 item 6: rolling context compaction -------------------------
+    // The client resends the full history every message; without a window the
+    // conversation grows unbounded (10M tokens would dwarf any model context).
+    // Deterministic extractive compaction: when the serialized history blows
+    // the budget, older turns collapse into one compact digest (role, gist,
+    // tools used); the checklist line (taskPlanLine) above carries position
+    // state so nothing important is lost. Last COMPACTION_TAIL turns stay
+    // verbatim.
+    const COMPACTION_BUDGET_CHARS = 24_000;
+    const COMPACTION_TAIL = 8;
+    const msgChars = (m: Record<string, unknown>): number =>
+      JSON.stringify(m?.content ?? '').length + JSON.stringify(m?.tool_calls ?? '').length;
+    const totalChars = currentMessages.reduce((n, m) => n + msgChars(m), 0);
+    if (totalChars > COMPACTION_BUDGET_CHARS && currentMessages.length > COMPACTION_TAIL + 1) {
+      const head = currentMessages.slice(0, currentMessages.length - COMPACTION_TAIL);
+      const tail = currentMessages.slice(currentMessages.length - COMPACTION_TAIL);
+      const sys = head[0]?.role === 'system' ? head[0] : null;
+      const conv = sys ? head.slice(1) : head;
+      const gist = (m: Record<string, unknown>): string => {
+        let text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? '');
+        text = text.replace(/data:image\/[a-z]+;base64,[A-Za-z0-9+/=]+/g, '[img]').replace(/\s+/g, ' ').trim();
+        return text.slice(0, 140);
+      };
+      const lines = conv.map((m) => {
+        const role = String(m.role ?? '?');
+        const tools = Array.isArray(m.tool_calls)
+          ? ` [called ${(m.tool_calls as Array<{ function?: { name?: string } }>).map((t) => t.function?.name).filter(Boolean).join(', ')}]`
+          : '';
+        return `- ${role}: ${gist(m)}${tools}`;
+      });
+      const digest = [
+        `CONVERSATION COMPACTED — ${conv.length} earlier messages summarized below (full text dropped to protect the context budget):`,
+        ...lines,
+      ].join('\n');
+      currentMessages = [
+        ...(sys ? [sys] : []),
+        { role: 'system', content: digest },
+        ...tail,
+      ];
+      log.info(`Context compacted: ${totalChars} chars -> ${currentMessages.reduce((n, m) => n + msgChars(m), 0)} chars`);
+    }
+
+    // Phase 5: the user's Go approves the pending plan. Without this the
+    // approval gate is a dead end — update_task_step stays refused forever.
+    try {
+      const lastUser = [...currentMessages].reverse().find((m) => m.role === 'user');
+      const lastText = typeof lastUser?.content === 'string' ? lastUser.content : '';
+      if (/\b(go|approved?|proceed|yes,? (proceed|continue))\b/i.test(lastText)) {
+        const plan = await readTaskPlan(libSqlStore, state.user.id);
+        if (plan?.mode === 'plan') {
+          plan.mode = 'act';
+          await libSqlStore.setConfig(`assistant.chat.plan.user.${state.user.id}`, plan as unknown as Record<string, unknown>, 'assistant', state.user.id);
+        }
+      }
+    } catch { /* best-effort */ }
     // A5: read-only tools are free; only state-changing executions consume
     // the budget. Hard iteration cap guards runaway read loops. Duplicate
     // calls (same tool + args) are refused with guidance so models stop

@@ -70,6 +70,20 @@ export const mirrorControl: { send: ((payload: Record<string, unknown>) => void)
 export const overlayControl: { clear: (() => void) | null } = { clear: null };
 
 /**
+ * Render-layer overlay cache (moved from server.ts so chat.ts can read it for
+ * the Phase 5 opacity policy without a circular import — server imports chat,
+ * so chat must never import server). Shape: normalized browser overlays with
+ * id/x/y/width/height/color/opacity/template/actor.
+ */
+let bridgeOverlays: Array<Record<string, unknown>> = [];
+export function getBridgeOverlays(): Array<Record<string, unknown>> {
+  return bridgeOverlays;
+}
+export function setBridgeOverlays(overlays: Array<Record<string, unknown>>): void {
+  bridgeOverlays = overlays;
+}
+
+/**
  * Phase 3: wait until a preview frame newer than `sinceMs` has been uploaded
  * (the page composes ghosts asynchronously over the websocket control
  * channel). Returns the fresh preview or null on timeout / no composer.

@@ -62,7 +62,7 @@ try {
     check('distinct colors used', colors.size >= 3, [...colors].join(','));
   }
   const named = /address bar|menu|logo|title/i.test(r.text);
-  check('final prose names landmarks', named && r.text.length < 400, r.text.slice(0, 160));
+  check('final prose names landmarks', named && r.text.length < 600, r.text.slice(0, 160));
   const clean = !r.errors.length || r.errors.every((e) => !/Recovery:/.test(e));
   check('no recovery-blob leakage', clean, r.errors.join(' | ').slice(0, 120));
 

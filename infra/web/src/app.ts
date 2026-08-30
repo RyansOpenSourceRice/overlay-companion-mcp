@@ -378,18 +378,26 @@ class OverlayCompanionApp {
     const toggle = document.getElementById('pref-enforce-preview') as HTMLInputElement | null;
     const maxText = document.getElementById('pref-max-text') as HTMLInputElement | null;
     const maxNonText = document.getElementById('pref-max-nontext') as HTMLInputElement | null;
+    const maxSingular = document.getElementById('pref-max-singular-opacity') as HTMLInputElement | null;
+    const maxOverall = document.getElementById('pref-max-overall-opacity') as HTMLInputElement | null;
     if (!section || !toggle) return;
     section.style.display = '';
-    // Keep in sync with MARKING_LIMIT_MIN/MAX/DEFAULTS in infra/server/src/chat.ts —
-    // no shared module exists between web and server packages.
+    // Keep in sync with MARKING_LIMIT_MIN/MAX/DEFAULTS and OPACITY_DEFAULTS in
+    // infra/server/src/chat.ts — no shared module exists between packages.
     const PREF_LIMIT_MIN = 0, PREF_LIMIT_MAX = 8, PREF_LIMIT_DEFAULT = 2;
+    const OP_MIN = 0.05, OP_MAX = 1, OP_DEFAULT_SINGULAR = 0.4, OP_DEFAULT_OVERALL = 0.75;
     try {
       const res = await fetch('/api/me/preferences', { credentials: 'include' });
       if (!res.ok) { section.style.display = 'none'; return; }
-      const data = (await res.json()) as { enforcePreview: boolean; maxTextMarkings?: number; maxNonTextMarkings?: number };
+      const data = (await res.json()) as { enforcePreview: boolean; maxTextMarkings?: number; maxNonTextMarkings?: number; maxSingularOpacity?: number; maxOverallOpacity?: number; pending_approval?: Record<string, unknown> };
       toggle.checked = data.enforcePreview;
       if (maxText) maxText.value = String(data.maxTextMarkings ?? PREF_LIMIT_DEFAULT);
       if (maxNonText) maxNonText.value = String(data.maxNonTextMarkings ?? PREF_LIMIT_DEFAULT);
+      if (maxSingular) maxSingular.value = String(data.maxSingularOpacity ?? OP_DEFAULT_SINGULAR);
+      if (maxOverall) maxOverall.value = String(data.maxOverallOpacity ?? OP_DEFAULT_OVERALL);
+      if (data.pending_approval && Object.keys(data.pending_approval).length > 0) {
+        this.showPrefApproval(data.pending_approval);
+      }
     } catch {
       section.style.display = 'none';
       return;
@@ -401,7 +409,10 @@ class OverlayCompanionApp {
         credentials: 'include',
         body: JSON.stringify(patch),
       });
-      this.showToast(res.ok ? 'success' : 'error', 'Preferences', res.ok ? 'Saved.' : `Save failed (${res.status}).`);
+      const detail = res.ok ? 'Saved.' : `Save failed (${res.status}).`;
+      let msg = detail;
+      try { const j = await res.clone().json() as { error?: { message?: string } }; if (j?.error?.message) msg = j.error.message; } catch { /* keep default */ }
+      this.showToast(res.ok ? 'success' : 'error', 'Preferences', res.ok ? 'Saved.' : msg);
     };
     toggle.onchange = async () => { await savePrefs({ enforcePreview: toggle.checked }); };
     const clampLimit = (el: HTMLInputElement): number | null => {
@@ -417,6 +428,71 @@ class OverlayCompanionApp {
     };
     if (maxText) maxText.onchange = async () => { const n = clampLimit(maxText); if (n !== null) await savePrefs({ maxTextMarkings: n }); };
     if (maxNonText) maxNonText.onchange = async () => { const n = clampLimit(maxNonText); if (n !== null) await savePrefs({ maxNonTextMarkings: n }); };
+    const clampOpacity = (el: HTMLInputElement): number | null => {
+      const raw = el.value.trim();
+      const n = Number(raw);
+      if (raw === '' || !Number.isFinite(n) || n < OP_MIN || n > OP_MAX) {
+        this.showToast('error', 'Preferences', 'Opacity must be a number 0.05–1.0.');
+        return null;
+      }
+      return Math.round(n * 1000) / 1000;
+    };
+    if (maxSingular) maxSingular.onchange = async () => {
+      const n = clampOpacity(maxSingular);
+      if (n !== null) await savePrefs({ maxSingularOpacity: n });
+    };
+    if (maxOverall) maxOverall.onchange = async () => {
+      const n = clampOpacity(maxOverall);
+      if (n !== null) await savePrefs({ maxOverallOpacity: n });
+    };
+  }
+
+  /** Phase 5: render Approve/Deny for a pending AI-requested preference change. */
+  private showPrefApproval(pending: Record<string, unknown>): void {
+    const host = document.getElementById('pref-approval-host');
+    if (!host) return;
+    host.innerHTML = '';
+    const human = Object.entries(pending)
+      .map(([k, v]) => {
+        const n = Number(v);
+        const pct = Number.isFinite(n) ? `${Math.round(n * 100)}%` : String(v);
+        return `${k.replace('max', 'max ').replace('Opacity', ' opacity').replace(/([A-Z])/g, ' $1').trim()} = ${pct}`;
+      })
+      .join(', ');
+    const row = document.createElement('div');
+    row.className = 'pref-approval';
+// OCR HIGH: pending values originate from AI tool output — never
+    // interpolate into innerHTML (XSS sink). Build nodes with textContent.
+    const label = document.createElement('span');
+    label.textContent = 'The assistant requests: ';
+    const strong = document.createElement('strong');
+    strong.textContent = human;
+    label.appendChild(strong);
+    row.appendChild(label);
+    const approve = document.createElement('button');
+    approve.className = 'btn btn-sm btn-primary';
+    approve.textContent = 'Approve';
+    approve.onclick = async () => {
+      const r = await fetch('/api/me/preferences/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ approve: true }),
+      });
+      this.showToast(r.ok ? 'success' : 'error', 'Preferences', r.ok ? 'Approved and applied.' : `Failed (${r.status}).`);
+      row.remove();
+    };
+    const deny = document.createElement('button');
+    deny.className = 'btn btn-sm';
+    deny.textContent = 'Deny';
+    deny.onclick = async () => {
+      await fetch('/api/me/preferences/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ approve: false }),
+      });
+      row.remove();
+    };
+    row.appendChild(approve);
+    row.appendChild(deny);
+    host.appendChild(row);
   }
 
   private async loadRateLimits(): Promise<void> {
@@ -836,8 +912,55 @@ class OverlayCompanionApp {
     // Start mirror at last-used cadence (default: input-driven).
     const saved = localStorage.getItem('oc.mirrorCadence') as MirrorCadence | null;
     screenMirror.setCadence(saved ?? 'input');
+    // Phase 5 item 3: relay real user input to the server as a wake signal
+    // (throttled — the server re-throttles too). Mouse movement must always
+    // disengage the C# power gate's sleep.
+    let lastActivitySent = 0;
+    screenMirror.onUserActivity = () => {
+      const now = Date.now();
+      if (now - lastActivitySent < 2000) return;
+      lastActivitySent = now;
+      if (this.websocket?.readyState === WebSocket.OPEN) {
+        this.websocket.send(JSON.stringify({ type: 'user_activity', timestamp: new Date().toISOString() }));
+      }
+    };
   }
 
+
+  /**
+   * Phase 5 item 3: visible sleep-state indicator. A fixed badge shows WHY
+   * the assistant went quiet; a brief pulse marks the wake transition.
+   */
+  // OCR LOW: tracked so a stale wake timeout can't hide a fresh sleep badge.
+  private sleepBadgeTimer: number | null = null;
+
+  private setSleepBadge(asleep: boolean, reason: string): void {
+    if (this.sleepBadgeTimer !== null) {
+      window.clearTimeout(this.sleepBadgeTimer);
+      this.sleepBadgeTimer = null;
+    }
+    let badge = document.getElementById('sleep-badge') as HTMLElement | null;
+    if (asleep) {
+      if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'sleep-badge';
+        document.body.appendChild(badge);
+      }
+      badge.className = 'sleep-badge';
+      badge.textContent = reason === 'idle' ? '💤 Idle — screen view asleep (moves on activity)' : '💤 Asleep';
+      badge.style.display = '';
+    } else if (badge || document.getElementById('sleep-badge')) {
+      const el = badge ?? document.getElementById('sleep-badge');
+      if (el) {
+        el.className = 'sleep-badge sleep-badge--wake';
+        el.textContent = '☀ Awake';
+        this.sleepBadgeTimer = window.setTimeout(() => {
+          el.style.display = 'none';
+          this.sleepBadgeTimer = null;
+        }, 2500);
+      }
+    }
+  }
 
   private async refreshDisplayMeta(): Promise<void> {
     try {
@@ -901,12 +1024,18 @@ class OverlayCompanionApp {
           if (data.type === 'overlay_broadcast' && data.payload) {
             this.handleRemoteOverlay(data.payload);
           }
+          // Phase 5 item 3: power-gate state → visible sleep badge + wake pulse.
+          if (data.type === 'sleep_state' && data.payload) {
+            const sp = data.payload as { asleep?: boolean; reason?: string };
+            this.setSleepBadge(sp.asleep === true, sp.reason ?? '');
+          }
           // Model-driven mirror control (R14): the assistant tunes its own
           // view cadence via the set_screen_updates tool.
           if (data.type === 'mirror_control' && data.payload) {
             const pl = data.payload as { cadenceMs?: number | 'input' | 'off'; triggerNow?: boolean; previewSpec?: { x: number; y: number; width: number; height: number; color?: string } };
             if (pl.triggerNow) {
               void screenMirror.captureNow();
+              this.setSleepBadge(false, 'wake');
               return;
             }
             // Phase 3: server asks the page to ghost-render a candidate spec.

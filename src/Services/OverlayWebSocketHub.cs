@@ -14,13 +14,16 @@ public class OverlayWebSocketHub : IDisposable
     private readonly ILogger<OverlayWebSocketHub> _logger;
     private readonly IOverlayService _overlayService;
     private readonly IScreenCaptureService _screenCaptureService;
+    private readonly ISleepGate? _sleepGate;
+    private EventHandler<string>? _sleepStateChanged;
     private readonly ConcurrentDictionary<Guid, WebSocket> _clients = new();
 
-    public OverlayWebSocketHub(ILogger<OverlayWebSocketHub> logger, IOverlayService overlayService, IScreenCaptureService screenCaptureService)
+    public OverlayWebSocketHub(ILogger<OverlayWebSocketHub> logger, IOverlayService overlayService, IScreenCaptureService screenCaptureService, ISleepGate? sleepGate = null)
     {
         _logger = logger;
         _overlayService = overlayService;
         _screenCaptureService = screenCaptureService;
+        _sleepGate = sleepGate;
 
         // Subscribe to overlay events. Wire shape uses snake_case ids
         // (overlay_id) to match the MCP-facing event contract — a camelCase
@@ -29,6 +32,28 @@ public class OverlayWebSocketHub : IDisposable
         _overlayService.OverlayCreated += async (_, overlay) => await BroadcastAsync(new { type = "overlay_created", overlay });
         _overlayService.OverlayRemoved += async (_, overlayId) => await BroadcastAsync(new { type = "overlay_removed", overlay_id = overlayId });
         _overlayService.OverlayUpdated += async (_, overlay) => await BroadcastAsync(new { type = "overlay_updated", overlay });
+
+        // Phase 5 item 3: power-state changes reach every connected page as a
+        // sleep_state event (panel badge + wake pulse). Snake_case fields.
+        // Handler tracked + unsubscribed in Dispose (OCR: hub recreation with
+        // DI lifecycles would otherwise leak stale client sets); wrapped so a
+        // broadcast failure can never escape a .NET event handler.
+        if (_sleepGate != null)
+        {
+            var gate = _sleepGate;
+            _sleepStateChanged = async (_, reason) =>
+            {
+                try
+                {
+                    await BroadcastAsync(new { type = "sleep_state", asleep = gate.IsAsleep, reason });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "sleep_state broadcast failed");
+                }
+            };
+            gate.StateChanged += _sleepStateChanged;
+        }
     }
 
     public async Task HandleClientAsync(WebSocket socket, CancellationToken ct)
@@ -122,6 +147,10 @@ public class OverlayWebSocketHub : IDisposable
 
     public void Dispose()
     {
+        if (_sleepGate != null && _sleepStateChanged != null)
+        {
+            _sleepGate.StateChanged -= _sleepStateChanged; // OCR: no stale broadcasts after teardown
+        }
         foreach (var ws in _clients.Values)
         {
             try { ws.Abort(); } catch { }

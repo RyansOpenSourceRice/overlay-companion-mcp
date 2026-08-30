@@ -968,6 +968,89 @@ add_uri("Project", "hasSession", "Session-001-ontology-setup")
 
 
 # --------------------------------------------------------------------------
+# Phase 5 (feedback 2026-08-28): marking-opacity policy, task plan/act,
+# stepwise guidance, sleep indicators, context compaction, display truth.
+# --------------------------------------------------------------------------
+typed(
+    "Milestone-Phase5", "Milestone", "Phase 5 — interaction quality",
+    milestoneName="Phase 5 — interaction quality",
+    milestoneOrder=5,
+    status="shipped",
+    description="Feedback-driven round: opacity caps with approval-gated AI "
+    "changes, stepwise auto-clear, Plan/Act checklist, sleep indicators and "
+    "wake wire, rolling context compaction, thinking dots, display truth.",
+)
+
+# QualityRules (policies the system enforces)
+typed("QR-MarkingOpacity", "QualityRule", "Marking opacity policy",
+      description="Marks stay translucent: maxSingularOpacity (default 40%) "
+      "caps any single marking; overlapping highlights compose pairwise "
+      "1-(1-a)(1-b) capped at maxOverallOpacity (default 75%). Enforced "
+      "server-side at draw time; reduced or refused with a plain-language "
+      "explanation.",
+      status="active")
+typed("QR-DisplayTruth", "QualityRule", "Display truth source",
+      description="The screen mirror's reported resolution is the ONLY "
+      "coordinate space. Draws landing outside the real display are rescaled "
+      "from the known phantom layout (1920x1080) into true space when that "
+      "yields in-bounds geometry; system context states the truth "
+      "unarguably.",
+      status="active")
+typed("QR-StepwiseOneMarking", "QualityRule", "Stepwise single-marking invariant",
+      description="In 1-at-a-time guidance the server auto-removes the "
+      "previous step's marking as each new one commits; the outgoing marking "
+      "is exempt from marking-limit counting while being replaced.",
+      status="active")
+typed("QR-AntiLazyPersistence", "QualityRule", "Task persistence",
+      description="A multi-step task is complete only when its checklist is "
+      "complete; the assistant never ends a turn waiting for the user unless "
+      "input is genuinely required. Auto-sleep is purely mouse-idle based "
+      "(waste prevention), never checklist-gated, and mouse movement always "
+      "disengages it.",
+      status="active")
+typed("QR-AIApprovalGate", "QualityRule", "AI preference changes need approval",
+      description="Every setting is configurable via GUI and AI chat; AI "
+      "changes to opacity caps land as pending approvals the user confirms "
+      "in the panel (Approve/Deny chip). Marking limits remain tighten-only "
+      "for the AI.",
+      status="active")
+typed("QR-ContextCompaction", "QualityRule", "Rolling context compaction",
+      description="Past a 24k-char budget beyond the last 8 turns, older "
+      "messages collapse into a deterministic extractive digest (role, gist, "
+      "tools used); the panel shows a context meter.",
+      status="active")
+
+# Tools
+typed("Tool-SetTaskPlan", "Tool", "set_task_plan",
+      toolName="set_task_plan",
+      toolDescription="Write the Plan-mode checklist (max 12 steps); the "
+      "panel pauses for the user's Go before Act mode starts.")
+typed("Tool-UpdateTaskStep", "Tool", "update_task_step",
+      toolName="update_task_step",
+      toolDescription="Fluid checklist updates: pending/in_progress/done/"
+      "skipped/blocked — out-of-order and skipped steps are first-class.")
+typed("Tool-SetStepMode", "Tool", "set_step_mode",
+      toolName="set_step_mode",
+      toolDescription="Arms stepwise auto-clear: each committed marking "
+      "removes the previous step's marking automatically.")
+
+add_uri("Project", "hasQualityRule", "QR-MarkingOpacity")
+add_uri("Project", "hasQualityRule", "QR-DisplayTruth")
+add_uri("Project", "hasQualityRule", "QR-StepwiseOneMarking")
+add_uri("Project", "hasQualityRule", "QR-AntiLazyPersistence")
+add_uri("Project", "hasQualityRule", "QR-AIApprovalGate")
+add_uri("Project", "hasQualityRule", "QR-ContextCompaction")
+add_uri("QR-MarkingOpacity", "relatesTo", "QR-AIApprovalGate")
+add_uri("Project", "hasMilestone", "Milestone-Phase5")
+add_uri("Project", "hasTool", "Tool-SetTaskPlan")
+add_uri("Project", "hasTool", "Tool-UpdateTaskStep")
+add_uri("Tool-SetTaskPlan", "relatesTo", "Tool-UpdateTaskStep")
+add_uri("Project", "hasTool", "Tool-SetStepMode")
+add_uri("Tool-SetStepMode", "relatesTo", "QR-StepwiseOneMarking")
+add_uri("QR-AntiLazyPersistence", "relatesTo", "Milestone-Phase5")
+
+
+# --------------------------------------------------------------------------
 # Serialize deterministically sorted
 # --------------------------------------------------------------------------
 def sorted_triples(graph):

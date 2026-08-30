@@ -1,5 +1,5 @@
 import type { LibSqlStore } from './libsql-store.js';
-import { latestFrame, currentPreview, mirrorControl, overlayControl, waitForPreview } from './screen-mirror.js';
+import { latestFrame, currentPreview, mirrorControl, overlayControl, waitForPreview, getBridgeOverlays } from './screen-mirror.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -46,6 +46,11 @@ export interface ChatSessionOptions {
       createdAt: number;
     };
     awaitingCommitSig?: string;
+    /** P0: set when the last draw was rescaled from phantom to true display space. */
+    rescaled?: boolean;
+    /** Phase 5 item 2: stepwise mode — auto-remove the previous step marking. */
+    stepMode?: boolean;
+    stepMarkingId?: string;
     vision?: Array<Record<string, unknown>>;
   };
 }
@@ -164,6 +169,146 @@ export async function readMarkingLimits(store: LibSqlStore, userId?: string): Pr
       maxNonTextMarkings: pick(v.maxNonTextMarkings, MARKING_LIMIT_DEFAULTS.maxNonTextMarkings),
     };
   } catch { return { ...MARKING_LIMIT_DEFAULTS }; }
+}
+
+// ── Opacity policy (Phase 5, feedback item 1) ────────────────────────────────
+// Marks must never read as solid squares: a single marking caps at
+// maxSingularOpacity (default 40%), and OVERLAPPING markings compose with the
+// pairwise alpha rule 1-(1-a)(1-b) capped at maxOverallOpacity (default 75%).
+// Both caps are user-adjustable AND AI-adjustable — but AI changes require
+// user approval (pendingPrefs + panel Approve/Deny chip).
+export const OPACITY_DEFAULTS = { maxSingularOpacity: 0.4, maxOverallOpacity: 0.75 };
+export const OPACITY_MIN = 0.05;
+export const OPACITY_MAX = 1.0;
+export const MIN_EFFECTIVE_OPACITY = 0.05; // below this a highlight is invisible — refuse instead
+export interface OpacityLimits { maxSingularOpacity: number; maxOverallOpacity: number }
+
+export async function readOpacityLimits(store: LibSqlStore, userId?: string): Promise<OpacityLimits> {
+  const dflt = { ...OPACITY_DEFAULTS };
+  if (!userId) return dflt;
+  try {
+    const cur = (await store.getConfig(`assistant.chat.user.${userId}`)) as Record<string, unknown> | null;
+    const v = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+    const pick = (n: unknown, d: number): number => {
+      if (typeof n !== 'number' || !Number.isFinite(n)) return d;
+      return Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, n));
+    };
+    const singular = pick(v.maxSingularOpacity, OPACITY_DEFAULTS.maxSingularOpacity);
+    const overall = pick(v.maxOverallOpacity, OPACITY_DEFAULTS.maxOverallOpacity);
+    return {
+      maxSingularOpacity: Math.min(singular, overall), // invariant: singular <= overall
+      maxOverallOpacity: overall,
+    };
+  } catch { return dflt; }
+}
+
+/** Pending AI-requested preference changes awaiting user approval. */
+export interface PendingPrefs { [key: string]: number | boolean }
+
+// ── Task plan (Phase 5 item 5: Plan/Act checklist) ──────────────────────────
+// OpenCode-style: the model writes a plan, the user approves with Go, then
+// the model works the checklist. Statuses are FLUID by design (humans skip
+// and reorder) — done/skipped/blocked/pending/in_progress. The checklist is
+// the anti-context-rot device: each turn injects a compact one-line state
+// instead of the model re-deriving position from long history.
+export const PLAN_MAX_STEPS = 12;
+export interface TaskStep { text: string; status: 'pending' | 'in_progress' | 'done' | 'skipped' | 'blocked' }
+export interface TaskPlan { steps: TaskStep[]; mode: 'plan' | 'act' | 'done'; createdAt: number }
+export const TASK_PLAN_KEY = (userId: string): string => `assistant.chat.plan.user.${userId}`;
+
+export async function readTaskPlan(store: LibSqlStore, userId?: string): Promise<TaskPlan | null> {
+  if (!userId) return null;
+  try {
+    const cur = (await store.getConfig(TASK_PLAN_KEY(userId))) as Record<string, unknown> | null;
+    const v = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as unknown as TaskPlan;
+    if (!v || !Array.isArray(v.steps) || v.steps.length === 0) return null;
+    return v;
+  } catch { return null; }
+}
+
+/** Compact one-line checklist for system context (the context-rot killer). */
+export function taskPlanLine(plan: TaskPlan | null): string {
+  if (!plan) return '';
+  const marks: Record<TaskStep['status'], string> = {
+    done: '[x]', in_progress: '[~]', pending: '[ ]', skipped: '[-]', blocked: '[!]',
+  };
+  const body = plan.steps.map((s, i) => `${i + 1}.${marks[s.status]}${s.text}`).join('; ');
+  const mode = plan.mode === 'plan'
+    ? ' AWAITING USER GO — do not execute until the user approves.'
+    : plan.mode === 'done' ? ' ALL STEPS COMPLETE.' : ' Continue the first pending/in_progress step without being re-asked.';
+  return `TASK CHECKLIST (this is where you are — keep it updated with update_task_step): ${body}${mode}`;
+}
+
+export async function writeTaskPlan(store: LibSqlStore, userId: string, plan: TaskPlan): Promise<void> {
+  await store.setConfig(TASK_PLAN_KEY(userId), plan as unknown as Record<string, unknown>, 'assistant', userId);
+}
+
+/**
+ * Phase 5 item 3: wake the C# power gate. Fire-and-forget by callers — the
+ * VM's own input never reaches the MCP container's input monitor (its cursor
+ * probes look at a display that does not exist there), so the management
+ * server feeds wake signals from page activity and chat sends.
+ * One shared session per server URL, reopened on failure — OCR finding:
+ * a fresh initialize handshake on every 5s-throttled wake churned sessions.
+ */
+const wakeSessions = new Map<string, Awaited<ReturnType<typeof openMcpSession>>>();
+export async function wakeMcp(mcpServerUrl: string): Promise<boolean> {
+  try {
+    let session = wakeSessions.get(mcpServerUrl);
+    if (!session) {
+      session = await openMcpSession(mcpServerUrl);
+      wakeSessions.set(mcpServerUrl, session);
+    }
+    await mcpCall(session, mcpServerUrl, 'set_sleep', { enabled: false });
+    return true;
+  } catch {
+    // Stale session: drop it so the next wake re-handshakes.
+    wakeSessions.delete(mcpServerUrl);
+    return false;
+  }
+}
+
+export async function readPendingPrefs(store: LibSqlStore, userId: string): Promise<PendingPrefs> {
+  try {
+    const cur = (await store.getConfig(`assistant.chat.user.${userId}`)) as Record<string, unknown> | null;
+    const v = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+    return (v.pendingPrefs && typeof v.pendingPrefs === 'object' ? v.pendingPrefs : {}) as PendingPrefs;
+  } catch { return {}; }
+}
+
+/**
+ * Phase 5 item 1: enforce the opacity policy on a marking before it reaches
+ * the C# server. Returns the FINAL opacity to place in the args, or null when
+ * no legal value exists (caller refuses with an explanation).
+ */
+export function resolveAllowedOpacity(
+  requested: number | undefined,
+  dflt: number,
+  limits: OpacityLimits,
+  overlapping: Array<{ opacity: number }>,
+): { opacity: number } | { refused: string } {
+  let o = typeof requested === 'number' && Number.isFinite(requested)
+    ? Math.min(OPACITY_MAX, Math.max(0, requested))
+    : dflt;
+  o = Math.min(o, limits.maxSingularOpacity);
+  for (const e of overlapping) {
+    const eff = 1 - (1 - o) * (1 - e.opacity);
+    if (eff > limits.maxOverallOpacity + 1e-9) {
+      // Largest o that keeps this pairwise composition legal.
+      const oMax = 1 - (1 - limits.maxOverallOpacity) / (1 - Math.min(1, Math.max(0, e.opacity)));
+      if (oMax < MIN_EFFECTIVE_OPACITY || oMax >= o) continue;
+      o = oMax;
+    }
+  }
+  if (o < MIN_EFFECTIVE_OPACITY) {
+    return {
+      refused:
+        `The user's opacity policy (max ${Math.round(limits.maxSingularOpacity * 100)}% per marking, ` +
+        `${Math.round(limits.maxOverallOpacity * 100)}% where highlights overlap) cannot fit this marking — ` +
+        'existing highlights beneath it already saturate the budget. Remove or lighten an existing highlight (remove_overlay), or place this one where nothing overlaps.',
+    };
+  }
+  return { opacity: Math.round(o * 1000) / 1000 };
 }
 
 // ── Model-registry helpers shared by HTTP routes and the switch_ai_model tool ──
@@ -306,13 +451,55 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
     },
   },
   {
+    // Phase 5 item 5: Plan/Act. The model writes the checklist, the panel
+    // pauses for the user's Go, then the model works it fluidly.
+    name: 'set_task_plan',
+    description:
+      'Write the task checklist (Plan mode). Use for any task with more than 2 steps: split it into concrete, independently checkable steps (max 12). The user must approve the plan (they click Go) before you start acting. Replace the plan by calling again.',
+    parameters: {
+      type: 'object',
+      properties: {
+        steps: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 12 },
+      },
+      required: ['steps'],
+    },
+  },
+  {
+    name: 'update_task_step',
+    description:
+      'Update one checklist step as you work. status: in_progress (starting), done (verified on screen), skipped (user handled it or it is moot), blocked (needs the user). Out-of-order and skipped steps are normal — follow reality, not the order. When every step is done or skipped the checklist completes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        index: { type: 'integer', description: '1-based step number' },
+        status: { type: 'string', enum: ['pending', 'in_progress', 'done', 'skipped', 'blocked'] },
+        note: { type: 'string', description: 'short note replacing the step text if provided' },
+      },
+      required: ['index', 'status'],
+    },
+  },
+  {
+    // Phase 5 item 2: stepwise guidance mode. When enabled, the server auto-
+    // removes the previous step's marking as each new one commits — the
+    // "1 at a time" tutorial UX without relying on model diligence.
+    name: 'set_step_mode',
+    description:
+      "Enable stepwise-guidance cleanup. When the user asks to be shown actions ONE at a time, enable this; from then on each new marking you commit automatically removes the previous step's marking. Disable when returning to free-form annotation.",
+    parameters: {
+      type: 'object',
+      properties: { enabled: { type: 'boolean' } },
+      required: ['enabled'],
+    },
+  },
+  {
     // Served locally: user-owned preferences (mirrors the Settings GUI).
     name: 'set_my_preferences',
     description:
       "Read or change the user's assistant preferences. Call with NO arguments to read all settings. " +
       "enforcePreview (boolean): every screen marking is ghost-previewed to you for approval before the user sees it; you may enable it, never disable it. " +
-      "maxTextMarkings / maxNonTextMarkings (integers 0..8): cap how many text / non-text markings may be on screen at once. " +
-      "Only change these when the user explicitly asks (e.g. 'only 1 circle at a time'); you can tighten but never loosen them.",
+      "maxTextMarkings / maxNonTextMarkings (integers 0..8): cap how many text / non-text markings may be on screen at once; you can tighten but never loosen them. " +
+      "maxSingularOpacity / maxOverallOpacity (numbers 0.05..1.0, singular <= overall): how transparent markings must stay; you may change these in EITHER direction but each change needs explicit user approval via the panel prompt. " +
+      "Only change any setting when the user explicitly asks.",
     parameters: {
       type: 'object',
       properties: { enforcePreview: { type: 'boolean' } },
@@ -459,6 +646,89 @@ async function openMcpSession(mcpServerUrl: string): Promise<McpSession> {
     }).catch(() => undefined);
   }
   return { sessionId, nextId: 2 };
+}
+
+/**
+ * P0 display truth: rescale coordinates authored against a phantom display
+ * layout (the C# default 1920x1080 when real capture is unavailable) into the
+ * REAL guest resolution reported by the screen mirror. Applied only when the
+ * incoming geometry overflows the real display AND the rescale brings it in
+ * bounds — coordinates already in true space pass through untouched.
+ * Scales positional fields only (x/y/width/height/radius/x2/y2); font sizes
+ * and text are layout-independent and stay put.
+ */
+export function scaleIntoTrueDisplay(name: string, args: Record<string, unknown>): boolean {
+  const f = latestFrame();
+  if (!f) return false;
+  const trueW = Number(f.displayWidth), trueH = Number(f.displayHeight);
+  if (!trueW || !trueH) return false;
+
+  const PHANTOM_W = 1920, PHANTOM_H = 1080; // C# GetScreenResolutionAsync default
+  if (trueW >= PHANTOM_W && trueH >= PHANTOM_H) return false; // no phantom to fix
+
+  const POS = ['x', 'y', 'width', 'height', 'radius', 'x2', 'y2'] as const;
+  const readBounds = (raw: Record<string, unknown>): { maxX: number; maxY: number } | null => {
+    const num = (k: string): number | null => {
+      const v = Number(raw[k]);
+      return Number.isFinite(v) ? v : null;
+    };
+    let maxX = -Infinity, maxY = -Infinity;
+    const x = num('x'), y = num('y'), w = num('width'), h = num('height');
+    const r = num('radius'), x2 = num('x2'), y2 = num('y2');
+    // Capture x and y INDEPENDENTLY — folding y into the x branch left
+    // shapes with y but no x returning maxY=-Infinity (readBounds null →
+    // rescale skipped → off-screen draw).
+    if (x !== null) maxX = Math.max(maxX, x);
+    if (y !== null) maxY = Math.max(maxY, y);
+    if (x !== null && w !== null) maxX = Math.max(maxX, x + Math.abs(w));
+    if (y !== null && h !== null) maxY = Math.max(maxY, y + Math.abs(h));
+    if (x !== null && r !== null) maxX = Math.max(maxX, x + r);
+    if (y !== null && r !== null) maxY = Math.max(maxY, y + r);
+    if (x2 !== null) maxX = Math.max(maxX, x2);
+    if (y2 !== null) maxY = Math.max(maxY, y2);
+    return Number.isFinite(maxX) || Number.isFinite(maxY) ? { maxX: Math.max(0, maxX), maxY: Math.max(0, maxY) } : null;
+  };
+
+  const scaleValues = (raw: Record<string, unknown>): void => {
+    const sx = trueW / PHANTOM_W, sy = trueH / PHANTOM_H, sr = Math.min(sx, sy);
+    for (const k of POS) {
+      const v = Number(raw[k]);
+      if (!Number.isFinite(v)) continue;
+      const s = k === 'radius' ? sr : (k === 'y' || k === 'height' || k === 'y2') ? sy : sx;
+      raw[k] = Math.round(v * s);
+    }
+  };
+
+  if (name === 'draw_overlay') {
+    const b = readBounds(args);
+    if (!b || (b.maxX <= trueW && b.maxY <= trueH)) return false; // already in true space
+    const sx = trueW / PHANTOM_W, sy = trueH / PHANTOM_H;
+    const probe = { ...args };
+    scaleValues(probe);
+    const pb = readBounds(probe);
+    if (!pb || pb.maxX > trueW + 64 || pb.maxY > trueH + 64) return false; // rescale would not fit — not phantom space
+    scaleValues(args);
+    return true;
+  }
+
+  if (name === 'template_overlay') {
+    let raw = args.templateParams;
+    if (typeof raw === 'string') {
+      try { raw = JSON.parse(raw); } catch { return false; }
+    }
+    if (!raw || typeof raw !== 'object') return false;
+    const params = raw as Record<string, unknown>;
+    const b = readBounds(params);
+    if (!b || (b.maxX <= trueW && b.maxY <= trueH)) return false;
+    const probe = { ...params };
+    scaleValues(probe);
+    const pb = readBounds(probe);
+    if (!pb || pb.maxX > trueW + 64 || pb.maxY > trueH + 64) return false;
+    scaleValues(params);
+    args.templateParams = JSON.stringify(params);
+    return true;
+  }
+  return false;
 }
 
 async function mcpCall(session: McpSession, mcpServerUrl: string, name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -908,6 +1178,89 @@ export class InteriorChat {
       });
     }
 
+    if (call.name === 'set_task_plan') {
+      if (!opts.userId) return JSON.stringify({ error: 'no_user_context' });
+      const steps = call.arguments.steps;
+      if (!Array.isArray(steps) || steps.length === 0) {
+        return JSON.stringify({ error: 'invalid_args', message: 'steps must be a non-empty array of strings.' });
+      }
+      const texts = steps.map((s) => String(s ?? '').trim()).filter(Boolean).slice(0, PLAN_MAX_STEPS);
+      if (texts.length === 0) return JSON.stringify({ error: 'invalid_args', message: 'steps must contain at least one non-empty string.' });
+      const plan: TaskPlan = {
+        steps: texts.map((t) => ({ text: t.slice(0, 160), status: 'pending' as const })),
+        mode: 'plan',
+        createdAt: Date.now(),
+      };
+      await writeTaskPlan(this.store, opts.userId, plan);
+      return JSON.stringify({
+        ok: true,
+        mode: plan.mode,
+        steps: plan.steps.map((s, i) => ({ index: i + 1, text: s.text, status: s.status })),
+        note: 'PLAN READY — the user sees a checklist with a Go button. Do NOT start executing until the user approves (says go / clicks Go). When they do, work the checklist and keep it updated with update_task_step.',
+      });
+    }
+
+    if (call.name === 'update_task_step') {
+      if (!opts.userId) return JSON.stringify({ error: 'no_user_context' });
+      const plan = await readTaskPlan(this.store, opts.userId);
+      if (!plan) return JSON.stringify({ error: 'no_plan', message: 'No checklist exists. Call set_task_plan first.' });
+      const idx = Math.round(Number(call.arguments.index));
+      const status = String(call.arguments.status ?? '');
+      if (!Number.isFinite(idx) || idx < 1 || idx > plan.steps.length) {
+        return JSON.stringify({ error: 'invalid_args', message: `index must be 1..${plan.steps.length}.` });
+      }
+      if (!['pending', 'in_progress', 'done', 'skipped', 'blocked'].includes(status)) {
+        return JSON.stringify({ error: 'invalid_args', message: 'status must be pending|in_progress|done|skipped|blocked.' });
+      }
+      // OCR HIGH: enforce the Go gate server-side — a model that jumps
+      // straight to update_task_step after set_task_plan must NOT silently
+      // flip the plan into Act mode; approval belongs to the user.
+      if (plan.mode === 'plan') {
+        return JSON.stringify({
+          error: 'plan_not_approved',
+          message: 'The plan is still awaiting user approval. Do not start acting until the user says go / clicks Go.',
+        });
+      }
+      plan.steps[idx - 1].status = status as TaskStep['status'];
+      if (typeof call.arguments.note === 'string' && call.arguments.note.trim()) {
+        plan.steps[idx - 1].text = String(call.arguments.note).trim().slice(0, 160);
+      }
+      // 'blocked' means a step still needs the user — it is NOT completion.
+      const remaining = plan.steps.filter((s) => ['pending', 'in_progress', 'blocked'].includes(s.status)).length;
+      if (remaining === 0) plan.mode = 'done';
+      await writeTaskPlan(this.store, opts.userId, plan);
+      const done = plan.steps.filter((s) => s.status === 'done' || s.status === 'skipped').length;
+      return JSON.stringify({
+        ok: true,
+        progress: `${done}/${plan.steps.length}`,
+        mode: plan.mode,
+        ...(plan.mode === 'done' ? { note: 'CHECKLIST COMPLETE. Report completion in one short sentence. The user may start a new task or go idle.' } : {}),
+        steps: plan.steps.map((s, i) => ({ index: i + 1, text: s.text, status: s.status })),
+      });
+    }
+
+    if (call.name === 'set_step_mode') {
+      (opts.gate ??= {}).stepMode = call.arguments.enabled === true;
+      if (!opts.gate.stepMode) opts.gate.stepMarkingId = undefined;
+      // Persist: stepwise guidance spans multiple user messages; a
+      // request-scoped flag silently dies after the first reply.
+      if (opts.userId) {
+        const key = `assistant.chat.user.${opts.userId}`;
+        // Normalize BOTH config shapes ({value:{...}} row or flat record) — a
+        // flat-record store would otherwise resolve to {} and wipe sibling prefs.
+        const curRow = (await this.store.getConfig(key)) as Record<string, unknown> | null;
+        const existing = ((curRow && typeof curRow === 'object' ? (curRow.value ?? curRow) : {}) ?? {}) as Record<string, unknown>;
+        await this.store.setConfig(key, { ...existing, stepMode: opts.gate.stepMode }, 'assistant', opts.userId);
+      }
+      return JSON.stringify({
+        ok: true,
+        stepMode: opts.gate.stepMode,
+        note: opts.gate.stepMode
+          ? 'Stepwise cleanup armed: each marking you commit removes the previous step\'s marking automatically. Keep narrating ONE action per marking.'
+          : 'Stepwise cleanup disabled.',
+      });
+    }
+
     if (call.name === 'clear_overlays') {
       // 1) Wipe the render layer (bridge cache + browser canvases) — covers
       // overlays C# no longer tracks (post-restart ghosts).
@@ -983,16 +1336,57 @@ export class InteriorChat {
       // SECURITY: the model may ENABLE grounding but never disable it, and may
       // only TIGHTEN marking limits — a gated/strained model unsetting its own
       // guardrails defeats both features. Loosening is user-only (GUI / PUT).
+      // Opacity caps (Phase 5): the AI may change them BOTH directions, but
+      // every change lands as a pending approval the user confirms in the
+      // panel — GUI and chat can configure the same settings, chat changes
+      // just carry an explicit consent step.
       if (!opts.userId) return JSON.stringify({ error: 'no_user_context' });
       const key = `assistant.chat.user.${opts.userId}`;
       if (Object.keys(call.arguments).length === 0) {
         const limits = await readMarkingLimits(this.store, opts.userId);
+        const caps = await readOpacityLimits(this.store, opts.userId);
         const cur = (await this.store.getConfig(key)) as Record<string, unknown> | null;
         const value = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+        const pending = await readPendingPrefs(this.store, opts.userId);
         return JSON.stringify({
           enforcePreview: value.enforcePreview === true,
           ...limits,
-          note: 'maxTextMarkings/maxNonTextMarkings cap how many markings may be on screen at once. You can only lower them; raising them is a user-only Settings change.',
+          ...caps,
+          ...(Object.keys(pending).length > 0 ? { pending_approval: pending } : {}),
+          note: 'maxTextMarkings/maxNonTextMarkings: you can only LOWER these. maxSingularOpacity/maxOverallOpacity: you may change in either direction but the user must approve each change.',
+        });
+      }
+      // Opacity caps: AI-requestable in both directions, pending approval.
+      const opKeys = ['maxSingularOpacity', 'maxOverallOpacity'] as const;
+      const opUpdates: Partial<OpacityLimits> = {};
+      for (const field of opKeys) {
+        if (call.arguments[field] === undefined) continue;
+        const n = Number(call.arguments[field]);
+        if (!Number.isFinite(n) || n < OPACITY_MIN || n > OPACITY_MAX) {
+          return JSON.stringify({ error: 'invalid_args', message: `${field} must be a number between ${OPACITY_MIN} and ${OPACITY_MAX}.` });
+        }
+        opUpdates[field] = Math.round(n * 1000) / 1000;
+      }
+      if (Object.keys(opUpdates).length > 0) {
+        const current = await readOpacityLimits(this.store, opts.userId);
+        const next = { ...current, ...opUpdates };
+        // Invariant: singular <= overall, checked against the MERGED set.
+        if (next.maxSingularOpacity > next.maxOverallOpacity) {
+          return JSON.stringify({
+            error: 'invalid_args',
+            message: `maxSingularOpacity must be <= maxOverallOpacity. Current: singular ${current.maxSingularOpacity}, overall ${current.maxOverallOpacity}. Adjust both together if needed.`,
+          });
+        }
+        // Normalize BOTH config shapes ({value:{...}} row or flat record) — a
+        // flat-record store would otherwise resolve to {} and wipe sibling prefs.
+        const curRow = (await this.store.getConfig(key)) as Record<string, unknown> | null;
+        const existing = ((curRow && typeof curRow === 'object' ? (curRow.value ?? curRow) : {}) ?? {}) as Record<string, unknown>;
+        await this.store.setConfig(key, { ...existing, pendingPrefs: { ...(existing.pendingPrefs as Record<string, unknown> ?? {}), ...opUpdates } }, 'assistant', opts.userId);
+        const human = Object.entries(opUpdates).map(([k, v]) => `${k} = ${Math.round((v as number) * 100)}%`).join(', ');
+        return JSON.stringify({
+          pending_approval: true,
+          requested: opUpdates,
+          message: `Requested user approval to set ${human}. The user will see an approval prompt; do NOT re-send the request and do not claim it is active until approved.`,
         });
       }
       // Marking-limit keys first (tighten-only).
@@ -1099,6 +1493,53 @@ export class InteriorChat {
 
     const session = await openMcpSession(opts.mcpServerUrl);
     try {
+      // ---- P0 display truth: rescale phantom-space coordinates -----------
+      // Runs on call.arguments BEFORE mapping and BEFORE the preview gate, so
+      // ghost geometry, commit signature, and the actual draw all speak the
+      // same (true-display) space. A repeat commit re-rescales identically.
+      if (call.name === 'draw_overlay' || call.name === 'template_overlay') {
+        const rescaled = scaleIntoTrueDisplay(call.name, call.arguments);
+        if (rescaled && opts.gate) opts.gate.rescaled = true;
+        // ---- Phase 5 item 1: opacity policy --------------------------------
+        // Clamp to the user's per-marking cap and keep every pairwise overlap
+        // within the overall cap (1-(1-a)(1-b) rule). Explicit opacity args
+        // are honored but clamped; absent ones get the policy-compliant value.
+        const opLimits = await readOpacityLimits(this.store, opts.userId);
+        const spec = InteriorChat.normalizeSpec(call.name, call.arguments);
+        const bounds = spec?.bounds ?? null;
+        if (bounds) {
+          const overlapping = getBridgeOverlays().map((o) => ({
+            opacity: Math.min(1, Math.max(0, Number(o.opacity ?? 0.5))),
+            overlaps: (() => {
+              const ox = Number(o.x ?? 0), oy = Number(o.y ?? 0);
+              const ow = Number(o.width ?? 0), oh = Number(o.height ?? 0);
+              return !(ox + ow <= bounds!.x || bounds!.x + bounds!.width <= ox
+                || oy + oh <= bounds!.y || bounds!.y + bounds!.height <= oy) && Number(o.opacity ?? 0.5) > 0;
+            })(),
+          })).filter((e) => e.overlaps);
+          const requested = call.name === 'draw_overlay'
+            ? (Number(call.arguments.opacity) || undefined)
+            : (() => { try { const tp = typeof call.arguments.templateParams === 'string' ? JSON.parse(call.arguments.templateParams) : call.arguments.templateParams; return tp && typeof tp.opacity === 'number' ? tp.opacity : undefined; } catch { return undefined; } })();
+          const template = call.name === 'template_overlay' ? String(call.arguments.template ?? '').toLowerCase() : 'rectangle';
+          const dflt = (template === 'highlight' || template === 'arrow') ? 0.8 : 0.5;
+          const decision = resolveAllowedOpacity(requested, dflt, opLimits, overlapping);
+          if ('refused' in decision) {
+            return JSON.stringify({ error: 'marking_opacity', message: decision.refused });
+          }
+          if (call.name === 'draw_overlay') {
+            call.arguments.opacity = decision.opacity;
+          } else {
+            let tp: Record<string, unknown> = {};
+            try {
+              tp = typeof call.arguments.templateParams === 'string'
+                ? JSON.parse(call.arguments.templateParams)
+                : (call.arguments.templateParams && typeof call.arguments.templateParams === 'object' ? { ...(call.arguments.templateParams as Record<string, unknown>) } : {});
+            } catch { /* keep {} */ }
+            tp.opacity = decision.opacity;
+            call.arguments.templateParams = JSON.stringify(tp);
+          }
+        }
+      }
       const args = MCP_TOOL_ARG_MAP[call.name] ? MCP_TOOL_ARG_MAP[call.name](call.arguments) : call.arguments;
 
       // ---- Phase 3.5 A3: system-side draw setup (mode + display owner) ----
@@ -1174,7 +1615,14 @@ export class InteriorChat {
         const limit = isText ? limits.maxTextMarkings : limits.maxNonTextMarkings;
         const stats = await this.fetchMcpOverlayStats(opts.mcpServerUrl);
         if (stats) {
-          const current = isText ? stats.text : stats.non_text;
+          let current = isText ? stats.text : stats.non_text;
+          // Stepwise mode: the previous step marking is auto-removed right
+          // after this commit — it must not occupy a limit slot (else the
+          // last allowed step could never be placed).
+          if (opts.gate?.stepMode && opts.gate?.stepMarkingId) {
+            if (isText && stats.text > 0) current = Math.max(0, current - 1);
+            else if (!isText && stats.non_text > 0) current = Math.max(0, current - 1);
+          }
           if (current >= limit) {
             const removable = (isText ? stats.text_ids : stats.non_text_ids).slice(0, 10);
             return JSON.stringify({
@@ -1220,6 +1668,28 @@ export class InteriorChat {
             }];
           }
         }
+      }
+
+      // Phase 5 item 2: stepwise cleanup — after a SUCCESSFUL commit, remove
+      // the previous step's marking so exactly one tutorial marker remains.
+      // Best-effort: a failed removal must never fail the new marking.
+      if ((call.name === 'draw_overlay' || call.name === 'template_overlay')
+        && (opts.gate?.stepMode)) {
+        const rawRes = typeof result === 'string' ? result : JSON.stringify(result);
+        try {
+          const inner = JSON.parse(rawRes);
+          const payload = typeof inner.content?.[0]?.text === 'string' ? JSON.parse(inner.content[0].text) : inner;
+          const newId = String(payload.overlay_id ?? '');
+          if (newId) {
+            const previousId = opts.gate?.stepMarkingId;
+            if (previousId && previousId !== newId) {
+              try {
+                await mcpCall(session, opts.mcpServerUrl, 'remove_overlay', { overlayId: previousId });
+              } catch { /* previous may be gone already */ }
+            }
+            (opts.gate ??= {}).stepMarkingId = newId;
+          }
+        } catch { /* unparseable result — leave step state alone */ }
       }
 
       return JSON.stringify(result);

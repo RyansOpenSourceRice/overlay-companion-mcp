@@ -169,6 +169,114 @@ export class ChatPanel {
     if (ChatPanel.WORKING_PILL) ChatPanel.WORKING_PILL.style.display = 'none';
   }
 
+  /**
+   * Phase 5 item 6: context meter — mirrors the server's compaction budget
+   * (COMPACTION_BUDGET_CHARS in /api/chat). Past ~100% the server compacts
+   * older turns automatically; the meter makes that visible instead of magic.
+   */
+  // Mirrors COMPACTION_BUDGET_CHARS in infra/server/src/server.ts. Counting
+  // formula differs slightly (server also counts tool_calls JSON) — near enough
+  // for a visibility meter.
+  private static CONTEXT_BUDGET = 24_000;
+
+  private updateContextMeter(): void {
+    let meter = this.container.querySelector('.chat-context-meter') as HTMLElement | null;
+    if (!meter) {
+      meter = document.createElement('div');
+      meter.className = 'chat-context-meter';
+      this.messagesEl.appendChild(meter);
+    }
+    const chars = this.history.reduce((n, m) => n + String(m.content ?? '').length, 0);
+    const pct = Math.min(100, Math.round((chars / ChatPanel.CONTEXT_BUDGET) * 100));
+    meter.textContent = `context ~${pct}% (older turns auto-compacted)`;
+    meter.style.color = pct > 80 ? '#b45309' : 'var(--text-dim, #666)';
+  }
+
+  /**
+   * Phase 5: inline Approve/Deny chip for an AI-requested preference change.
+   * Approves via the same endpoint as the Settings GUI — one consent path.
+   */
+  private renderTaskPlan(steps: Array<{ index: number; text: string; status: string }>, mode: string): void {
+    const marks: Record<string, string> = { done: '☑', in_progress: '▶', pending: '☐', skipped: '⊘', blocked: '⚠' };
+    let host = this.messagesEl.querySelector('.chat-plan') as HTMLElement | null;
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'chat-plan';
+      this.messagesEl.prepend(host);
+    }
+    host.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'chat-plan-title';
+    title.textContent = 'Checklist';
+    host.appendChild(title);
+    const ol = document.createElement('ol');
+    for (const s of steps) {
+      const li = document.createElement('li');
+      li.className = `chat-plan-step chat-plan-step--${s.status}`;
+      li.textContent = `${marks[s.status] ?? '☐'} ${s.text}`;
+      ol.appendChild(li);
+    }
+    host.appendChild(ol);
+    if (mode === 'plan') {
+      const go = document.createElement('button');
+      go.className = 'chat-plan-go';
+      go.textContent = 'Go';
+      go.onclick = () => {
+        this.inputEl.value = 'Go — proceed with the checklist.';
+        void this.send();
+        go.remove();
+      };
+      host.appendChild(go);
+    } else {
+      const remaining = steps.filter((s) => s.status === 'pending' || s.status === 'in_progress').length;
+      if (remaining === 0) {
+        const done = document.createElement('span');
+        done.className = 'chat-plan-done';
+        done.textContent = 'All steps complete';
+        host.appendChild(done);
+      }
+    }
+}
+
+  /** Phase 5: inline Approve/Deny chip for an AI-requested preference change.
+   *  Approves via the same endpoint as the Settings GUI — one consent path. */
+  private requestPrefApproval(requested: Record<string, unknown>): void {
+    const human = Object.entries(requested)
+      .map(([k, v]) => `${k.replace('maxSingularOpacity', 'single-marking opacity').replace('maxOverallOpacity', 'combined opacity')} = ${Math.round(Number(v) * 100)}%`)
+      .join(', ');
+    const chip = document.createElement('div');
+    chip.className = 'chat-pref-approval';
+    chip.appendChild(Object.assign(document.createElement('span'), {
+      textContent: `The assistant wants to change ${human}.`,
+    }));
+    const approve = document.createElement('button');
+    approve.textContent = 'Approve';
+    approve.className = 'chat-pref-approval-btn';
+    approve.onclick = async () => {
+      const r = await fetch('/api/me/preferences/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ approve: true }),
+      });
+      chip.textContent = r.ok ? 'Preference change applied.' : 'Approval failed.';
+      setTimeout(() => chip.remove(), 4000);
+    };
+    const deny = document.createElement('button');
+    deny.textContent = 'Deny';
+    deny.className = 'chat-pref-approval-btn';
+    deny.onclick = async () => {
+      await fetch('/api/me/preferences/approve', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ approve: false }),
+      });
+      chip.textContent = 'Denied.';
+      setTimeout(() => chip.remove(), 2500);
+    };
+    chip.appendChild(approve);
+    chip.appendChild(deny);
+    this.messagesEl.appendChild(chip);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+  }
+
   private async toggleMic(): Promise<void> {
     const micBtn = this.container.querySelector('#chat-mic') as HTMLButtonElement | null;
     if (this.recording) {
@@ -279,6 +387,7 @@ export class ChatPanel {
     this.autosizeInput();
     this.history.push({ role: 'user', content: text });
     this.appendMessage('user', text);
+    this.updateContextMeter();
 
     try {
       const res = await fetch('/api/chat', {
@@ -313,7 +422,11 @@ export class ChatPanel {
         if (!thinkingEl) {
           thinkingEl = document.createElement('details');
           thinkingEl.className = 'chat-thinking';
-          thinkingEl.appendChild(Object.assign(document.createElement('summary'), { textContent: 'Thinking…' }));
+          // Phase 5 item 7: the visible surface is three animated dots, not
+          // streamed reasoning. Raw text is opt-in via the summary toggle.
+          const summary = document.createElement('summary');
+          summary.innerHTML = '<span class="chat-thinking-dots"><i></i><i></i><i></i></span>';
+          thinkingEl.appendChild(summary);
           this.messagesEl.appendChild(thinkingEl);
         }
         return thinkingEl;
@@ -334,8 +447,9 @@ export class ChatPanel {
               if (parsed.error) {
                 ensureBubble().textContent = `Error: ${parsed.error}`;
               } else if (parsed.thinking) {
-                // Collapsible reasoning (issue #1): short header by default so
-                // it never pushes the conversation out of view.
+                // Phase 5 item 7: reasoning NEVER streams into the user's view.
+                // A 3-dot shimmer signals liveness; raw text stays in a tiny
+                // collapsed <details> for the curious. Token counting removed.
                 thinkingText += parsed.thinking;
                 const t = ensureThinking() as HTMLDetailsElement & { _pre?: HTMLElement };
                 if (!t._pre) {
@@ -343,11 +457,8 @@ export class ChatPanel {
                   t._pre.style.whiteSpace = 'pre-wrap';
                   t.appendChild(t._pre);
                 }
-                if (!t.open) t.open = false;
                 t._pre.textContent = thinkingText;
-                t.querySelector('summary')!.textContent =
-                  `Thinking (${Math.min(Math.round(thinkingText.length / 4), 999)} tokens)…`;
-              } else if (parsed.text) {
+                              } else if (parsed.text) {
                 assistantText += parsed.text;
                 this.hideWorking();
                 ensureBubble().innerHTML = renderMarkdown(assistantText);
@@ -355,6 +466,22 @@ export class ChatPanel {
               } else if (parsed.tool) {
                 // Invisible plumbing (Goal 7): only liveness is shown.
                 this.showWorking();
+                // Phase 5 item 5: Plan/Act checklist — parse plan tool results
+                // and keep the checklist rendered above the conversation.
+                if (parsed.tool === 'set_task_plan' || parsed.tool === 'update_task_step') {
+                  try {
+                    const res = JSON.parse(String(parsed.result ?? '{}')) as { ok?: boolean; steps?: Array<{ index: number; text: string; status: string }>; mode?: string };
+                    if (res.ok && res.steps) this.renderTaskPlan(res.steps, res.mode ?? 'act');
+                  } catch { /* ignore malformed */ }
+                }
+                // Phase 5: the assistant requested a preference change (opacity
+                // caps) — surface an Approve/Deny chip instead of swallowing it.
+                if (parsed.tool === 'set_my_preferences' && typeof parsed.result === 'string' && parsed.result.includes('pending_approval')) {
+                  try {
+                    const res = JSON.parse(parsed.result) as { requested?: Record<string, unknown> };
+                    if (res.requested) this.requestPrefApproval(res.requested);
+                  } catch { /* ignore malformed */ }
+                }
                 // Phase 3.5 A5: prose streamed before a tool call is interim
                 // narration, not the answer — demote it to a muted one-liner
                 // and start a fresh bubble for whatever follows.
@@ -379,6 +506,7 @@ export class ChatPanel {
       }
       this.hideWorking();
       if (assistantText) this.history.push({ role: 'assistant', content: assistantText });
+      this.updateContextMeter();
     } catch (err) {
       this.hideWorking();
       this.appendMessage('assistant', `Network error: ${(err as Error).message}`);
