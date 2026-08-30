@@ -16,21 +16,21 @@
 
   <ItemGroup>
     <!-- Official MCP C# SDK (preview versions) -->
-    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.3" />
-    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.3" />
+    <PackageReference Include="ModelContextProtocol" Version="0.3.0-preview.4" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.4" />
 
     <!-- Microsoft Extensions for hosting and DI (aligned to 10.0.7) -->
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
 
     <!-- Web-only build: GTK4 desktop UI removed -->
 
     <!-- System libraries (updated for security) -->
-    <PackageReference Include="System.Text.Json" Version="10.0.7" />
-    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="10.0.11" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.30" />
 
     <!-- OpenTelemetry: export MCP tool-call traces to OTLP/Jaeger.
          Kept >= 1.11.2 to clear the 1.9.x DoS advisory (GHSA-4625-4j76-fww9). -->
