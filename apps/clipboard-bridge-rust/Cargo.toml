@@ -18,8 +18,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tower = "0.5"
 tower-http = { version = "0.5", features = ["cors"] }
-which = "6"
-thiserror = "1"
+which = "8.0.6"
+thiserror = "2.0.20"
 async-process = "2"
 futures-lite = "2"
 
