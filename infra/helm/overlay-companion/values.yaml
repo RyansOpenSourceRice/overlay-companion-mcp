@@ -39,7 +39,7 @@ surrealdb:
 # owner/operator/viewer on saved connections (fail-closed).
 openfga:
   enabled: false
-  image: openfga/openfga:v1.6.2
+  image: openfga/openfga:v1.19.0
   datastoreEngine: memory
 
 # Ingress. Disabled by default (use port-forward / NodePort for LAN testing).
