@@ -4,6 +4,34 @@
 
 ## 🎯 Current Status (v1.0.0)
 
+## 🎯 Current Status (v1.0.0)
+
+### ✅ **COMPLETED - Phase 6: scale & attention (feedback 2026-08-30)**
+- **Adjustable compaction at long scales**: per-user `contextBudgetChars`
+  (default 48k; 4k–100M range) via Settings AND AI chat (approval chip);
+  clamped by the active model's real context window from the OpenAI-spec
+  /v1/models listing (Ollama /api/show fallback) — an 80k-token GPU limit
+  always beats a 90k software setting.
+- **Donut context meter**: silent SVG donut, numbers on hover only
+  (server-fed via a `context` SSE event — no text clutter).
+- **Thinking-dots lifecycle**: dots are owned by the stream and settle to a
+  static marker (or are removed) on end/error — exactly one live set.
+- **Auto-continue**: a turn that pauses mid-checklist resumes on real VM
+  activity (mouse move / click / key; extensible kinds) with a synthetic
+  continuation — the user almost never types; system policy forbids asking
+  the user to "say continue". Go approval is an explicit client flag
+  (`planApproved`) plus a strict phrase whitelist — a message that merely
+  CONTAINS "go" no longer self-approves.
+- **Letterbox truth**: page-side capture detects uniform black bars and
+  reports the visible app area; the gate refuses draws mostly outside it and
+  system context names the bounds.
+- **Stepwise honesty**: the limit exemption is category-aware (removing a
+  text label frees a text slot) — the "markings didn't stick" cap failure is
+  fixed. Turns that run tools but end silent get a deterministic wrap-up.
+- **Preferences store fix (OCR)**: prefs read/write now normalizes the flat
+  config shape — single-key GUI saves no longer wipe sibling prefs, and
+  AI-initiated approvals no longer 404.
+
 ### ✅ **COMPLETED - Phase 5: interaction quality (feedback 2026-08-28)**
 - **Marking opacity policy**: per-marking cap (default 40%) + pairwise
   overlapping composition cap (default 75%); GUI + AI-chat configurable, AI

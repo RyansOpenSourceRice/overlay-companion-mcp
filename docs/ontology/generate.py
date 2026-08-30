@@ -11,7 +11,7 @@ from rdflib.namespace import RDF, RDFS, XSD
 ONTO = Namespace("https://github.com/RyansOpenSourceRice/overlay-companion-mcp/onto#")
 PROJ = URIRef("https://github.com/RyansOpenSourceRice/overlay-companion-mcp")
 VERSION = "v1.0.0"
-UPDATED = Literal("2026-08-22T00:00:00Z", datatype=XSD.dateTime)
+UPDATED = Literal("2026-08-30T00:00:00Z", datatype=XSD.dateTime)
 
 g = Graph()
 
@@ -1048,6 +1048,54 @@ add_uri("Tool-SetTaskPlan", "relatesTo", "Tool-UpdateTaskStep")
 add_uri("Project", "hasTool", "Tool-SetStepMode")
 add_uri("Tool-SetStepMode", "relatesTo", "QR-StepwiseOneMarking")
 add_uri("QR-AntiLazyPersistence", "relatesTo", "Milestone-Phase5")
+
+# Phase 6 (feedback 2026-08-30): compaction at adjustable scale, attention
+# hygiene (silent donut, settled dots), auto-continue, letterbox truth,
+# category-honest stepwise limits.
+typed("Milestone-Phase6", "Milestone", "Phase 6 — scale & attention",
+      milestoneName="Phase 6 — scale & attention",
+      milestoneOrder=6,
+      description="Feedback round 2026-08-30: adjustable model-aware "
+      "compaction budget, donut context meter, thinking-dots lifecycle, "
+      "auto-continue on VM activity, letterbox content bounds, "
+      "category-honest stepwise limit exemption.",
+      status="active")
+typed("QR-AdjustableContextBudget", "QualityRule",
+      "Model-aware adjustable context budget",
+      description="Per-user contextBudgetChars (default 48k chars, range "
+      "4k-100M) via GUI AND AI-with-approval; the effective budget is "
+      "clamped by the active model's real context window from the "
+      "OpenAI-spec /v1/models listing (Ollama /api/show fallback) so a "
+      "smaller GPU limit always wins.",
+      status="active")
+typed("QR-AttentionHygiene", "QualityRule", "Attention hygiene",
+      description="The context meter is a silent donut (numbers on hover "
+      "only); streamed reasoning is three dots owned by the stream and "
+      "settles to a static marker when the stream ends; exactly one live "
+      "dots element can exist.",
+      status="active")
+typed("QR-AutoContinue", "QualityRule", "Auto-continue on VM activity",
+      description="When a turn ends mid-checklist, real VM input (mouse "
+      "move, click, key - extensible kinds) auto-continues the assistant "
+      "with a synthetic continuation; the user almost never types. System "
+      "policy forbids asking the user to say continue.",
+      status="active")
+typed("QR-LetterboxTruth", "QualityRule", "Letterbox content bounds",
+      description="The page-side capture scans for uniform black bars and "
+      "reports the visible app area (contentBounds in display coords); the "
+      "gate refuses draws centered on the margins with a plain-language "
+      "re-aim message and system context names the visible area.",
+      status="active")
+add_uri("Project", "hasQualityRule", "QR-AdjustableContextBudget")
+add_uri("Project", "hasQualityRule", "QR-AttentionHygiene")
+add_uri("Project", "hasQualityRule", "QR-AutoContinue")
+add_uri("Project", "hasQualityRule", "QR-LetterboxTruth")
+add_uri("Project", "hasMilestone", "Milestone-Phase6")
+add_uri("QR-AdjustableContextBudget", "relatesTo", "QR-ContextCompaction")
+add_uri("QR-AutoContinue", "relatesTo", "QR-AntiLazyPersistence")
+add_uri("QR-LetterboxTruth", "relatesTo", "QR-DisplayTruth")
+add_uri("QR-AttentionHygiene", "relatesTo", "Milestone-Phase6")
+add_uri("QR-AutoContinue", "relatesTo", "Milestone-Phase6")
 
 
 # --------------------------------------------------------------------------

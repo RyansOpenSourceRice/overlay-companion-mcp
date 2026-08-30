@@ -1,5 +1,5 @@
 import type { LibSqlStore } from './libsql-store.js';
-import { latestFrame, currentPreview, mirrorControl, overlayControl, waitForPreview, getBridgeOverlays } from './screen-mirror.js';
+import { latestFrame, currentPreview, mirrorControl, overlayControl, waitForPreview, getBridgeOverlays, latestContentBounds } from './screen-mirror.js';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -51,8 +51,15 @@ export interface ChatSessionOptions {
     /** Phase 5 item 2: stepwise mode — auto-remove the previous step marking. */
     stepMode?: boolean;
     stepMarkingId?: string;
+    /** Phase 6: category of the tracked step marking — the limit exemption
+     *  must only free a slot the removal will actually free. */
+    stepMarkingIsText?: boolean;
     vision?: Array<Record<string, unknown>>;
   };
+  /** Phase 6: the last user message was a Go/approval — a fresh set_task_plan
+   *  in this turn lands straight in act mode (the model must not re-gate
+   *  itself after the user explicitly approved). */
+  userJustApproved?: boolean;
 }
 
 export interface ExtensionConfig {
@@ -204,6 +211,110 @@ export async function readOpacityLimits(store: LibSqlStore, userId?: string): Pr
 
 /** Pending AI-requested preference changes awaiting user approval. */
 export interface PendingPrefs { [key: string]: number | boolean }
+
+// ── Context compaction budget (Phase 6) ─────────────────────────────────────
+// Adjustable per user (GUI + AI-with-approval). The EFFECTIVE budget is
+// clamped to what the active model can actually hold: an Ollama user with an
+// 80k-token GPU limit must never carry a 90k software budget. Model context
+// comes from the OpenAI-spec /v1/models listing (context_length /
+// top_provider.context_length) with an Ollama-native /api/show fallback,
+// cached per model for an hour.
+export const CONTEXT_BUDGET_DEFAULT = 48_000;
+export const CONTEXT_BUDGET_MIN = 4_000;
+export const CONTEXT_BUDGET_MAX = 100_000_000; // 100M-context era headroom (chars)
+const CHARS_PER_TOKEN = 3.5; // conservative English+JSON average
+const CONTEXT_SAFETY = 0.6; // system + digest tail + output must fit the real window
+
+export async function readContextBudget(store: LibSqlStore, userId?: string): Promise<number> {
+  if (!userId) return CONTEXT_BUDGET_DEFAULT;
+  try {
+    const cur = (await store.getConfig(`assistant.chat.user.${userId}`)) as Record<string, unknown> | null;
+    const v = ((cur && typeof cur === 'object' ? (cur.value ?? cur) : {}) ?? {}) as Record<string, unknown>;
+    const n = Math.round(Number(v.contextBudgetChars));
+    if (!Number.isFinite(n)) return CONTEXT_BUDGET_DEFAULT;
+    return Math.min(CONTEXT_BUDGET_MAX, Math.max(CONTEXT_BUDGET_MIN, n));
+  } catch { return CONTEXT_BUDGET_DEFAULT; }
+}
+
+const modelContextCache = new Map<string, { tokens: number | null; at: number }>();
+const MODEL_CONTEXT_TTL_MS = 3_600_000;
+const MODEL_CONTEXT_MISS_TTL_MS = 60_000; // OCR: a transient probe failure must not disable clamping for an hour
+
+/** Cache-aware read: hits live for 1h, misses only 60s (retry soon). */
+function cachedModelContext(key: string): { tokens: number | null; fresh: boolean } {
+  const hit = modelContextCache.get(key);
+  if (!hit) return { tokens: null, fresh: false };
+  const ttl = hit.tokens === null ? MODEL_CONTEXT_MISS_TTL_MS : MODEL_CONTEXT_TTL_MS;
+  return { tokens: hit.tokens, fresh: Date.now() - hit.at < ttl };
+}
+
+/**
+ * Model context window in TOKENS via the OpenAI-spec GET /models listing.
+ * Returns null when the provider does not expose it — the user's budget then
+ * stands unclamped (a warning is the caller's job). Never throws.
+ */
+export async function fetchModelContextTokens(baseUrl: string, apiKey: string, model: string): Promise<number | null> {
+  const cacheKey = `${baseUrl}::${model}`;
+  const hit = cachedModelContext(cacheKey);
+  if (hit.fresh) return hit.tokens;
+  let tokens: number | null = null;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    const res = await fetch(`${baseUrl.replace(/\/$/, '')}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const body = (await res.json()) as { data?: Array<Record<string, unknown>> };
+      const entry = (body.data ?? []).find((m) => m.id === model || m.name === model);
+      const raw = entry?.context_length ?? (entry?.top_provider as Record<string, unknown> | undefined)?.context_length ?? entry?.max_context_length;
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) tokens = n;
+    }
+  } catch { /* fall through to Ollama-native probe */ }
+  if (tokens === null) {
+    // OCR LOW: the OpenAI-spec listing omits context_length on several
+    // providers (Ollama compat, reverse proxies, non-default ports) — probe
+    // the native API regardless of port; a non-Ollama host 404s harmlessly.
+    try {
+      const root = baseUrl.replace(/\/v1\/?$/, '');
+      if (root && root !== baseUrl) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3000);
+        const res = await fetch(`${root}/api/show`, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ model }), signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const info = (await res.json()) as { model_info?: Record<string, unknown> };
+          for (const [k, v] of Object.entries(info.model_info ?? {})) {
+            if (k.endsWith('.context_length') && Number.isFinite(Number(v)) && Number(v) > 0) { tokens = Number(v); break; }
+          }
+        }
+      }
+    } catch { /* unknown context — user budget stands */ }
+  }
+  modelContextCache.set(cacheKey, { tokens, at: Date.now() });
+  return tokens;
+}
+
+export interface ContextBudget { budgetChars: number; modelContextTokens: number | null; clamped: boolean }
+
+/** Effective compaction budget: the user's preference clamped by the model window. */
+export function effectiveContextBudget(userBudgetChars: number, modelContextTokens: number | null): ContextBudget {
+  if (modelContextTokens === null || !Number.isFinite(modelContextTokens) || modelContextTokens <= 0) {
+    return { budgetChars: userBudgetChars, modelContextTokens: null, clamped: false };
+  }
+  const modelCap = Math.floor(modelContextTokens * CHARS_PER_TOKEN * CONTEXT_SAFETY);
+  // Floor 1500: below it a chat cannot function at all — prefer a usable
+  // micro-window over refusing entirely (deliberately below the documented
+  // 4k pref minimum, which governs the USER's setting, not the clamp).
+  const budgetChars = Math.max(1500, Math.min(userBudgetChars, modelCap));
+  return { budgetChars, modelContextTokens, clamped: budgetChars < userBudgetChars };
+}
 
 // ── Task plan (Phase 5 item 5: Plan/Act checklist) ──────────────────────────
 // OpenCode-style: the model writes a plan, the user approves with Go, then
@@ -499,6 +610,7 @@ const TOOL_ALLOWLIST: Array<{ name: string; description: string; parameters: Rec
       "enforcePreview (boolean): every screen marking is ghost-previewed to you for approval before the user sees it; you may enable it, never disable it. " +
       "maxTextMarkings / maxNonTextMarkings (integers 0..8): cap how many text / non-text markings may be on screen at once; you can tighten but never loosen them. " +
       "maxSingularOpacity / maxOverallOpacity (numbers 0.05..1.0, singular <= overall): how transparent markings must stay; you may change these in EITHER direction but each change needs explicit user approval via the panel prompt. " +
+      `contextBudgetChars (integer ${CONTEXT_BUDGET_MIN}..${CONTEXT_BUDGET_MAX}): how much conversation history is kept before older turns are auto-compacted; also needs user approval. ` +
       "Only change any setting when the user explicitly asks.",
     parameters: {
       type: 'object',
@@ -1188,7 +1300,9 @@ export class InteriorChat {
       if (texts.length === 0) return JSON.stringify({ error: 'invalid_args', message: 'steps must contain at least one non-empty string.' });
       const plan: TaskPlan = {
         steps: texts.map((t) => ({ text: t.slice(0, 160), status: 'pending' as const })),
-        mode: 'plan',
+        // Phase 6: the user JUST approved — a fresh plan in this same turn is
+        // execution-ready; re-entering plan mode would dead-end the turn.
+        mode: opts.userJustApproved ? 'act' : 'plan',
         createdAt: Date.now(),
       };
       await writeTaskPlan(this.store, opts.userId, plan);
@@ -1196,7 +1310,9 @@ export class InteriorChat {
         ok: true,
         mode: plan.mode,
         steps: plan.steps.map((s, i) => ({ index: i + 1, text: s.text, status: s.status })),
-        note: 'PLAN READY — the user sees a checklist with a Go button. Do NOT start executing until the user approves (says go / clicks Go). When they do, work the checklist and keep it updated with update_task_step.',
+        note: plan.mode === 'plan'
+          ? 'PLAN READY — the user sees a checklist with a Go button. Do NOT start executing until the user approves (says go / clicks Go). When they do, work the checklist and keep it updated with update_task_step.'
+          : 'PLAN READY AND APPROVED (the user just said go) — work the checklist now and keep it updated with update_task_step. Do not pause for approval again.',
       });
     }
 
@@ -1241,7 +1357,7 @@ export class InteriorChat {
 
     if (call.name === 'set_step_mode') {
       (opts.gate ??= {}).stepMode = call.arguments.enabled === true;
-      if (!opts.gate.stepMode) opts.gate.stepMarkingId = undefined;
+      if (!opts.gate.stepMode) { opts.gate.stepMarkingId = undefined; opts.gate.stepMarkingIsText = undefined; }
       // Persist: stepwise guidance spans multiple user messages; a
       // request-scoped flag silently dies after the first reply.
       if (opts.userId) {
@@ -1350,13 +1466,15 @@ export class InteriorChat {
         const pending = await readPendingPrefs(this.store, opts.userId);
         return JSON.stringify({
           enforcePreview: value.enforcePreview === true,
+          contextBudgetChars: await readContextBudget(this.store, opts.userId),
           ...limits,
           ...caps,
           ...(Object.keys(pending).length > 0 ? { pending_approval: pending } : {}),
-          note: 'maxTextMarkings/maxNonTextMarkings: you can only LOWER these. maxSingularOpacity/maxOverallOpacity: you may change in either direction but the user must approve each change.',
+          note: 'maxTextMarkings/maxNonTextMarkings: you can only LOWER these. maxSingularOpacity/maxOverallOpacity and contextBudgetChars: you may change in either direction but the user must approve each change.',
         });
       }
-      // Opacity caps: AI-requestable in both directions, pending approval.
+      // Opacity caps + context budget: AI-requestable in both directions,
+      // pending approval.
       const opKeys = ['maxSingularOpacity', 'maxOverallOpacity'] as const;
       const opUpdates: Partial<OpacityLimits> = {};
       for (const field of opKeys) {
@@ -1367,7 +1485,16 @@ export class InteriorChat {
         }
         opUpdates[field] = Math.round(n * 1000) / 1000;
       }
-      if (Object.keys(opUpdates).length > 0) {
+      // Phase 6: conversation context budget (chars before compaction).
+      let budgetUpdate: number | null = null;
+      if (call.arguments.contextBudgetChars !== undefined) {
+        const n = Math.round(Number(call.arguments.contextBudgetChars));
+        if (!Number.isFinite(n) || n < CONTEXT_BUDGET_MIN || n > CONTEXT_BUDGET_MAX) {
+          return JSON.stringify({ error: 'invalid_args', message: `contextBudgetChars must be an integer between ${CONTEXT_BUDGET_MIN} and ${CONTEXT_BUDGET_MAX}.` });
+        }
+        budgetUpdate = n;
+      }
+      if (Object.keys(opUpdates).length > 0 || budgetUpdate !== null) {
         const current = await readOpacityLimits(this.store, opts.userId);
         const next = { ...current, ...opUpdates };
         // Invariant: singular <= overall, checked against the MERGED set.
@@ -1381,11 +1508,13 @@ export class InteriorChat {
         // flat-record store would otherwise resolve to {} and wipe sibling prefs.
         const curRow = (await this.store.getConfig(key)) as Record<string, unknown> | null;
         const existing = ((curRow && typeof curRow === 'object' ? (curRow.value ?? curRow) : {}) ?? {}) as Record<string, unknown>;
-        await this.store.setConfig(key, { ...existing, pendingPrefs: { ...(existing.pendingPrefs as Record<string, unknown> ?? {}), ...opUpdates } }, 'assistant', opts.userId);
-        const human = Object.entries(opUpdates).map(([k, v]) => `${k} = ${Math.round((v as number) * 100)}%`).join(', ');
+        const requested: Record<string, unknown> = { ...opUpdates };
+        if (budgetUpdate !== null) requested.contextBudgetChars = budgetUpdate;
+        await this.store.setConfig(key, { ...existing, pendingPrefs: { ...(existing.pendingPrefs as Record<string, unknown> ?? {}), ...requested } }, 'assistant', opts.userId);
+        const human = Object.entries(requested).map(([k, v]) => k === 'contextBudgetChars' ? `context budget = ${Number(v).toLocaleString()} chars` : `${k} = ${Math.round((v as number) * 100)}%`).join(', ');
         return JSON.stringify({
           pending_approval: true,
-          requested: opUpdates,
+          requested,
           message: `Requested user approval to set ${human}. The user will see an approval prompt; do NOT re-send the request and do not claim it is active until approved.`,
         });
       }
@@ -1500,6 +1629,32 @@ export class InteriorChat {
       if (call.name === 'draw_overlay' || call.name === 'template_overlay') {
         const rescaled = scaleIntoTrueDisplay(call.name, call.arguments);
         if (rescaled && opts.gate) opts.gate.rescaled = true;
+        // ---- Phase 6: letterbox clamp ------------------------------------
+        // Markings in the black bars are invisible junk (the green-circle-in-
+        // the-margin failure). When the mirror reports the visible app area,
+        // a draw mostly OUTSIDE it is refused in plain language so the model
+        // re-aims instead of arguing. OCR MEDIUM: intersection test, not just
+        // the center — a marking whose center grazes the bar edge but lies
+        // mostly inside the app is legitimate.
+        const contentBounds = latestContentBounds();
+        if (contentBounds) {
+          const spec0 = InteriorChat.normalizeSpec(call.name, call.arguments);
+          if (spec0?.bounds) {
+            const b = spec0.bounds;
+            const ix = Math.max(0, Math.min(b.x + b.width, contentBounds.x + contentBounds.width) - Math.max(b.x, contentBounds.x));
+            const iy = Math.max(0, Math.min(b.y + b.height, contentBounds.y + contentBounds.height) - Math.max(b.y, contentBounds.y));
+            const visible = b.width > 0 && b.height > 0 ? (ix * iy) / (b.width * b.height) : 0;
+            if (visible < 0.5) {
+              return JSON.stringify({
+                error: 'outside_visible_area',
+                message:
+                  `That marking lands ${visible === 0 ? 'ENTIRELY' : 'mostly'} on the black margin OUTSIDE the actual application window. ` +
+                  `The visible screen area is x=${contentBounds.x}, y=${contentBounds.y}, width=${contentBounds.width}, height=${contentBounds.height}. ` +
+                  `Re-aim the marking inside that area (use see_screen to find the real target).`,
+              });
+            }
+          }
+        }
         // ---- Phase 5 item 1: opacity policy --------------------------------
         // Clamp to the user's per-marking cap and keep every pairwise overlap
         // within the overall cap (1-(1-a)(1-b) rule). Explicit opacity args
@@ -1618,10 +1773,15 @@ export class InteriorChat {
           let current = isText ? stats.text : stats.non_text;
           // Stepwise mode: the previous step marking is auto-removed right
           // after this commit — it must not occupy a limit slot (else the
-          // last allowed step could never be placed).
-          if (opts.gate?.stepMode && opts.gate?.stepMarkingId) {
-            if (isText && stats.text > 0) current = Math.max(0, current - 1);
-            else if (!isText && stats.non_text > 0) current = Math.max(0, current - 1);
+          // last allowed step could never be placed). Phase 6: the exemption
+          // only applies when the tracked step marking is the SAME category
+          // as this commit — removing a text label frees no non-text slot,
+          // and freeing a slot the removal won't free lets the cap be
+          // silently exceeded (the "markings didn't stick" failure).
+          const stepPointerMatches = opts.gate?.stepMode && opts.gate?.stepMarkingId
+            && (opts.gate.stepMarkingIsText === isText);
+          if (stepPointerMatches) {
+            if (current > 0) current = Math.max(0, current - 1);
           }
           if (current >= limit) {
             const removable = (isText ? stats.text_ids : stats.non_text_ids).slice(0, 10);
@@ -1688,6 +1848,10 @@ export class InteriorChat {
               } catch { /* previous may be gone already */ }
             }
             (opts.gate ??= {}).stepMarkingId = newId;
+            // Phase 6: remember the category so the limit exemption stays
+            // honest (only a same-category removal frees a same-category slot).
+            (opts.gate ??= {}).stepMarkingIsText = call.name === 'template_overlay'
+              && String(call.arguments.template ?? '').toLowerCase() === 'text';
           }
         } catch { /* unparseable result — leave step state alone */ }
       }

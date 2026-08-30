@@ -41,6 +41,7 @@ import { createChat, DEFAULT_PROVIDER_BASE_URL, DEFAULT_PROVIDER_MODEL, DEFAULT_
   findApprovedModel, userSelectionKey, MARKING_LIMIT_MIN, MARKING_LIMIT_MAX, readMarkingLimits,
   bindExtensions, closeExtensionSessions, extensionToolDefs as extensionToolDefsOf, coreToolDefs,
   EXTENSION_LIMITS, OPACITY_MIN, OPACITY_MAX, readOpacityLimits, readPendingPrefs,
+  CONTEXT_BUDGET_MIN, CONTEXT_BUDGET_MAX, readContextBudget, fetchModelContextTokens, effectiveContextBudget,
   readTaskPlan, taskPlanLine, wakeMcp, type ApprovedModel } from './chat.js';
 import { AudioBridge } from './audio.js';
 import { seedDemo } from './seed.js';
@@ -523,7 +524,11 @@ if (config.mcpWsEnabled) {
 function displayTruthLine(): string {
   const f = latestFrame();
   if (!f) return '';
-  return `DISPLAY TRUTH: the user's real screen is ${f.displayWidth}x${f.displayHeight} pixels, origin top-left. Every coordinate you output is in THIS space. If get_display_info reports anything else, it is a phantom default — ignore it.`;
+  const cb = latestContentBounds();
+  const bounds = cb
+    ? ` The visible application window sits at x=${cb.x}, y=${cb.y}, ${cb.width}x${cb.height} (black margins around it are NOT part of the screen — never mark anything there).`
+    : '';
+  return `DISPLAY TRUTH: the user's real screen is ${f.displayWidth}x${f.displayHeight} pixels, origin top-left. Every coordinate you output is in THIS space. If get_display_info reports anything else, it is a phantom default — ignore it.${bounds}`;
 }
 
 function overlayStatsLine(limits?: { maxTextMarkings: number; maxNonTextMarkings: number }): string {  const n = getBridgeOverlays().length;
@@ -676,7 +681,7 @@ function handleViewportUpdate(payload: unknown, clientId: string): void {
 // windows, admin bypass on chat. Login/TOTP keep strict IP rate limits below.
 import { AdaptiveLimits } from './adaptive-limits.js';
 import type { ChatSessionOptions } from './chat.js';
-import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl, getBridgeOverlays, setBridgeOverlays } from './screen-mirror.js';
+import { pushFrame, pushPreview, latestFrame, currentPreview, mirrorControl, overlayControl, getBridgeOverlays, setBridgeOverlays, latestContentBounds } from './screen-mirror.js';
 
 // SECURITY: Rate limiting for authentication and MCP proxy to prevent abuse
 const authLimiter = rateLimit({
@@ -1145,20 +1150,31 @@ app.get('/api/settings/:category/:key', settingsLimiter, requireBetterAuthSessio
   res.json({ value: redactSecrets(`${req.params.category}.${req.params.key}`, value) });
 }) as RequestHandler);
 
-// ---- Per-user assistant preferences (Phase 3 + 3.5 + 5) -------------------
-const USER_PREF_KEYS = new Set(['enforcePreview', 'maxTextMarkings', 'maxNonTextMarkings', 'maxSingularOpacity', 'maxOverallOpacity']);
+// ---- Per-user assistant preferences (Phase 3 + 3.5 + 5 + 6) ---------------
+const USER_PREF_KEYS = new Set(['enforcePreview', 'maxTextMarkings', 'maxNonTextMarkings', 'maxSingularOpacity', 'maxOverallOpacity', 'contextBudgetChars']);
 const isMarkingLimitKey = (k: string): boolean => k === 'maxTextMarkings' || k === 'maxNonTextMarkings';
 const isOpacityKey = (k: string): boolean => k === 'maxSingularOpacity' || k === 'maxOverallOpacity';
+/**
+ * Phase 6 FIX: getConfig returns the payload as stored — the flat prefs
+ * record. Reading `row.value` first was the {value:{...}} wrapper shape only;
+ * against the flat shape it resolved to undefined and silently wiped sibling
+ * prefs on every single-key GUI save and made every AI-initiated approval
+ * 404. Normalize BOTH shapes at every prefs read/write.
+ */
+const readUserPrefs = async (userId: string): Promise<Record<string, unknown>> => {
+  const row = (await libSqlStore.getConfig(`assistant.chat.user.${userId}`)) as Record<string, unknown> | null;
+  return ((row && typeof row === 'object' ? row.value ?? row : {}) ?? {}) as Record<string, unknown>;
+};
 
 app.get('/api/me/preferences', requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  const row = (await libSqlStore.getConfig(`assistant.chat.user.${state.user.id}`)) as Record<string, unknown> | null;
-  const value = ((row && typeof row === 'object' ? row.value ?? row : {}) ?? {}) as Record<string, unknown>;
+  const value = await readUserPrefs(state.user.id);
   const limits = await readMarkingLimits(libSqlStore, state.user.id);
   const caps = await readOpacityLimits(libSqlStore, state.user.id);
   const pending = await readPendingPrefs(libSqlStore, state.user.id);
   res.json({
     enforcePreview: value.enforcePreview === true,
+    contextBudgetChars: await readContextBudget(libSqlStore, state.user.id),
     markdownTables: (value as { markdownTables?: boolean }).markdownTables !== false,
     ...limits,
     ...caps,
@@ -1171,7 +1187,7 @@ app.put('/api/me/preferences', requireBetterAuthSession, (async (req: Request, r
   const body = req.body as Record<string, unknown>;
   if (!body || typeof body !== 'object') { res.status(400).json({ error: { code: 'invalid_request' } }); return; }
   const key = `assistant.chat.user.${state.user.id}`;
-  const existing = ((await libSqlStore.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+  const existing = await readUserPrefs(state.user.id);
   const next: Record<string, unknown> = { ...existing };
   for (const [k, v] of Object.entries(body)) {
     if (!USER_PREF_KEYS.has(k)) continue;
@@ -1198,6 +1214,15 @@ app.put('/api/me/preferences', requireBetterAuthSession, (async (req: Request, r
     }
     next[k] = v;
   }
+  // Phase 6: context budget is an integer 4k..100M chars.
+  if (body.contextBudgetChars !== undefined) {
+    const n = Math.round(Number(body.contextBudgetChars));
+    if (!Number.isFinite(n) || n < CONTEXT_BUDGET_MIN || n > CONTEXT_BUDGET_MAX) {
+      res.status(400).json({ error: { code: 'invalid_request', message: `contextBudgetChars must be an integer between ${CONTEXT_BUDGET_MIN} and ${CONTEXT_BUDGET_MAX}.` } });
+      return;
+    }
+    next.contextBudgetChars = n;
+  }
   // Invariant against the merged set (both keys may arrive in one request).
   const s = Number(next.maxSingularOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxSingularOpacity);
   const o = Number(next.maxOverallOpacity ?? (await readOpacityLimits(libSqlStore, state.user.id)).maxOverallOpacity);
@@ -1216,7 +1241,7 @@ app.post('/api/me/preferences/approve', requireBetterAuthSession, (async (req: R
   const state = (req as Request & { authState?: AuthState }).authState!;
   const body = req.body as { approve?: boolean };
   const key = `assistant.chat.user.${state.user.id}`;
-  const existing = ((await libSqlStore.getConfig(key)) as Record<string, unknown> | null)?.value as Record<string, unknown> | undefined ?? {};
+  const existing = await readUserPrefs(state.user.id);
   const pending = (existing.pendingPrefs && typeof existing.pendingPrefs === 'object' ? existing.pendingPrefs : {}) as Record<string, unknown>;
   if (Object.keys(pending).length === 0) { res.status(404).json({ error: { code: 'not_found', message: 'No pending preference changes.' } }); return; }
   if (body.approve !== true) {
@@ -1229,6 +1254,15 @@ app.post('/api/me/preferences/approve', requireBetterAuthSession, (async (req: R
   delete merged.pendingPrefs;
   for (const [k, v] of Object.entries(pending)) {
     if (!USER_PREF_KEYS.has(k)) continue;
+    if (k === 'contextBudgetChars') {
+      const n = Math.round(Number(v));
+      if (!Number.isFinite(n) || n < CONTEXT_BUDGET_MIN || n > CONTEXT_BUDGET_MAX) {
+        res.status(400).json({ error: { code: 'invalid_request', message: `pending ${k} out of range.` } });
+        return;
+      }
+      merged[k] = n;
+      continue;
+    }
     const n = Number(v);
     if (!Number.isFinite(n) || n < OPACITY_MIN || n > OPACITY_MAX) {
       res.status(400).json({ error: { code: 'invalid_request', message: `pending ${k} out of range.` } });
@@ -1458,7 +1492,9 @@ app.post('/api/chat/models', makeLimitGuard('chat'), requireBetterAuthSession, (
 // tools (B3); role is enforced here, not by the model.
 app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (req: Request, res: Response) => {
   const state = (req as Request & { authState?: AuthState }).authState!;
-  const { messages } = (req.body ?? {}) as { messages?: Array<Record<string, unknown>> };
+  // planApproved:true — sent ONLY by the panel's Go button (explicit consent;
+  // never derived from message text by the client).
+  const { messages, planApproved } = (req.body ?? {}) as { messages?: Array<Record<string, unknown>>; planApproved?: boolean };
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: { code: 'bad_request', message: 'messages[] is required.' } });
     return;
@@ -1524,7 +1560,12 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     // marking in the render layer is the previous step's marker.
     const interiorMarks = getBridgeOverlays().filter((o) => o.actor === 'interior');
     const last = interiorMarks.at(-1);
-    if (last) gate.stepMarkingId = String(last.id ?? '');
+    if (last) {
+      gate.stepMarkingId = String(last.id ?? '');
+      // Phase 6: the exemption must know the category of what it exempts —
+      // same lowercase normalization as the commit path in chat.ts.
+      gate.stepMarkingIsText = String(last.template ?? '').toLowerCase() === 'text';
+    }
   }
   const opts = {
     mcpServerUrl: config.mcpServerUrl,
@@ -1536,6 +1577,9 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     enforcePreview,
     gate,
     extensions: [] as import('./chat.js').ExtensionBinding[],
+    // Set just below, before the stream: a Go/approval message in this turn
+    // lets set_task_plan land straight in act mode (no self re-gating).
+    userJustApproved: false,
   };
 
   try {
@@ -1576,7 +1620,8 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         `Draw preconditions are handled for you: mode and display ownership are set server-side before your first overlay call, so go straight to drawing. Current display owner: ${activeActor}.`,
         `ACT-FIRST (non-negotiable): between tool calls write at most ONE short sentence. Never narrate plans, never reason in prose — call the tool. If you need to look first, call see_screen; if you need ids, call list_overlays. Prose is for the final answer only.`,
         `PERSISTENCE (non-negotiable): a multi-step task is complete only when every step is done. NEVER end your turn early to wait for the user unless you genuinely need their input or a page state only they can reach. If blocked, say in one short sentence what you need and stop — do not restate the plan, do not re-ask. When the user reports a result, continue the task without being re-asked.`,
-        `STEPWISE GUIDANCE: when the user wants to be shown actions one at a time, call set_step_mode {enabled:true} once — each marking you commit then auto-removes the previous step's marking, so exactly ONE instruction stays on screen. Narrate only the current step and what to click; never dump the whole tutorial again.`,
+        `RESUME BEHAVIOR (non-negotiable): the panel watches the user's VM activity and auto-continues you — NEVER ask the user to say "continue", type anything, press anything, or send a message to make you proceed. Your side-text is high-level direction only: name what is now marked and what to click, then stop. Requests like 'say continue' or 'let me know when ready' are system failures, not instructions.`,
+        `STEPWISE GUIDANCE: when the user wants to be shown actions one at a time, call set_step_mode {enabled:true} once — each marking you commit then auto-removes the previous step's marking, so exactly ONE instruction stays on screen. Narrate only the current step and what to click; never dump the whole tutorial again. When the user explicitly asks for a plan or checklist, ALWAYS call set_task_plan (write a fresh one even if a checklist already exists) — never answer such a request in prose alone.`,
         `see_screen shows REAL current pixels; when available, treat its image and reported resolution as the source of truth, overriding get_display_info (which may reflect stale/default host monitors). ` + `If take_screenshot errors, do NOT ask the user for coordinates: use get_display_info plus sensible context estimates instead. ` + overlayStatsLine(userLimits) + `Tools you call DO run for real: draw_overlay/template_overlay place actual overlays; take_screenshot captures the display; switch_ai_model changes your own AI model for the next message and supports OpenRouter variant slugs like ':nitro'.`,
         displayTruthLine(),
         taskPlanLine(await readTaskPlan(libSqlStore, state.user.id)),
@@ -1596,15 +1641,21 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     const hasSystem = messages.some((m) => m.role === 'system');
     let currentMessages: Array<Record<string, unknown>> = hasSystem ? messages : [{ role: 'system', content: sysContext }, ...messages];
 
-    // ---- Phase 5 item 6: rolling context compaction -------------------------
+    // ---- Phase 5 item 6 / Phase 6: rolling context compaction ---------------
     // The client resends the full history every message; without a window the
     // conversation grows unbounded (10M tokens would dwarf any model context).
-    // Deterministic extractive compaction: when the serialized history blows
-    // the budget, older turns collapse into one compact digest (role, gist,
-    // tools used); the checklist line (taskPlanLine) above carries position
-    // state so nothing important is lost. Last COMPACTION_TAIL turns stay
-    // verbatim.
-    const COMPACTION_BUDGET_CHARS = 24_000;
+    // The budget is the user's preference (default 48k, adjustable up to
+    // 100M-char era scales) CLAMPED by what the active model can actually
+    // hold — an 80k-token GPU limit wins over a 90k software setting.
+    const userBudgetChars = await readContextBudget(libSqlStore, state.user.id);
+    const modelContextTokens = opts.providerBaseUrl
+      ? await fetchModelContextTokens(opts.providerBaseUrl, opts.providerApiKey ?? '', opts.providerModel)
+      : null;
+    const budget = effectiveContextBudget(userBudgetChars, modelContextTokens);
+    if (budget.clamped) {
+      log.info(`Context budget clamped by model window: user ${userBudgetChars} -> ${budget.budgetChars} chars (model ${opts.providerModel} ≈ ${budget.modelContextTokens} tokens)`);
+    }
+    const COMPACTION_BUDGET_CHARS = budget.budgetChars;
     const COMPACTION_TAIL = 8;
     const msgChars = (m: Record<string, unknown>): number =>
       JSON.stringify(m?.content ?? '').length + JSON.stringify(m?.tool_calls ?? '').length;
@@ -1637,13 +1688,27 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
       ];
       log.info(`Context compacted: ${totalChars} chars -> ${currentMessages.reduce((n, m) => n + msgChars(m), 0)} chars`);
     }
+    // Phase 6: the meter in the panel is fed by the server, not re-derived —
+    // the GUI can never disagree with the budget that actually compacted.
+    res.write(`data: ${JSON.stringify({ context: { used: currentMessages.reduce((n, m) => n + msgChars(m), 0), budget: COMPACTION_BUDGET_CHARS, userBudget: userBudgetChars, modelContextTokens: budget.modelContextTokens, compacted: totalChars > COMPACTION_BUDGET_CHARS } })}\n\n`);
 
-    // Phase 5: the user's Go approves the pending plan. Without this the
+    // Phase 5/6: the user's Go approves the pending plan. Without this the
     // approval gate is a dead end — update_task_step stays refused forever.
+    // Phase 6 FIX (OCR HIGH): approval must be an UNAMBIGUOUS approval — an
+    // open-ended prefix regex approved on replies like "Yes, but first open
+    // the file" or "Continue tomorrow". Only an explicit client flag (the
+    // panel's Go button sends planApproved:true) or a message that IS the
+    // approval (a tiny phrase whitelist, nothing else) counts.
+    let userJustApproved = planApproved === true;
     try {
-      const lastUser = [...currentMessages].reverse().find((m) => m.role === 'user');
-      const lastText = typeof lastUser?.content === 'string' ? lastUser.content : '';
-      if (/\b(go|approved?|proceed|yes,? (proceed|continue))\b/i.test(lastText)) {
+      if (!userJustApproved) {
+        const lastUser = [...currentMessages].reverse().find((m) => m.role === 'user');
+        const lastText = typeof lastUser?.content === 'string' ? lastUser.content.trim() : '';
+        userJustApproved = /^(go([\s.!]*| — proceed with the checklist\.?)|go ahead|approved?|proceed|continue|yes)([\s.!]*)$/i.test(lastText)
+          || /^yes,? (proceed|continue|go)[\s.!]*$/i.test(lastText);
+      }
+      opts.userJustApproved = userJustApproved;
+      if (userJustApproved) {
         const plan = await readTaskPlan(libSqlStore, state.user.id);
         if (plan?.mode === 'plan') {
           plan.mode = 'act';
@@ -1664,6 +1729,8 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
     let executedTurns = 0;
     let consecutiveDuplicates = 0;
     let lastSignature = '';
+    let emittedText = false;
+    let sawToolActivity = false;
     const buildSalvage = (): string => {
       const all = getBridgeOverlays();
       const mineCount = all.filter((o) => o.actor === 'interior').length;
@@ -1719,6 +1786,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
           } catch { /* ignore malformed thinking marker */ }
         } else {
           collected.push(chunk);
+          emittedText = true;
           res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
         }
       }
@@ -1759,6 +1827,7 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         lastSignature = sig;
         consecutiveDuplicates = 0;
         if (!READ_ONLY_TOOLS.has(tc.name)) executedTurns += 1;
+        sawToolActivity = true;
 
         let result: string;
         try {
@@ -1807,6 +1876,12 @@ app.post('/api/chat', makeLimitGuard('chat'), requireBetterAuthSession, (async (
         },
         ...toolResults,
       ];
+    }
+    // Phase 6: a turn that ran tools but ended WITHOUT a single word of text
+    // leaves the user hanging (the "it halted" feel). One tool-less wrap-up
+    // pass makes the closing sentence deterministic.
+    if (sawToolActivity && !emittedText) {
+      await finishWithWrapUp();
     }
   } catch (err) {
     log.error('Chat error:', (err as Error).message);
@@ -1861,6 +1936,7 @@ interface MirrorBody {
   displayHeight?: number;
   trigger?: 'interval' | 'input' | 'manual' | 'preview' | 'connect';
   cadenceMs?: number;
+  contentBounds?: { x: number; y: number; width: number; height: number } | null;
 }
 
 function storeMirror(body: MirrorBody, kind: 'preview' | 'frame'): void {
@@ -1873,6 +1949,7 @@ function storeMirror(body: MirrorBody, kind: 'preview' | 'frame'): void {
     trigger: body.trigger ?? 'manual',
     cadenceMs: body.cadenceMs,
     capturedAt: Date.now(),
+    contentBounds: body.contentBounds ?? null,
   };
   if (kind === 'preview') pushPreview(f); else pushFrame(f);
 }
@@ -1907,6 +1984,7 @@ app.get('/internal/screen-mirror/latest', ((req: Request, res: Response) => {
     trigger: f.trigger, capturedAt: f.capturedAt,
     ageMs: Date.now() - f.capturedAt,
     dataUrl: f.dataUrl,
+    contentBounds: f.contentBounds ?? null,
   });
 }) as RequestHandler);
 

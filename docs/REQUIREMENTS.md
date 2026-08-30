@@ -53,7 +53,10 @@ every accepted request; it is the contract for what the demo must do.
   server auto-remove the previous step's marking as each new one commits —
   exactly one tutorial marking on screen in "1 at a time" guidance. The
   outgoing marking is exempt from the marking-limit count while being
-  replaced (no deadlock at the cap).
+  replaced (no deadlock at the cap). Phase 6: the exemption is
+  category-aware — removing a text label frees a text slot, so the count
+  can never silently exceed the cap when text and shape steps mix (the
+  "markings didn't stick" failure).
 - **R18 Task persistence (SHIPPED):** anti-lazy system policy — a multi-step
   task is complete only when its checklist is complete; never end a turn
   waiting for the user unless input is genuinely required. Auto-sleep stays
@@ -64,7 +67,11 @@ every accepted request; it is the contract for what the demo must do.
   the user approves. `update_task_step` uses fluid statuses
   (pending/in_progress/done/skipped/blocked) — out-of-order and skipped
   steps are first-class. Checklist state injects as a compact one-line
-  context each turn (context-rot minimization).
+  context each turn (context-rot minimization). Phase 6: auto-continue —
+  when a turn ends mid-checklist, real VM activity (mouse move, click, key;
+  extensible kinds) resumes the assistant with a synthetic continuation so
+  the user almost never types; system policy forbids asking the user to
+  "say continue".
 - **R20 Sleep indicators (SHIPPED):** `SleepGate.StateChanged` broadcasts
   `sleep_state` (C# hub → bridge → panel): a fixed badge explains why the
   assistant went quiet; a brief green pulse marks wake. Chat sends always
@@ -72,18 +79,30 @@ every accepted request; it is the contract for what the demo must do.
   real VM input reaches the gate via a throttled `user_activity` ws signal
   (the MCP container's own input monitor is blind in containers — that dead
   wire was why wake felt impossible).
-- **R21 Context compaction (SHIPPED):** rolling window — past a 24k-char
-  budget beyond the last 8 turns, older messages collapse into a
-  deterministic extractive digest (role, gist, tools used); images stripped.
-  The panel shows a context meter so compaction is visible, not magic.
+- **R21 Context compaction (SHIPPED):** rolling window — past a budget
+  beyond the last 8 turns, older messages collapse into a deterministic
+  extractive digest (role, gist, tools used); images stripped. Phase 6: the
+  budget is a per-user preference `contextBudgetChars` (default 48,000;
+  range 4k–100M for the 100M-context era) configurable via Settings GUI AND
+  AI chat (AI changes need the same approval chip), and it is CLAMPED by the
+  active model's real context window from the OpenAI-spec /v1/models
+  listing (`context_length` / `top_provider.context_length`, Ollama-native
+  `/api/show` fallback) — an 80k-token GPU limit always beats a 90k
+  software setting. The server feeds the meter via a `context` SSE event.
 - **R22 Thinking dots (SHIPPED):** streamed reasoning never floods the chat —
   a 3-dot shimmer signals liveness; raw text is opt-in behind a collapsed
-  toggle; token counting removed.
+  toggle; token counting removed. Phase 6: the dots are owned by the stream
+  — settled to a static marker (or removed) when the stream ends, success
+  or error; exactly one live set can exist.
 - **R23 Display truth (SHIPPED):** mirror-reported resolution is the ONLY
   coordinate space. System context states it unarguably; draws landing
   outside the real display are rescaled from the known phantom layout
   (1920x1080) into true space when that yields in-bounds geometry (the OSM
-  session's phantom-1920 failure mode).
+  session's phantom-1920 failure mode). Phase 6: letterbox truth — the
+  page-side capture scans for uniform black bars and reports the visible
+  app area (`contentBounds`); the gate refuses draws centered on the
+  margins with a plain-language re-aim message, and system context names
+  the visible area.
 
 - **R7a Fit-to-window (SHIPPED default).** Decision: scale-to-fit first —
   the KasmVNC client requests `resize=scale` so the framebuffer fills all

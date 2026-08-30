@@ -380,21 +380,25 @@ class OverlayCompanionApp {
     const maxNonText = document.getElementById('pref-max-nontext') as HTMLInputElement | null;
     const maxSingular = document.getElementById('pref-max-singular-opacity') as HTMLInputElement | null;
     const maxOverall = document.getElementById('pref-max-overall-opacity') as HTMLInputElement | null;
+    const contextBudget = document.getElementById('pref-context-budget') as HTMLInputElement | null;
     if (!section || !toggle) return;
     section.style.display = '';
-    // Keep in sync with MARKING_LIMIT_MIN/MAX/DEFAULTS and OPACITY_DEFAULTS in
-    // infra/server/src/chat.ts — no shared module exists between packages.
+    // Keep in sync with MARKING_LIMIT_MIN/MAX/DEFAULTS, OPACITY_DEFAULTS and
+    // CONTEXT_BUDGET_* in infra/server/src/chat.ts — no shared module exists
+    // between packages.
     const PREF_LIMIT_MIN = 0, PREF_LIMIT_MAX = 8, PREF_LIMIT_DEFAULT = 2;
     const OP_MIN = 0.05, OP_MAX = 1, OP_DEFAULT_SINGULAR = 0.4, OP_DEFAULT_OVERALL = 0.75;
+    const CB_MIN = 4000, CB_MAX = 100_000_000, CB_DEFAULT = 48_000;
     try {
       const res = await fetch('/api/me/preferences', { credentials: 'include' });
       if (!res.ok) { section.style.display = 'none'; return; }
-      const data = (await res.json()) as { enforcePreview: boolean; maxTextMarkings?: number; maxNonTextMarkings?: number; maxSingularOpacity?: number; maxOverallOpacity?: number; pending_approval?: Record<string, unknown> };
+      const data = (await res.json()) as { enforcePreview: boolean; maxTextMarkings?: number; maxNonTextMarkings?: number; maxSingularOpacity?: number; maxOverallOpacity?: number; contextBudgetChars?: number; pending_approval?: Record<string, unknown> };
       toggle.checked = data.enforcePreview;
       if (maxText) maxText.value = String(data.maxTextMarkings ?? PREF_LIMIT_DEFAULT);
       if (maxNonText) maxNonText.value = String(data.maxNonTextMarkings ?? PREF_LIMIT_DEFAULT);
       if (maxSingular) maxSingular.value = String(data.maxSingularOpacity ?? OP_DEFAULT_SINGULAR);
       if (maxOverall) maxOverall.value = String(data.maxOverallOpacity ?? OP_DEFAULT_OVERALL);
+      if (contextBudget) contextBudget.value = String(data.contextBudgetChars ?? CB_DEFAULT);
       if (data.pending_approval && Object.keys(data.pending_approval).length > 0) {
         this.showPrefApproval(data.pending_approval);
       }
@@ -445,6 +449,17 @@ class OverlayCompanionApp {
       const n = clampOpacity(maxOverall);
       if (n !== null) await savePrefs({ maxOverallOpacity: n });
     };
+    // Phase 6: context budget — chars of history kept before compaction.
+    // Model clamp is server-side; the GUI shows the user's setting as-is.
+    if (contextBudget) contextBudget.onchange = async () => {
+      const raw = contextBudget.value.trim();
+      const n = Math.round(Number(raw));
+      if (raw === '' || !Number.isFinite(n) || n < CB_MIN || n > CB_MAX) {
+        this.showToast('error', 'Preferences', `Context budget must be an integer between ${CB_MIN.toLocaleString()} and ${CB_MAX.toLocaleString()}.`);
+        return;
+      }
+      await savePrefs({ contextBudgetChars: n });
+    };
   }
 
   /** Phase 5: render Approve/Deny for a pending AI-requested preference change. */
@@ -454,6 +469,10 @@ class OverlayCompanionApp {
     host.innerHTML = '';
     const human = Object.entries(pending)
       .map(([k, v]) => {
+        if (k === 'contextBudgetChars') {
+          const n = Number(v);
+          return `context budget = ${Number.isFinite(n) ? n.toLocaleString() : String(v)} chars`;
+        }
         const n = Number(v);
         const pct = Number.isFinite(n) ? `${Math.round(n * 100)}%` : String(v);
         return `${k.replace('max', 'max ').replace('Opacity', ' opacity').replace(/([A-Z])/g, ' $1').trim()} = ${pct}`;
@@ -912,17 +931,26 @@ class OverlayCompanionApp {
     // Start mirror at last-used cadence (default: input-driven).
     const saved = localStorage.getItem('oc.mirrorCadence') as MirrorCadence | null;
     screenMirror.setCadence(saved ?? 'input');
-    // Phase 5 item 3: relay real user input to the server as a wake signal
-    // (throttled — the server re-throttles too). Mouse movement must always
-    // disengage the C# power gate's sleep.
+    // Phase 5 item 3 + Phase 6: relay real user input to the server as a wake
+    // signal AND to the chat panel as the auto-continue trigger. Clicks are
+    // intent — they bypass the movement throttle; moves stay throttled hard.
     let lastActivitySent = 0;
-    screenMirror.onUserActivity = () => {
+    let lastClickSent = 0;
+    screenMirror.onUserActivity = (kind) => {
       const now = Date.now();
-      if (now - lastActivitySent < 2000) return;
-      lastActivitySent = now;
-      if (this.websocket?.readyState === WebSocket.OPEN) {
-        this.websocket.send(JSON.stringify({ type: 'user_activity', timestamp: new Date().toISOString() }));
+      if (kind === 'click') {
+        if (now - lastClickSent < 500) return;
+        lastClickSent = now;
+      } else {
+        if (now - lastActivitySent < 2000) return;
+        lastActivitySent = now;
       }
+      if (this.websocket?.readyState === WebSocket.OPEN) {
+        this.websocket.send(JSON.stringify({ type: 'user_activity', kind, timestamp: new Date().toISOString() }));
+      }
+      // Phase 6: the panel auto-continues a paused checklist when the user
+      // acts in the VM — no typing required (extensible: future kinds).
+      try { this.chatPanel?.notifyUserActivity(kind); } catch { /* panel may not exist yet */ }
     };
   }
 

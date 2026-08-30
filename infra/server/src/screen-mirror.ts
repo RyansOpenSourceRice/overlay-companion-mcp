@@ -24,6 +24,10 @@ export interface MirrorFrame {
   trigger: 'interval' | 'input' | 'manual' | 'preview' | 'connect';
   cadenceMs?: number;
   capturedAt: number;      // epoch ms
+  // Phase 6: letterbox detection — the visible app area inside black bars,
+  // in display coordinates. Null when the frame fills the screen (or the
+  // scan is unreliable). Markings must never land on the bars.
+  contentBounds?: { x: number; y: number; width: number; height: number } | null;
 }
 
 const MAX_FRAMES = 12;
@@ -43,6 +47,19 @@ export function latestFrame(): MirrorFrame | null {
 export function frameAgeMs(): number | null {
   const l = latestFrame();
   return l ? Date.now() - l.capturedAt : null;
+}
+
+/**
+ * Phase 6: the visible app area from the freshest frame that reported one.
+ * Stale bounds (> maxAgeMs) are ignored — resolution/letterbox can change.
+ */
+export function latestContentBounds(maxAgeMs = 15000): { x: number; y: number; width: number; height: number } | null {
+  for (let i = frames.length - 1; i >= 0; i--) {
+    const f = frames[i];
+    if (Date.now() - f.capturedAt > maxAgeMs) break;
+    if (f.contentBounds) return f.contentBounds;
+  }
+  return null;
 }
 
 export function pushPreview(frame: MirrorFrame): void {

@@ -52,7 +52,7 @@ export class ScreenMirror {
    * by the consumer). The management server relays this to the C# power gate
    * as a wake signal — the gate's own input monitor is blind in containers.
    */
-  public onUserActivity: (() => void) | null = null;
+  public onUserActivity: ((kind: 'move' | 'click' | 'key') => void) | null = null;
 
   constructor(private iframeGetter: () => HTMLIFrameElement | null) {
     // Bench/e2e introspection hook.
@@ -137,6 +137,7 @@ export class ScreenMirror {
       })();
     }, 1500);
     this.hookInput();
+    this.startRehookWatchdog();
   }
 
   /** Compose ghost preview of a candidate overlay over the freshest frame. */
@@ -170,37 +171,71 @@ export class ScreenMirror {
     if (this.timer !== null) { clearInterval(this.timer); this.timer = null; }
   }
 
+  // Stable wrapper identities — inline arrows would leak on re-hook cycles.
+  private readonly onMove = (): void => this.onInput('move');
+  private readonly onScroll = (): void => this.onInput('move');
+
   private unhookInput(): void {
     if (!this.hooked) return;
     try {
-      this.hooked.removeEventListener('mousemove', this.onInput);
-      this.hooked.removeEventListener('wheel', this.onInput);
-      this.hooked.removeEventListener('scroll', this.onInput, true);
-      this.hooked.removeEventListener('mousedown', this.onInput);
-      this.hooked.removeEventListener('keydown', this.onInput);
-      document.removeEventListener('keydown', this.onInput);
+      this.hooked.removeEventListener('mousemove', this.onMove);
+      this.hooked.removeEventListener('wheel', this.onMove);
+      this.hooked.removeEventListener('scroll', this.onScroll, true);
+      this.hooked.removeEventListener('mousedown', this.onClick);
+      this.hooked.removeEventListener('keydown', this.onKey);
+      document.removeEventListener('keydown', this.onKey);
     } catch { /* iframe torn down */ }
     this.hooked = null;
   }
 
   private hookInput(): void {
+    this.unhookInput();
     const doc: Document | null = (this.iframeGetter() as unknown as MirrorDoc | null)?.contentDocument ?? null;
     if (!doc) return;
     try {
-      doc.addEventListener('mousemove', this.onInput, { passive: true });
-      doc.addEventListener('wheel', this.onInput, { passive: true });
-      doc.addEventListener('scroll', this.onInput, true);
-      doc.addEventListener('mousedown', this.onInput);
-      doc.addEventListener('keydown', this.onInput);
+      doc.addEventListener('mousemove', this.onMove, { passive: true });
+      doc.addEventListener('wheel', this.onMove, { passive: true });
+      doc.addEventListener('scroll', this.onScroll, true);
+      doc.addEventListener('mousedown', this.onClick, { passive: true });
+      doc.addEventListener('keydown', this.onKey);
       // Tab/Enter etc. while focus is on the outer page must count too.
-      document.addEventListener('keydown', this.onInput);
+      document.addEventListener('keydown', this.onKey);
       this.hooked = doc;
     } catch { /* not same-origin */ }
   }
 
-  private onInput = (): void => {
+  /**
+   * Phase 6 FIX: the KasmVNC iframe loads (and navigates on reconnect) AFTER
+   * applyCadence hooks it — hooks on the initial about:blank document are
+   * dead, so wake/auto-continue never saw a single real input event. A cheap
+   * watchdog re-hooks whenever the iframe's document identity changes.
+   */
+  private rehookTimer: number | null = null;
+
+  private startRehookWatchdog(): void {
+    if (this.rehookTimer !== null) return;
+    this.rehookTimer = window.setInterval(() => {
+      if (this.currentCadence === 'off') return;
+      const doc: Document | null = (this.iframeGetter() as unknown as MirrorDoc | null)?.contentDocument ?? null;
+      if (doc && doc !== this.hooked) this.hookInput();
+    }, 4000);
+  }
+
+  private onClick = (): void => {
+    // Phase 6: clicks are intent — a distinct kind so consumers can treat
+    // them as stronger evidence than drift (auto-continue reacts faster).
+    try { this.onUserActivity?.('click'); } catch { /* never break the mirror */ }
+    this.onInput('click');
+  };
+
+  private onKey = (): void => {
+    try { this.onUserActivity?.('key'); } catch { /* never break the mirror */ }
+    this.onInput('key');
+  };
+
+  private onInput = (kind: 'move' | 'click' | 'key' = 'move'): void => {
     // Phase 5 item 3: real VM user input = wake signal (consumer throttles).
-    try { this.onUserActivity?.(); } catch { /* never break the mirror */ }
+    try { this.onUserActivity?.(kind); } catch { /* never break the mirror */ }
     if (this.currentCadence === 'off') return;
     if (this.debounceTimer !== null) return;
     this.debounceTimer = window.setTimeout(() => {
@@ -285,8 +320,9 @@ export class ScreenMirror {
     // (falls back to the canvas backing size).
     const dw = Number(iframe?.dataset.ocDisplayWidth ?? vncCanvas.width);
     const dh = Number(iframe?.dataset.ocDisplayHeight ?? vncCanvas.height);
+    const contentBounds = this.detectContentBounds(out, dw || vncCanvas.width, dh || vncCanvas.height);
 
-    const meta = { displayWidth: dw || vncCanvas.width, displayHeight: dh || vncCanvas.height };
+    const meta = { displayWidth: dw || vncCanvas.width, displayHeight: dh || vncCanvas.height, contentBounds };
     let dataUrl: string;
     try {
       dataUrl = out.toDataURL('image/jpeg', 0.62);
@@ -300,7 +336,7 @@ export class ScreenMirror {
   private async send(
     canvas: HTMLCanvasElement,
     trigger: string,
-    meta: { displayWidth: number; displayHeight: number },
+    meta: { displayWidth: number; displayHeight: number; contentBounds?: { x: number; y: number; width: number; height: number } | null },
     cadenceMs: number | undefined,
     isPreview = false,
   ): Promise<void> {
@@ -316,11 +352,59 @@ export class ScreenMirror {
           height: canvas.height,
           displayWidth: meta.displayWidth,
           displayHeight: meta.displayHeight,
+          contentBounds: meta.contentBounds ?? null,
           trigger: trigger,
           cadenceMs,
         }),
       });
     } catch { /* offline moments are fine */ }
+  }
+
+  /**
+   * Phase 6: black-bar (letterbox) detection. The guest desktop can sit
+   * inside uniform dark margins; markings aimed there are invisible junk.
+   * Scans the downscaled frame for fully-dark edge rows/cols and returns the
+   * interior in DISPLAY coordinates. Null when there are no real bars — or
+   * when the "interior" is suspiciously tiny (a dark page must not collapse
+   * the bounds). Throttled; pixels are only read every ~2s.
+   */
+  private lastBoundsScan = 0;
+  private cachedContentBounds: { x: number; y: number; width: number; height: number } | null = null;
+
+  private detectContentBounds(out: HTMLCanvasElement, dw: number, dh: number): { x: number; y: number; width: number; height: number } | null {
+    const now = Date.now();
+    if (now - this.lastBoundsScan < 2000) return this.cachedContentBounds;
+    this.lastBoundsScan = now;
+    try {
+      const ctx = out.getContext('2d');
+      if (!ctx) return this.cachedContentBounds;
+      const w = out.width, h = out.height;
+      const px = ctx.getImageData(0, 0, w, h).data;
+      const dark = (i: number): boolean => px[i] < 28 && px[i + 1] < 28 && px[i + 2] < 28;
+      const rowDark = (y: number): boolean => {
+        for (let x = 0; x < w; x += 4) { if (!dark((y * w + x) * 4)) return false; }
+        return true;
+      };
+      const colDark = (x: number): boolean => {
+        for (let y = 0; y < h; y += 4) { if (!dark((y * w + x) * 4)) return false; }
+        return true;
+      };
+      let top = 0; while (top < h - 2 && rowDark(top)) top++;
+      let bottom = h - 1; while (bottom > top && rowDark(bottom)) bottom--;
+      let left = 0; while (left < w - 2 && colDark(left)) left++;
+      let right = w - 1; while (right > left && colDark(right)) right--;
+      const interior = ((right - left + 1) / w) * ((bottom - top + 1) / h);
+      // No meaningful bars, or the scan collapsed a dark page into nothing.
+      if (interior > 0.94 || interior < 0.3) { this.cachedContentBounds = null; return null; }
+      const sx = dw / w, sy = dh / h;
+      this.cachedContentBounds = {
+        x: Math.round(left * sx),
+        y: Math.round(top * sy),
+        width: Math.round((right - left + 1) * sx),
+        height: Math.round((bottom - top + 1) * sy),
+      };
+      return this.cachedContentBounds;
+    } catch { return this.cachedContentBounds; }
   }
 
   /** A4: immediate capture+upload, used when see_screen requests fresh pixels. */

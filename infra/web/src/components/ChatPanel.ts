@@ -170,26 +170,81 @@ export class ChatPanel {
   }
 
   /**
-   * Phase 5 item 6: context meter — mirrors the server's compaction budget
-   * (COMPACTION_BUDGET_CHARS in /api/chat). Past ~100% the server compacts
-   * older turns automatically; the meter makes that visible instead of magic.
+   * Phase 6: context donut — a small ring with a hole, silent at rest. Hover
+   * tooltip carries the numbers ("not flooding the screen with junk"). The
+   * server feeds it via the `context` SSE event (its budget + compaction are
+   * the truth); between events we estimate from local history.
    */
-  // Mirrors COMPACTION_BUDGET_CHARS in infra/server/src/server.ts. Counting
-  // formula differs slightly (server also counts tool_calls JSON) — near enough
-  // for a visibility meter.
-  private static CONTEXT_BUDGET = 24_000;
+  private contextBudget = 48_000;
+  /** Set by the Go button; consumed by the next /api/chat POST (one-shot). */
+  private pendingPlanApproved = false;
 
-  private updateContextMeter(): void {
-    let meter = this.container.querySelector('.chat-context-meter') as HTMLElement | null;
+  // ── Auto-continue (Phase 6) ────────────────────────────────────────────────
+  // The user should almost never type. When the assistant ends its turn
+  // mid-checklist, VM activity (move/click/key — more may come) resumes it.
+  private awaitingActivity = false;
+  private lastAutoContinue = 0;
+  private planMode: 'plan' | 'act' | 'done' = 'act';
+  private planRemaining = 0;
+
+  /** Called by app.ts on real VM input; resumes a paused checklist. */
+  public notifyUserActivity(kind: 'move' | 'click' | 'key'): void {
+    // Bench-visible breadcrumb (console.debug is silent in normal use).
+    console.debug('[chat] activity', kind, 'awaiting:', this.awaitingActivity, 'mode:', this.planMode, 'remaining:', this.planRemaining);
+    if (!this.awaitingActivity || this.planMode !== 'act' || this.planRemaining === 0) return;
+    const now = Date.now();
+    // Clicks are intent (resume quickly); drift must not machine-gun turns.
+    const minGap = kind === 'click' ? 6000 : kind === 'key' ? 6000 : 15000;
+    if (now - this.lastAutoContinue < minGap) return;
+    this.lastAutoContinue = now;
+    this.awaitingActivity = false;
+    const note = document.createElement('div');
+    note.className = 'chat-msg chat-msg--auto';
+    note.textContent = '↻ auto-continued after your action';
+    this.messagesEl.appendChild(note);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    // Phase 6 FIX: send the PAYLOAD — send() reads the (empty) textarea and
+    // would silently drop the continuation.
+    void this.sendText('Continue — I acted on your instruction in the VM.');
+  }
+
+  private updateContextMeter(ctx?: { used: number; budget: number; userBudget?: number; modelContextTokens?: number | null; compacted?: boolean }): void {
+    const budget = ctx?.budget ?? this.contextBudget;
+    if (ctx?.budget) this.contextBudget = ctx.budget;
+    const used = ctx?.used ?? this.history.reduce((n, m) => n + String(m.content ?? '').length, 0);
+    const frac = Math.max(0, Math.min(1, used / Math.max(1, budget)));
+    const pct = Math.round(frac * 100);
+
+    let meter = this.container.querySelector('.chat-context-meter') as SVGSVGElement | null;
     if (!meter) {
-      meter = document.createElement('div');
-      meter.className = 'chat-context-meter';
+      meter = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      meter.setAttribute('class', 'chat-context-meter');
+      meter.setAttribute('viewBox', '0 0 22 22');
+      meter.setAttribute('width', '18');
+      meter.setAttribute('height', '18');
+      const track = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      track.setAttribute('cx', '11'); track.setAttribute('cy', '11'); track.setAttribute('r', '8.5');
+      track.setAttribute('class', 'chat-context-meter-track');
+      const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      ring.setAttribute('cx', '11'); ring.setAttribute('cy', '11'); ring.setAttribute('r', '8.5');
+      ring.setAttribute('class', 'chat-context-meter-ring');
+      meter.appendChild(track);
+      meter.appendChild(ring);
       this.messagesEl.appendChild(meter);
     }
-    const chars = this.history.reduce((n, m) => n + String(m.content ?? '').length, 0);
-    const pct = Math.min(100, Math.round((chars / ChatPanel.CONTEXT_BUDGET) * 100));
-    meter.textContent = `context ~${pct}% (older turns auto-compacted)`;
-    meter.style.color = pct > 80 ? '#b45309' : 'var(--text-dim, #666)';
+    const ring = meter.querySelector('.chat-context-meter-ring') as SVGCircleElement;
+    const C = 2 * Math.PI * 8.5;
+    ring.setAttribute('stroke-dasharray', `${(frac * C).toFixed(1)} ${C.toFixed(1)}`);
+    ring.classList.toggle('chat-context-meter--hot', pct > 80);
+    const kUsed = used >= 1000 ? `${(used / 1000).toFixed(1)}k` : String(used);
+    const kBudget = budget >= 1000 ? `${Math.round(budget / 1000)}k` : String(budget);
+    const clampNote = ctx?.userBudget && ctx.userBudget > budget
+      ? ` · model window clamps your ${Math.round(ctx.userBudget / 1000)}k setting`
+      : '';
+    meter.querySelector('title')?.remove();
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = `Context ${pct}% used (${kUsed} / ${kBudget} chars) — older turns auto-compacted${clampNote}`;
+    meter.appendChild(title);
   }
 
   /**
@@ -198,6 +253,10 @@ export class ChatPanel {
    */
   private renderTaskPlan(steps: Array<{ index: number; text: string; status: string }>, mode: string): void {
     const marks: Record<string, string> = { done: '☑', in_progress: '▶', pending: '☐', skipped: '⊘', blocked: '⚠' };
+    // Phase 6: auto-continue bookkeeping — the checklist decides whether user
+    // activity in the VM should resume the assistant without typing.
+    this.planMode = mode === 'plan' ? 'plan' : mode === 'done' ? 'done' : 'act';
+    this.planRemaining = steps.filter((s) => s.status === 'pending' || s.status === 'in_progress').length;
     let host = this.messagesEl.querySelector('.chat-plan') as HTMLElement | null;
     if (!host) {
       host = document.createElement('div');
@@ -222,6 +281,11 @@ export class ChatPanel {
       go.className = 'chat-plan-go';
       go.textContent = 'Go';
       go.onclick = () => {
+        // Explicit consent flag — the server trusts THIS, not message text
+        // (an open-ended text heuristic approved on replies like
+        // "Yes, but first open the file").
+        this.pendingPlanApproved = true;
+        this.planMode = 'act';
         this.inputEl.value = 'Go — proceed with the checklist.';
         void this.send();
         go.remove();
@@ -242,7 +306,10 @@ export class ChatPanel {
    *  Approves via the same endpoint as the Settings GUI — one consent path. */
   private requestPrefApproval(requested: Record<string, unknown>): void {
     const human = Object.entries(requested)
-      .map(([k, v]) => `${k.replace('maxSingularOpacity', 'single-marking opacity').replace('maxOverallOpacity', 'combined opacity')} = ${Math.round(Number(v) * 100)}%`)
+      .map(([k, v]) => {
+        if (k === 'contextBudgetChars') return `context budget = ${Number(v).toLocaleString()} chars`;
+        return `${k.replace('maxSingularOpacity', 'single-marking opacity').replace('maxOverallOpacity', 'combined opacity')} = ${Math.round(Number(v) * 100)}%`;
+      })
       .join(', ');
     const chip = document.createElement('div');
     chip.className = 'chat-pref-approval';
@@ -385,16 +452,48 @@ export class ChatPanel {
     if (!text) return;
     this.inputEl.value = '';
     this.autosizeInput();
+    await this.sendText(text);
+  }
+
+  /** Payload-driven send — the user-typed path AND the auto-continue path. */
+  private async sendText(text: string): Promise<void> {
+    this.awaitingActivity = false; // a new message drives the task itself
+    const planApproved = this.pendingPlanApproved;
+    this.pendingPlanApproved = false;
     this.history.push({ role: 'user', content: text });
     this.appendMessage('user', text);
     this.updateContextMeter();
+
+    // Phase 6 item 3: the dots element is owned by the stream — when the
+    // stream ends (success, error, or abort) it must settle. Leftover
+    // animated dots from a previous turn are the "two thinking icons" bug.
+    let thinkingEl: HTMLElement | null = null;
+    let thinkingText = '';
+    const finishThinking = (): void => {
+      if (!thinkingEl) return;
+      const t = thinkingEl as HTMLDetailsElement & { _pre?: HTMLElement };
+      if (thinkingText.trim()) {
+        // Keep the raw reasoning, collapsed, with a still summary marker.
+        const summary = t.querySelector('summary');
+        if (summary) summary.innerHTML = '<span class="chat-thinking-done">·</span>';
+        t.classList.add('chat-thinking--settled');
+      } else {
+        t.remove();
+      }
+      thinkingEl = null;
+    };
+    // A previous stream that never settled (page left mid-turn) must not
+    // keep animating — demote any stray dots before starting a new one.
+    for (const stray of this.messagesEl.querySelectorAll('.chat-thinking:not(.chat-thinking--settled) summary')) {
+      stray.innerHTML = '<span class="chat-thinking-done">·</span>';
+    }
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messages: this.history, modelId: (this.container.querySelector('#chat-model') as HTMLSelectElement | null)?.value || undefined }),
+        body: JSON.stringify({ messages: this.history, planApproved, modelId: (this.container.querySelector('#chat-model') as HTMLSelectElement | null)?.value || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
@@ -408,8 +507,6 @@ export class ChatPanel {
       let buffer = '';
       let assistantText = '';
       let bubble: HTMLElement | null = null;
-      let thinkingEl: HTMLElement | null = null;
-      let thinkingText = '';
       const ensureBubble = () => {
         if (!bubble) {
           bubble = document.createElement('div');
@@ -443,9 +540,12 @@ export class ChatPanel {
             const payload = line.slice(5).trim();
             if (!payload) continue;
             try {
-              const parsed = JSON.parse(payload) as { text?: string; tool?: string; result?: string; error?: string; thinking?: string };
+              const parsed = JSON.parse(payload) as { text?: string; tool?: string; result?: string; error?: string; thinking?: string; context?: { used: number; budget: number; userBudget?: number; modelContextTokens?: number | null; compacted?: boolean } };
               if (parsed.error) {
                 ensureBubble().textContent = `Error: ${parsed.error}`;
+              } else if (parsed.context) {
+                // Phase 6: the donut is server-fed — never guess the budget.
+                this.updateContextMeter(parsed.context);
               } else if (parsed.thinking) {
                 // Phase 5 item 7: reasoning NEVER streams into the user's view.
                 // A 3-dot shimmer signals liveness; raw text stays in a tiny
@@ -505,10 +605,19 @@ export class ChatPanel {
         }
       }
       this.hideWorking();
+      finishThinking();
       if (assistantText) this.history.push({ role: 'assistant', content: assistantText });
+      // Phase 6: pause-resume. If the turn ended mid-checklist without a
+      // question, VM activity auto-continues it. A trailing question means
+      // the user genuinely must answer — no machine-gun prompting.
+      const finalText = assistantText.trim();
+      this.awaitingActivity = this.planMode === 'act' && this.planRemaining > 0
+        && finalText.length > 0 && !finalText.endsWith('?') && !/^Error/i.test(finalText);
+      console.debug('[chat] turn end awaiting:', this.awaitingActivity, 'mode:', this.planMode, 'remaining:', this.planRemaining, 'text?', finalText.length > 0);
       this.updateContextMeter();
     } catch (err) {
       this.hideWorking();
+      try { finishThinking(); } catch { /* element already gone */ }
       this.appendMessage('assistant', `Network error: ${(err as Error).message}`);
     }
   }

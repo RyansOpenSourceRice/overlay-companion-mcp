@@ -1613,7 +1613,12 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 /* Phase 3.5 A5: interim narration between tool calls — muted, compact. */
 .chat-msg--note { align-self: flex-start; background: transparent; color: var(--text-dim, #666); font-size: 0.82rem; padding: 0.15rem 0.75rem; }
 /* Phase 5 item 6: context meter (compaction visibility). */
-.chat-context-meter { align-self: flex-start; font-size: 0.7rem; color: var(--text-dim, #666); opacity: 0.7; padding: 0.1rem 0.75rem; }
+/* Phase 6: context DONUT — silent at rest, numbers on hover only. */
+.chat-context-meter { align-self: flex-start; opacity: 0.65; padding: 0.1rem 0.75rem; transform: rotate(-90deg); }
+.chat-context-meter:hover { opacity: 1; }
+.chat-context-meter-track { fill: none; stroke: var(--border, #ccc); stroke-width: 3; }
+.chat-context-meter-ring { fill: none; stroke: var(--text-dim, #666); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray 0.4s ease; }
+.chat-context-meter-ring.chat-context-meter--hot { stroke: #b45309; }
 /* Phase 3.5: per-user marking-limit inputs in Assistant preferences. */
 .pref-limit-input { max-width: 7rem; }
 /* Phase 5: pending AI-requested preference change (approve/deny chip). */
@@ -1654,6 +1659,10 @@ body.chat-open.chat-left .main-content { margin-left: var(--chat-w); }
 .chat-thinking-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-dim, #666); opacity: 0.4; animation: chat-think-bounce 1.2s infinite ease-in-out; }
 .chat-thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
 .chat-thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
+/* Phase 6: settled dots — static marker, no animation, exactly one live set. */
+.chat-thinking-done { color: var(--text-dim, #666); font-size: 12px; }
+/* Phase 6: auto-continue marker — the system typed, the user didn't. */
+.chat-msg--auto { font-size: 0.72rem; font-style: italic; color: var(--text-dim, #888); opacity: 0.75; }
 @keyframes chat-think-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-3px); opacity: 1; } }
 .chat-thinking:not([open]) .chat-thinking pre { display: none !important; }
 /* Header model picker (admin-delegated AI models). */
