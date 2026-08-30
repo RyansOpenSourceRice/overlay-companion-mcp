@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with: { node-version: '20' }
       - name: Web + server typecheck
         run: |
           (cd infra/web && npm ci --no-audit --no-fund && npx tsc -p tsconfig.json --noEmit || true)
           (cd infra/server && npm ci --no-audit --no-fund && npx tsc -p tsconfig.json --noEmit)
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with: { dotnet-version: '8.0.x' }
       - name: C# build
         run: dotnet build src -c Release --nologo /clp:ErrorsOnly
